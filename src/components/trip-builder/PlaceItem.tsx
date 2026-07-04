@@ -10,6 +10,7 @@ import {
   getDefaultDuration,
   ALL_CATEGORIES,
   getCategoryFallbackImage,
+  getActivePhotoUrl,
 } from "../../utils/categoryUtils";
 import { summarizePlace } from "../../services/aiService";
 
@@ -197,7 +198,7 @@ export const PlaceItem: React.FC<PlaceItemProps> = ({ place }) => {
           {showImages && (
             <div className="w-full h-24 mb-3 rounded-lg overflow-hidden relative shrink-0">
               <img 
-                src={place.photoUrl || getCategoryFallbackImage(place.category)} 
+                src={getActivePhotoUrl(place.photoUrl) || getCategoryFallbackImage(place.category)} 
                 alt={place.name} 
                 loading="lazy"
                 onError={(e) => {

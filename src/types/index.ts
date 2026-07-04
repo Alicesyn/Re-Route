@@ -11,9 +11,16 @@ export type PlaceCategory =
   | "nightlife"
   | "other";
 
+export interface CategoryDayOverride {
+  minPerDay?: number | null;
+  maxPerDay?: number | null;
+}
+
 export interface CategoryConfig {
   minPerDay?: number | null;
   maxPerDay?: number | null;
+  firstDayOverride?: CategoryDayOverride;
+  lastDayOverride?: CategoryDayOverride;
 }
 
 export interface Place {

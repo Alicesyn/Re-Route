@@ -7,7 +7,8 @@ import { MapView } from "./components/map/MapView";
 import { DailySchedule } from "./components/schedule/DailySchedule";
 import { useRouteStore } from "./store/useRouteStore";
 import { solveTSP } from "./services/tspSolver";
-import { Wand2, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
+import { searchPlaces, clearMapsCache } from "./services/mapsService";
+import { Wand2, Sparkles, ChevronDown, ChevronUp, RefreshCw, Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { summarizePlace, summarizePlacesBatch } from "./services/aiService";
 
@@ -261,6 +262,56 @@ function App() {
     }
   };
 
+  const [isSyncingPhotos, setIsSyncingPhotos] = useState(false);
+
+  const handleSyncPhotos = async () => {
+    if (places.length === 0 || isSyncingPhotos) return;
+    setIsSyncingPhotos(true);
+    console.log(`[Sync Photos] Starting photo sync for ${places.length} places...`);
+    try {
+      // Clear cache so we fetch fresh URLs from Google Places API
+      clearMapsCache();
+      
+      const updates: { id: string; updates: any }[] = [];
+      
+      // Perform searches sequentially to be kind to the API
+      for (const p of places) {
+        try {
+          console.log(`[Sync Photos] Fetching photo for: ${p.name}`);
+          const queryStr = p.address ? `${p.name} ${p.address}` : p.name;
+          const results = await searchPlaces(queryStr, { lat: p.lat, lng: p.lng });
+          
+          if (results && results.length > 0) {
+            const match = results.find(r => r.name.toLowerCase() === p.name.toLowerCase()) || results[0];
+            if (match.photoUrl) {
+              console.log(`[Sync Photos] Found photoUrl for ${p.name}: ${match.photoUrl}`);
+              updates.push({
+                id: p.id,
+                updates: {
+                  photoUrl: match.photoUrl,
+                }
+              });
+            }
+          }
+        } catch (err) {
+          console.error(`[Sync Photos] Failed to fetch photo for ${p.name}:`, err);
+        }
+      }
+
+      if (updates.length > 0) {
+        updatePlacesBulk(updates);
+        console.log(`[Sync Photos] Successfully synced ${updates.length} photos!`);
+      } else {
+        console.log(`[Sync Photos] No photo updates found.`);
+      }
+    } catch (err) {
+      console.error("Photo Sync Error:", err);
+    } finally {
+      setIsSyncingPhotos(false);
+    }
+  };
+
+
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-900 flex flex-col font-sans transition-colors overflow-hidden">
       <Header />
@@ -306,6 +357,21 @@ function App() {
                       className={`w-4 h-4 ${isGenerating ? "animate-pulse" : ""}`}
                     />
                     {isGenerating ? "Stop AI" : "AI Describe"}
+                  </button>
+                )}
+                 {places.length > 0 && (
+                  <button
+                    onClick={handleSyncPhotos}
+                    disabled={isSyncingPhotos}
+                    className="flex items-center gap-1.5 text-sm font-semibold text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/10 dark:hover:bg-primary-950/20 px-3 py-1.5 rounded-lg transition-all"
+                    title="Refresh all place photos from Google Maps"
+                  >
+                    {isSyncingPhotos ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    {isSyncingPhotos ? "Syncing..." : "Sync Photos"}
                   </button>
                 )}
                 {places.some((p) => p.dayIndex !== null) && (

@@ -109,9 +109,21 @@ function clusterPlaces(
     let maxScore = -Infinity;
 
     for (let d = 0; d < days; d++) {
+      // Resolve effective category config — merge day-specific overrides for first/last day
+      const isFirstDay = d === 0;
+      const isLastDay = d === days - 1;
+      const baseCatConfig = categoryConfigs?.[place.category];
+      const dayOverride = isFirstDay
+        ? baseCatConfig?.firstDayOverride
+        : isLastDay
+          ? baseCatConfig?.lastDayOverride
+          : undefined;
+      const catConfig = dayOverride
+        ? { ...baseCatConfig, ...dayOverride }
+        : baseCatConfig;
+
       // 1. Check max limit constraint
       const currentCount = categoryCounts[d]?.[place.category] || 0;
-      const catConfig = categoryConfigs?.[place.category];
       if (catConfig && catConfig.maxPerDay !== undefined && catConfig.maxPerDay !== null) {
         if (currentCount >= catConfig.maxPerDay) {
           continue; // Skip this day, it's at max capacity for this category
@@ -130,8 +142,6 @@ function clusterPlaces(
         dayTimeUsed[d] + (place.estimatedDuration ?? 60) + travelMin;
       const remaining = dailyBudgets[d] - totalIfAdded;
 
-      const isArrivalDay = d === 0;
-      const isDepartureDay = d === days - 1;
       // Force strict if this day has a reduced budget (e.g. due to a flight cutoff)
       const baseBudget = dailyBudgets.length > 0 ? Math.max(...dailyBudgets) : dailyBudgets[d];
       const dayIsConstrained = dailyBudgets[d] < baseBudget;

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useRouteStore } from "../../store/useRouteStore";
 import { getSuggestedPlaces } from "../../services/recommendationService";
 import { Place } from "../../types";
-import { getCategoryEmoji, getCategoryLabel, getCategoryFallbackImage } from "../../utils/categoryUtils";
+import { getCategoryEmoji, getCategoryLabel, getCategoryFallbackImage, getActivePhotoUrl } from "../../utils/categoryUtils";
 import { getDistance } from "../../utils/distance";
 import { Sparkles, MapPin, Plus, Check, ChevronLeft, ChevronRight, X } from "lucide-react";
 
@@ -208,7 +208,7 @@ export const SuggestedPlaces: React.FC = () => {
                 {showImages && (
                   <div className="h-32 w-full relative shrink-0">
                     <img
-                      src={place.photoUrl || getCategoryFallbackImage(place.category)}
+                      src={getActivePhotoUrl(place.photoUrl) || getCategoryFallbackImage(place.category)}
                       alt={place.name}
                       loading="lazy"
                       onError={(e) => {

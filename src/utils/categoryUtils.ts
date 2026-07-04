@@ -22,6 +22,27 @@ export function getDefaultDuration(cat: PlaceCategory): number {
   return customDurations?.[cat] ?? CATEGORY_DEFAULTS[cat].duration;
 }
 
+export function getActivePhotoUrl(photoUrl: string | undefined): string | undefined {
+  if (!photoUrl) return undefined;
+  if (photoUrl.includes("places.googleapis.com")) {
+    try {
+      const url = new URL(photoUrl);
+      const activeKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+      if (activeKey) {
+        url.searchParams.set("key", activeKey);
+        return url.toString();
+      }
+    } catch (e) {
+      const activeKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+      if (activeKey) {
+        return photoUrl.replace(/key=[^&]*/, `key=${activeKey}`);
+      }
+    }
+  }
+  return photoUrl;
+}
+
+
 // Keyword-based auto-categorizer
 // Scans name and description to infer the most likely category
 const KEYWORD_MAP: { category: PlaceCategory; keywords: string[] }[] = [

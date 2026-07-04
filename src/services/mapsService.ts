@@ -2,9 +2,15 @@ const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 // Persistent cache for search queries
 const CACHE_KEY = "reroute_search_cache";
-const searchCache: Record<string, any[]> = JSON.parse(
+let searchCache: Record<string, any[]> = JSON.parse(
   localStorage.getItem(CACHE_KEY) || "{}",
 );
+
+export const clearMapsCache = () => {
+  searchCache = {};
+  localStorage.removeItem(CACHE_KEY);
+};
+
 
 const saveToCache = (query: string, results: any[]) => {
   searchCache[query] = results;
