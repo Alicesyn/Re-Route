@@ -124,7 +124,7 @@ export const Header: React.FC = () => {
           className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors border outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-surface-800 text-surface-700 dark:text-surface-200 border-surface-200 dark:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-700"
         >
           <Settings className="w-4 h-4 text-surface-400 dark:text-surface-500" />
-          <span>Categories</span>
+          <span>Settings</span>
         </button>
 
         {/* Images Toggle */}

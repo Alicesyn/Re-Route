@@ -5,6 +5,7 @@ import { SuggestedPlaces } from "./components/trip-builder/SuggestedPlaces";
 import { TripSettings } from "./components/trip-builder/TripSettings";
 import { MapView } from "./components/map/MapView";
 import { DailySchedule } from "./components/schedule/DailySchedule";
+import { ApiErrorToast } from "./components/layout/ApiErrorToast";
 import { useRouteStore } from "./store/useRouteStore";
 import { solveTSP } from "./services/tspSolver";
 import { searchPlaces, clearMapsCache } from "./services/mapsService";
@@ -315,6 +316,7 @@ function App() {
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-900 flex flex-col font-sans transition-colors overflow-hidden">
       <Header />
+      <ApiErrorToast />
 
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 w-full custom-scrollbar">
         <div className="max-w-[1600px] mx-auto space-y-8 pb-12">

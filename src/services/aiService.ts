@@ -1,4 +1,5 @@
 import { PlaceCategory } from "../types";
+import { emitApiError } from "./apiErrorBus";
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const MODEL = "gemini-flash-latest";
@@ -69,6 +70,7 @@ export const summarizePlace = async (
         await new Promise((resolve) => setTimeout(resolve, 25000));
         return summarizePlace(name, address, types, retries - 1, signal);
       }
+      emitApiError({ source: "gemini", message: errorMessage, isQuota: isQuotaExceeded || response.status === 429 });
       throw new Error(errorMessage);
     }
 
@@ -145,6 +147,7 @@ export const summarizePlacesBatch = async (
         await new Promise((resolve) => setTimeout(resolve, 25000));
         return summarizePlacesBatch(places, retries - 1, signal);
       }
+      emitApiError({ source: "gemini", message: errorMessage, isQuota: isQuotaExceeded || response.status === 429 });
       throw new Error(errorMessage);
     }
 
@@ -220,6 +223,7 @@ export const suggestSights = async (
         await new Promise((resolve) => setTimeout(resolve, 25000));
         return suggestSights(lat, lng, rejectedNames, retries - 1);
       }
+      emitApiError({ source: "gemini", message: errorMessage, isQuota: isQuotaExceeded || response.status === 429 });
       throw new Error(errorMessage);
     }
 

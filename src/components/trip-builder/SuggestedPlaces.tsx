@@ -3,29 +3,15 @@ import { useRouteStore } from "../../store/useRouteStore";
 import { getSuggestedPlaces } from "../../services/recommendationService";
 import { Place } from "../../types";
 import { getCategoryEmoji, getCategoryLabel, getCategoryFallbackImage, getActivePhotoUrl } from "../../utils/categoryUtils";
-import { getDistance } from "../../utils/distance";
 import { Sparkles, MapPin, Plus, Check, ChevronLeft, ChevronRight, X, ExternalLink } from "lucide-react";
 
 export const SuggestedPlaces: React.FC = () => {
-  const { places, hotels, appMode, addPlace, showImages } = useRouteStore();
+  const { places, hotels, appMode, addPlace, showImages, distanceUnit } = useRouteStore();
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [dismissedNames, setDismissedNames] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Recalculate trip center to show estimated distance
-  const getCenterCoord = (): { lat: number; lng: number } | null => {
-    const points = [...hotels];
-    places.forEach((p) => points.push(p as any));
-    if (points.length === 0) return null;
-
-    const latSum = points.reduce((sum, p) => sum + p.lat, 0);
-    const lngSum = points.reduce((sum, p) => sum + p.lng, 0);
-    return { lat: latSum / points.length, lng: lngSum / points.length };
-  };
-
-  const center = getCenterCoord();
 
   // Track previous mode/hotels to know when to completely replace vs when to backfill
   const prevAppModeRef = useRef(appMode);
@@ -179,11 +165,31 @@ export const SuggestedPlaces: React.FC = () => {
         >
           {suggestions.map((place) => {
             const isAdded = addedIds.has(place.id);
-            let distanceStr = "";
+            const nearestHotel = (place as any).nearestHotel as { name: string; distanceM: number } | undefined;
+            const activePhotoUrl = getActivePhotoUrl(place.photoUrl);
+            const hasImage = showImages && !!activePhotoUrl;
 
-            if (center) {
-              const d = getDistance(place.lat, place.lng, center.lat, center.lng);
-              distanceStr = d > 1000 ? `${(d / 1000).toFixed(1)} km away` : `${Math.round(d)} m away`;
+            let distanceStr = "";
+            let hotelLabel = "";
+            if (nearestHotel) {
+              const d = nearestHotel.distanceM;
+              if (distanceUnit === "imperial") {
+                const ft = d * 3.28084;
+                if (ft >= 100) {
+                  const mi = ft / 5280;
+                  distanceStr = `${mi < 0.1 ? mi.toFixed(2) : mi.toFixed(1)} mi`;
+                } else {
+                  distanceStr = `${Math.round(ft)} ft`;
+                }
+              } else {
+                if (d >= 30) {
+                  const km = d / 1000;
+                  distanceStr = `${km < 0.1 ? km.toFixed(2) : km.toFixed(1)} km`;
+                } else {
+                  distanceStr = `${Math.round(d)} m`;
+                }
+              }
+              hotelLabel = nearestHotel.name;
             }
 
             return (
@@ -205,14 +211,14 @@ export const SuggestedPlaces: React.FC = () => {
                   <X className="w-4 h-4" />
                 </button>
 
-                {showImages && (
+                {hasImage && (
                   <div className="h-32 w-full relative shrink-0">
                     <img
-                      src={getActivePhotoUrl(place.photoUrl) || getCategoryFallbackImage(place.category)}
+                      src={activePhotoUrl!}
                       alt={place.name}
                       loading="lazy"
                       onError={(e) => {
-                        e.currentTarget.src = getCategoryFallbackImage(place.category);
+                        e.currentTarget.parentElement!.style.display = "none";
                       }}
                       className="absolute inset-0 w-full h-full object-cover"
                     />
@@ -220,16 +226,22 @@ export const SuggestedPlaces: React.FC = () => {
                   </div>
                 )}
 
-                <div className={`flex flex-col flex-grow ${showImages ? "p-4 pt-1" : "p-4"}`}>
+                <div className={`flex flex-col flex-grow ${hasImage ? "p-4 pt-1" : "p-4"}`}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-surface-400 uppercase tracking-tight bg-surface-50 dark:bg-surface-900 border border-surface-200/50 dark:border-surface-700/50 px-2 py-0.5 rounded-full relative z-10">
                       <span>{getCategoryEmoji(place.category)}</span>
                       <span>{getCategoryLabel(place.category)}</span>
                     </span>
                     {distanceStr && (
-                      <span className="flex items-center gap-0.5 text-[10px] font-semibold text-surface-400 relative z-10">
-                        <MapPin className="w-3 h-3 text-purple-400" />
-                        {distanceStr}
+                      <span
+                        className="flex items-center gap-0.5 text-[10px] font-semibold text-surface-400 relative z-10 max-w-[140px] truncate"
+                        title={hotelLabel ? `${distanceStr} from ${hotelLabel}` : distanceStr}
+                      >
+                        <MapPin className="w-3 h-3 text-purple-400 shrink-0" />
+                        <span className="truncate">
+                          {distanceStr}
+                          {hotelLabel && <span className="text-surface-300 dark:text-surface-600"> · {hotelLabel}</span>}
+                        </span>
                       </span>
                     )}
                   </div>

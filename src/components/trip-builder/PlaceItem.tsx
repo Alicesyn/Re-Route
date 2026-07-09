@@ -178,6 +178,9 @@ export const PlaceItem: React.FC<PlaceItemProps> = ({ place }) => {
     return dayColors[dayIndex % dayColors.length];
   };
 
+  const activePhotoUrl = getActivePhotoUrl(place.photoUrl);
+  const hasImage = showImages && !!activePhotoUrl;
+
   return (
     <div
       ref={setNodeRef}
@@ -195,14 +198,14 @@ export const PlaceItem: React.FC<PlaceItemProps> = ({ place }) => {
         </div>
 
         <div className="flex-1 min-w-0">
-          {showImages && (
+          {hasImage && (
             <div className="w-full h-24 mb-3 rounded-lg overflow-hidden relative shrink-0">
               <img 
-                src={getActivePhotoUrl(place.photoUrl) || getCategoryFallbackImage(place.category)} 
+                src={activePhotoUrl!} 
                 alt={place.name} 
                 loading="lazy"
                 onError={(e) => {
-                  e.currentTarget.src = getCategoryFallbackImage(place.category);
+                  e.currentTarget.parentElement!.style.display = "none";
                 }}
                 className="absolute inset-0 w-full h-full object-cover"
               />

@@ -48,6 +48,8 @@ interface RouteState extends ModeData {
   appMode: "real" | "mock" | "dropdown-mock";
   theme: "light" | "dark";
   showImages: boolean;
+  distanceUnit: "metric" | "imperial";
+  timeFormat: "12h" | "24h";
   categoryDurations: Record<PlaceCategory, number>;
   categoryConfigs: Partial<Record<PlaceCategory, CategoryConfig>>;
   optimizedRoutes: DayRoute[];
@@ -77,6 +79,8 @@ interface RouteState extends ModeData {
   setAppMode: (mode: "real" | "mock" | "dropdown-mock") => void;
   setTheme: (theme: "light" | "dark") => void;
   setShowImages: (show: boolean) => void;
+  setDistanceUnit: (unit: "metric" | "imperial") => void;
+  setTimeFormat: (format: "12h" | "24h") => void;
   setCategoryDuration: (category: PlaceCategory, duration: number) => void;
   setCategoryConfig: (category: PlaceCategory, config: Partial<CategoryConfig>) => void;
 
@@ -171,6 +175,8 @@ export const useRouteStore = create<RouteState>()(
       appMode: "mock",
       theme: "light",
       showImages: true,
+      distanceUnit: "metric",
+      timeFormat: "12h",
       categoryDurations: ALL_CATEGORIES.reduce(
         (acc, cat) => ({
           ...acc,
@@ -291,6 +297,8 @@ export const useRouteStore = create<RouteState>()(
         }),
       setTheme: (theme) => set({ theme }),
       setShowImages: (showImages) => set({ showImages }),
+      setDistanceUnit: (distanceUnit) => set({ distanceUnit }),
+      setTimeFormat: (timeFormat) => set({ timeFormat }),
       setCategoryDuration: (category, duration) =>
         set((state) => ({
           categoryDurations: { ...state.categoryDurations, [category]: duration },

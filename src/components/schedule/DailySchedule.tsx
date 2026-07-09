@@ -37,8 +37,14 @@ import { CSS } from "@dnd-kit/utilities";
 import { EditPlaceModal } from "./EditPlaceModal";
 
 const formatTime = (totalMinutes: number) => {
+  const { timeFormat } = useRouteStore.getState();
   const hours = Math.floor(totalMinutes / 60) % 24;
   const mins = Math.floor(totalMinutes % 60);
+  
+  if (timeFormat === "24h") {
+    return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
+  }
+
   const period = hours >= 12 ? "PM" : "AM";
   const displayHours = hours % 12 || 12;
   return `${displayHours}:${mins.toString().padStart(2, "0")} ${period}`;
@@ -381,7 +387,25 @@ const SegmentPill: React.FC<{
         {getModeIcon()}
         <span>{Math.round(segment.time / 60)} min</span>
         <span className="text-surface-300 dark:text-surface-600 mx-0.5">•</span>
-        <span>{(segment.distance / 1000).toFixed(1)} km</span>
+        <span>
+          {(() => {
+            const dist = segment.distance;
+            if (useRouteStore.getState().distanceUnit === "imperial") {
+              const ft = dist * 3.28084;
+              if (ft >= 100) {
+                const mi = ft / 5280;
+                return `${mi < 0.1 ? mi.toFixed(2) : mi.toFixed(1)} mi`;
+              }
+              return `${Math.round(ft)} ft`;
+            } else {
+              if (dist >= 30) {
+                const km = dist / 1000;
+                return `${km < 0.1 ? km.toFixed(2) : km.toFixed(1)} km`;
+              }
+              return `${Math.round(dist)} m`;
+            }
+          })()}
+        </span>
 
         <select
           value={segment.travelMode || "driving"}
@@ -413,6 +437,8 @@ export const DailySchedule: React.FC = () => {
     showFlights,
     arrivalFlight,
     departureFlight,
+    timeFormat,
+    distanceUnit,
   } = useRouteStore();
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 

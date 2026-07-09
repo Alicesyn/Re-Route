@@ -11,7 +11,13 @@ interface Props {
 }
 
 export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
-  const { categoryDurations, setCategoryDuration, categoryConfigs, setCategoryConfig, applyCategoryDurationsToPlaces } = useRouteStore();
+  const { 
+    categoryDurations, setCategoryDuration, 
+    categoryConfigs, setCategoryConfig, 
+    applyCategoryDurationsToPlaces,
+    distanceUnit, setDistanceUnit,
+    timeFormat, setTimeFormat
+  } = useRouteStore();
 
   // Local state for inputs to allow empty strings while typing
   const [localDurations, setLocalDurations] = useState<Record<string, string>>({});
@@ -119,10 +125,10 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
           <div>
             <h2 className="text-xl font-black text-surface-900 dark:text-white flex items-center gap-2">
               <Settings className="w-5 h-5 text-primary-500" />
-              Category Settings
+              Settings
             </h2>
             <p className="text-sm text-surface-500 dark:text-surface-400 mt-1">
-              Configure default visit durations and daily limits. Expand a category to set first/last day exceptions.
+              Configure global preferences and category-specific rules.
             </p>
           </div>
           <button
@@ -134,10 +140,79 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Content */}
-        <div className="overflow-y-auto flex-grow no-scrollbar">
+        <div className="overflow-y-auto flex-grow no-scrollbar pb-6">
+
+          {/* General Settings */}
+          <div className="px-6 py-6 border-b border-surface-200 dark:border-surface-700 space-y-4">
+            <h3 className="text-sm font-bold text-surface-900 dark:text-white uppercase tracking-wider mb-2">
+              General
+            </h3>
+            
+            <div className="grid grid-cols-2 gap-6">
+              {/* Distance Unit */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
+                  Distance Unit
+                </label>
+                <div className="flex bg-surface-100 dark:bg-surface-900 p-1 rounded-lg">
+                  <button
+                    onClick={() => setDistanceUnit("metric")}
+                    className={`flex-1 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                      distanceUnit === "metric"
+                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm"
+                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                    }`}
+                  >
+                    Metric (km, m)
+                  </button>
+                  <button
+                    onClick={() => setDistanceUnit("imperial")}
+                    className={`flex-1 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                      distanceUnit === "imperial"
+                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm"
+                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                    }`}
+                  >
+                    Imperial (mi, ft)
+                  </button>
+                </div>
+              </div>
+
+              {/* Time Format */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
+                  Time Format
+                </label>
+                <div className="flex bg-surface-100 dark:bg-surface-900 p-1 rounded-lg">
+                  <button
+                    onClick={() => setTimeFormat("12h")}
+                    className={`flex-1 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                      timeFormat === "12h"
+                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm"
+                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                    }`}
+                  >
+                    12-hour (AM/PM)
+                  </button>
+                  <button
+                    onClick={() => setTimeFormat("24h")}
+                    className={`flex-1 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                      timeFormat === "24h"
+                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm"
+                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                    }`}
+                  >
+                    24-hour (Military)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div className="grid grid-cols-12 gap-4 pb-3 border-b border-surface-200 dark:border-surface-700 text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider sticky top-0 bg-white dark:bg-surface-800 z-10 pt-6 px-6">
-            <div className="col-span-4">Category</div>
+            <div className="col-span-4 flex flex-col">
+              <span>Category Limits</span>
+            </div>
             <div className="col-span-3 text-center flex items-center justify-center gap-1"><Timer className="w-3 h-3"/> Default Duration</div>
             <div className="col-span-2 text-center flex items-center justify-center gap-1"><Minimize2 className="w-3 h-3"/> Min/Day</div>
             <div className="col-span-3 text-center flex items-center justify-center gap-1"><Maximize2 className="w-3 h-3"/> Max/Day</div>

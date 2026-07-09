@@ -221,16 +221,27 @@ function getItineraryCenter(places: Place[], hotels: Hotel[]): { lat: number; ln
 }
 
 /**
- * Main function to fetch suggested places dynamically based on trip center coordinates
+ * Returns the unique set of hotels (by lat/lng), for querying suggestions per-hotel.
+ */
+function getUniqueHotels(hotels: Hotel[]): Hotel[] {
+  const seen = new Set<string>();
+  return hotels.filter((h) => {
+    const key = `${h.lat.toFixed(4)}_${h.lng.toFixed(4)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * Main function to fetch suggested places per hotel, with nearest-hotel attribution.
  */
 export async function getSuggestedPlaces(
   places: Place[],
   hotels: Hotel[],
   appMode: "real" | "mock" | "dropdown-mock",
   rejectedNames: string[] = []
-): Promise<Place[]> {
-  const center = getItineraryCenter(places, hotels);
-
+): Promise<(Place & { nearestHotel?: { name: string; distanceM: number } })[]> {
   // Existing place names/coordinates to filter duplicates
   const existingNames = new Set(places.map((p) => p.name.toLowerCase()));
   const existingCoords = places.map((p) => ({ lat: p.lat, lng: p.lng }));
@@ -239,115 +250,138 @@ export async function getSuggestedPlaces(
     if (existingNames.has(name.toLowerCase())) return true;
     for (const coord of existingCoords) {
       const dist = getDistance(lat, lng, coord.lat, coord.lng);
-      if (dist < 100) return true; // Closer than 100 meters is basically duplicate
+      if (dist < 100) return true;
     }
     return false;
   };
 
-  let candidateSights: any[] = [];
-  const cacheKey = `re_route_suggestions_${center.lat.toFixed(2)}_${center.lng.toFixed(2)}`;
+  // Determine anchor points — prefer unique hotels, fall back to itinerary center
+  const uniqueHotels = getUniqueHotels(hotels);
+  const anchors: { lat: number; lng: number; label: string }[] =
+    uniqueHotels.length > 0
+      ? uniqueHotels.map((h) => ({ lat: h.lat, lng: h.lng, label: h.name }))
+      : [{ ...getItineraryCenter(places, hotels), label: "" }];
 
-  if (appMode === "real") {
-    const cachedData = sessionStorage.getItem(cacheKey);
-    if (cachedData) {
-      try {
-        candidateSights = JSON.parse(cachedData);
-        // Only use cache if we have enough valid un-rejected items
-        const validCached = candidateSights.filter((s) => !isDuplicate(s.name, s.lat, s.lng));
-        if (validCached.length < 3) {
-          candidateSights = []; // Reset to trigger a fresh fetch
+  // Collect all suggestions across all anchor points
+  const allSuggestions: any[] = [];
+  const seenSuggestionNames = new Set<string>();
+
+  for (const anchor of anchors) {
+    const cacheKey = `re_route_suggestions_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
+    let candidateSights: any[] = [];
+
+    if (appMode === "real") {
+      const cachedData = sessionStorage.getItem(cacheKey);
+      if (cachedData) {
+        try {
+          candidateSights = JSON.parse(cachedData);
+          const validCached = candidateSights.filter((s) => !isDuplicate(s.name, s.lat, s.lng));
+          if (validCached.length < 3) candidateSights = [];
+        } catch (e) {
+          console.warn("Failed to parse cached suggestions", e);
         }
-      } catch (e) {
-        console.warn("Failed to parse cached suggestions", e);
       }
-    }
 
-    if (candidateSights.length === 0) {
-      try {
-        // 1. Get freshly generated suggestions from Gemini AI
-        const aiSuggestions = await suggestSights(center.lat, center.lng, [...Array.from(existingNames), ...rejectedNames]);
+      if (candidateSights.length === 0) {
+        try {
+          const aiSuggestions = await suggestSights(anchor.lat, anchor.lng, [
+            ...Array.from(existingNames),
+            ...rejectedNames,
+            ...Array.from(seenSuggestionNames),
+          ]);
 
-        // 2. Map over AI suggestions and fetch authentic photoUrls & exact coords from Google Maps
-        const enrichedSuggestions = await Promise.all(
-          aiSuggestions.map(async (suggestion, idx) => {
-            try {
-              // Search Google Maps using the exact name and AI's estimated coordinates as bias
-              const mapsResult = await searchPlaces(suggestion.name, { lat: suggestion.lat, lng: suggestion.lng });
-              
-              if (mapsResult && mapsResult.length > 0) {
-                const bestMatch = mapsResult[0];
-                return {
-                  id: `rec_ai_${idx}_${Date.now()}`,
-                  name: bestMatch.name, // Use Google's official name
-                  address: bestMatch.address,
-                  lat: bestMatch.lat, // Use Google's exact GPS
-                  lng: bestMatch.lng,
-                  category: suggestion.category, // Keep AI's smart categorization
-                  estimatedDuration: suggestion.estimatedDuration,
-                  description: suggestion.description, // Keep AI's punchy description
-                  types: bestMatch.types,
-                  photoUrl: bestMatch.photoUrl, // Inject the authentic Google Maps photo URL!
-                };
+          const enrichedSuggestions = await Promise.all(
+            aiSuggestions.map(async (suggestion, idx) => {
+              try {
+                const mapsResult = await searchPlaces(suggestion.name, {
+                  lat: suggestion.lat,
+                  lng: suggestion.lng,
+                });
+                if (mapsResult && mapsResult.length > 0) {
+                  const bestMatch = mapsResult[0];
+                  return {
+                    id: `rec_ai_${idx}_${Date.now()}`,
+                    name: bestMatch.name,
+                    address: bestMatch.address,
+                    lat: bestMatch.lat,
+                    lng: bestMatch.lng,
+                    category: suggestion.category,
+                    estimatedDuration: suggestion.estimatedDuration,
+                    description: suggestion.description,
+                    types: bestMatch.types,
+                    photoUrl: bestMatch.photoUrl,
+                  };
+                }
+              } catch (e) {
+                console.warn(`Failed to fetch Google Maps data for ${suggestion.name}`, e);
               }
-            } catch (e) {
-              console.warn(`Failed to fetch Google Maps data for ${suggestion.name}`, e);
-            }
-            
-            // Fallback if Google Maps fails to find this specific AI suggestion
-            return {
-              id: `rec_ai_${idx}_${Date.now()}`,
-              name: suggestion.name,
-              address: "Location in the area",
-              lat: suggestion.lat,
-              lng: suggestion.lng,
-              category: suggestion.category,
-              estimatedDuration: suggestion.estimatedDuration,
-              description: suggestion.description,
-              types: [],
-              photoUrl: undefined,
-            };
-          })
-        );
+              return {
+                id: `rec_ai_${idx}_${Date.now()}`,
+                name: suggestion.name,
+                address: "Location in the area",
+                lat: suggestion.lat,
+                lng: suggestion.lng,
+                category: suggestion.category,
+                estimatedDuration: suggestion.estimatedDuration,
+                description: suggestion.description,
+                types: [],
+                photoUrl: undefined,
+              };
+            })
+          );
 
-        candidateSights = enrichedSuggestions;
-        sessionStorage.setItem(cacheKey, JSON.stringify(candidateSights));
-      } catch (err) {
-        console.warn("Failed to fetch suggestions from Gemini API, falling back to local dataset:", err);
+          candidateSights = enrichedSuggestions;
+          sessionStorage.setItem(cacheKey, JSON.stringify(candidateSights));
+        } catch (err) {
+          console.warn("Failed to fetch suggestions from Gemini API, falling back to local dataset:", err);
+        }
       }
     }
-  }
 
-  // Fallback to local high-quality mock data if API fails or we are in mock mode
-  if (candidateSights.length === 0) {
-    const isKyoto = Math.abs(center.lat - 35.01) < 0.3 && Math.abs(center.lng - 135.76) < 0.3;
-    const isTokyo = Math.abs(center.lat - 35.68) < 0.4 && Math.abs(center.lng - 139.76) < 0.4;
+    // Fallback to mock data if needed
+    if (candidateSights.length === 0) {
+      const isKyoto = Math.abs(anchor.lat - 35.01) < 0.3 && Math.abs(anchor.lng - 135.76) < 0.3;
+      const isTokyo = Math.abs(anchor.lat - 35.68) < 0.4 && Math.abs(anchor.lng - 139.76) < 0.4;
+      if (isKyoto) candidateSights = KYOTO_SIGHTS;
+      else if (isTokyo) candidateSights = TOKYO_SIGHTS;
+      else candidateSights = getGenericSights(anchor.lat, anchor.lng);
+    }
 
-    if (isKyoto) {
-      candidateSights = KYOTO_SIGHTS;
-    } else if (isTokyo) {
-      candidateSights = TOKYO_SIGHTS;
-    } else {
-      candidateSights = getGenericSights(center.lat, center.lng);
+    // Tag each suggestion with nearest hotel info, deduplicate across anchors
+    for (const s of candidateSights) {
+      if (isDuplicate(s.name, s.lat, s.lng)) continue;
+      if (seenSuggestionNames.has(s.name.toLowerCase())) continue;
+      seenSuggestionNames.add(s.name.toLowerCase());
+
+      const distanceM = getDistance(s.lat, s.lng, anchor.lat, anchor.lng);
+      allSuggestions.push({
+        ...s,
+        _nearestHotelName: anchor.label,
+        _nearestHotelDistanceM: distanceM,
+      });
     }
   }
 
-  // Filter out duplicates and limit to top 6
-  return candidateSights
-    .filter((s) => !isDuplicate(s.name, s.lat, s.lng))
-    .slice(0, 6)
-    .map((s) => ({
-      id: s.id,
-      name: s.name,
-      address: s.address,
-      lat: s.lat,
-      lng: s.lng,
-      category: s.category,
-      estimatedDuration: s.estimatedDuration,
-      description: s.description,
-      descriptionSource: "ai" as const, // Treat suggestions as pre-described so we don't trigger bulk AI on them immediately
-      dayIndex: null,
-      orderInDay: null,
-      pinnedToDay: false,
-      photoUrl: s.photoUrl,
-    }));
+  // Sort: closest to any hotel first, then cap at 10 total
+  allSuggestions.sort((a, b) => a._nearestHotelDistanceM - b._nearestHotelDistanceM);
+
+  return allSuggestions.slice(0, 10).map((s) => ({
+    id: s.id,
+    name: s.name,
+    address: s.address,
+    lat: s.lat,
+    lng: s.lng,
+    category: s.category,
+    estimatedDuration: s.estimatedDuration,
+    description: s.description,
+    descriptionSource: "ai" as const,
+    dayIndex: null,
+    orderInDay: null,
+    pinnedToDay: false,
+    photoUrl: s.photoUrl,
+    nearestHotel: s._nearestHotelName
+      ? { name: s._nearestHotelName, distanceM: s._nearestHotelDistanceM }
+      : undefined,
+  }));
 }
+

@@ -1,4 +1,5 @@
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+import { emitApiError } from "./apiErrorBus";
 
 // Persistent cache for search queries
 const CACHE_KEY = "reroute_search_cache";
@@ -79,7 +80,15 @@ export const searchPlaces = async (
     );
 
     if (!response.ok) {
-      throw new Error("Failed to fetch places from Google");
+      let errorMessage = "Failed to fetch places from Google";
+      let isQuota = false;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error?.message || errorMessage;
+        isQuota = response.status === 429 && errorMessage.toLowerCase().includes("quota");
+      } catch (e) {}
+      emitApiError({ source: "google-maps", message: errorMessage, isQuota });
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
