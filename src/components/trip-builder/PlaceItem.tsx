@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, MapPin, Pin, Clock, Timer, AlertCircle, Sparkles, Loader2 } from "lucide-react";
+import { GripVertical, Trash2, MapPin, Pin, Clock, Timer, AlertCircle, Sparkles, Loader2, ExternalLink } from "lucide-react";
 import { Place, PlaceCategory } from "../../types";
 import { useRouteStore } from "../../store/useRouteStore";
 import {
@@ -281,6 +281,18 @@ export const PlaceItem: React.FC<PlaceItemProps> = ({ place }) => {
                     Hours
                   </div>
                 )}
+
+                {/* View on Google link */}
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + " " + place.address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[10px] font-semibold text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600 border border-surface-200 dark:border-surface-600 rounded-md px-1.5 py-0.5 transition-all"
+                  title="View on Google Maps"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  View on Google
+                </a>
               </div>
             </div>
 

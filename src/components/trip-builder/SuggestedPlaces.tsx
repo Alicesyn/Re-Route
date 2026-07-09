@@ -4,7 +4,7 @@ import { getSuggestedPlaces } from "../../services/recommendationService";
 import { Place } from "../../types";
 import { getCategoryEmoji, getCategoryLabel, getCategoryFallbackImage, getActivePhotoUrl } from "../../utils/categoryUtils";
 import { getDistance } from "../../utils/distance";
-import { Sparkles, MapPin, Plus, Check, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Sparkles, MapPin, Plus, Check, ChevronLeft, ChevronRight, X, ExternalLink } from "lucide-react";
 
 export const SuggestedPlaces: React.FC = () => {
   const { places, hotels, appMode, addPlace, showImages } = useRouteStore();
@@ -247,7 +247,17 @@ export const SuggestedPlaces: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center justify-end p-4 pt-0">
+                <div className="flex items-center justify-between p-4 pt-0 z-10">
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + " " + place.address)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:underline transition-colors"
+                    title="View on Google Maps"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    View on Google
+                  </a>
                   <button
                     onClick={() => handleAdd(place)}
                     disabled={isAdded}
