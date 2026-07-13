@@ -18,8 +18,21 @@ const saveToCache = (query: string, results: any[]) => {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(searchCache));
   } catch (e) {
-    // If local storage is full, we just don't persist this one
     console.warn("Search cache persistence failed:", e);
+  }
+};
+
+const ROUTES_CACHE_KEY = "reroute_routes_cache";
+let routesCache: Record<string, { distanceM: number; durationS: number }> = JSON.parse(
+  localStorage.getItem(ROUTES_CACHE_KEY) || "{}"
+);
+
+const saveToRoutesCache = (key: string, result: { distanceM: number; durationS: number }) => {
+  routesCache[key] = result;
+  try {
+    localStorage.setItem(ROUTES_CACHE_KEY, JSON.stringify(routesCache));
+  } catch (e) {
+    console.warn("Routes cache persistence failed:", e);
   }
 };
 
@@ -110,6 +123,84 @@ export const searchPlaces = async (
     return results;
   } catch (error) {
     console.error("Maps Search Error:", error);
+    throw error;
+  }
+};
+
+export const fetchRouteSegment = async (
+  origin: { lat: number; lng: number },
+  destination: { lat: number; lng: number },
+  mode: "driving" | "transit" | "walking",
+  departureTime?: Date
+): Promise<{ distanceM: number; durationS: number }> => {
+  if (!API_KEY) throw new Error("Google Maps API Key is missing");
+
+  // Format mode for API
+  let travelMode = "DRIVE";
+  if (mode === "transit") travelMode = "TRANSIT";
+  if (mode === "walking") travelMode = "WALK";
+
+  // Cache key (round to 4 decimals to avoid tiny jitter cache misses)
+  const oLat = origin.lat.toFixed(4);
+  const oLng = origin.lng.toFixed(4);
+  const dLat = destination.lat.toFixed(4);
+  const dLng = destination.lng.toFixed(4);
+  const cacheKey = `${oLat},${oLng}_${dLat},${dLng}_${travelMode}`;
+
+  if (routesCache[cacheKey] && mode !== "transit") {
+    // Transit is time-dependent, so we might not want to aggressively cache it if departureTime matters a lot.
+    // However, for limited API calls, caching transit is also fine. We'll cache all modes.
+    return routesCache[cacheKey];
+  }
+
+  try {
+    const body: any = {
+      origin: { location: { latLng: { latitude: origin.lat, longitude: origin.lng } } },
+      destination: { location: { latLng: { latitude: destination.lat, longitude: destination.lng } } },
+      travelMode: travelMode,
+      ...(travelMode === "DRIVE" && { routingPreference: "TRAFFIC_AWARE" }),
+    };
+
+    if (travelMode === "TRANSIT" && departureTime) {
+      body.departureTime = departureTime.toISOString();
+    }
+
+    const response = await fetch(`https://routes.googleapis.com/directions/v2:computeRoutes`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": API_KEY,
+        "X-Goog-FieldMask": "routes.distanceMeters,routes.duration",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      let errorMessage = "Failed to fetch route";
+      let isQuota = false;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error?.message || errorMessage;
+        isQuota = response.status === 429 && errorMessage.toLowerCase().includes("quota");
+      } catch (e) {}
+      emitApiError({ source: "google-maps", message: errorMessage, isQuota });
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    const route = data.routes?.[0];
+    if (!route) {
+      throw new Error("No route found");
+    }
+
+    const distanceM = route.distanceMeters || 0;
+    const durationS = route.duration ? parseInt(route.duration.replace("s", "")) : 0;
+
+    const result = { distanceM, durationS };
+    saveToRoutesCache(cacheKey, result);
+    return result;
+  } catch (error) {
+    console.error("Maps Routes Error:", error);
     throw error;
   }
 };

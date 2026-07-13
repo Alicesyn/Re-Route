@@ -51,9 +51,10 @@ interface RouteState extends ModeData {
   distanceUnit: "metric" | "imperial";
   timeFormat: "12h" | "24h";
   categoryDurations: Record<PlaceCategory, number>;
-  categoryConfigs: Partial<Record<PlaceCategory, CategoryConfig>>;
   optimizedRoutes: DayRoute[];
   savedTrips: ItinerarySnapshot[];
+  isCalculating: boolean;
+  calculatingText: string;
 
   // Per-mode persistence
   mockData: ModeData;
@@ -187,6 +188,8 @@ export const useRouteStore = create<RouteState>()(
       categoryConfigs: {},
       optimizedRoutes: [],
       savedTrips: [],
+      isCalculating: false,
+      calculatingText: "",
       mockData: {
         places: [],
         hotels: [],
@@ -389,8 +392,10 @@ export const useRouteStore = create<RouteState>()(
       clearMissingPlaces: () => set({ missingPlaces: [] }),
 
       // Day assignment actions
-      assignPlaceToDay: (placeId, dayIndex) =>
-        set((state) => {
+      assignPlaceToDay: async (placeId, dayIndex) => {
+        set({ isCalculating: true, calculatingText: "Calculating routes..." });
+        try {
+          const state = get();
           const newPlaces = state.places.map((p) =>
             p.id === placeId
               ? {
@@ -414,7 +419,7 @@ export const useRouteStore = create<RouteState>()(
              manualSequence = [...newRoutes[idx].manualSequence, placeId];
           }
 
-          const result = solveSingleDay(
+          const result = await solveSingleDay(
             dayPlaces,
             state.hotels,
             dayIndex,
@@ -422,7 +427,9 @@ export const useRouteStore = create<RouteState>()(
             dayIndex === 0 && state.showFlights ? state.arrivalFlight?.location : null,
             dayIndex === state.days - 1 && state.showFlights ? state.departureFlight?.location : null,
             !!manualSequence,
-            manualSequence
+            manualSequence,
+            state.startDate,
+            state.dayStartTime
           );
           
           if (idx >= 0) {
@@ -432,11 +439,17 @@ export const useRouteStore = create<RouteState>()(
              newRoutes.sort((a, b) => a.day - b.day);
           }
 
-          return { places: newPlaces, optimizedRoutes: newRoutes };
-        }),
+          set({ places: newPlaces, optimizedRoutes: newRoutes, isCalculating: false });
+        } catch (e) {
+          console.error(e);
+          set({ isCalculating: false });
+        }
+      },
 
-      unassignPlace: (placeId) =>
-        set((state) => {
+      unassignPlace: async (placeId) => {
+        set({ isCalculating: true, calculatingText: "Updating routes..." });
+        try {
+          const state = get();
           const place = state.places.find((p) => p.id === placeId);
           const dayIndex = place?.dayIndex;
 
@@ -448,7 +461,6 @@ export const useRouteStore = create<RouteState>()(
 
           let newRoutes = [...state.optimizedRoutes];
           if (dayIndex !== null && dayIndex !== undefined) {
-            // Re-solve the day to remove the stop and update segments
             const dayPlaces = newPlaces.filter((p) => p.dayIndex === dayIndex);
             
             const idx = newRoutes.findIndex((r) => r.day === dayIndex);
@@ -457,7 +469,7 @@ export const useRouteStore = create<RouteState>()(
                manualSequence = newRoutes[idx].manualSequence.filter(id => id !== placeId);
             }
 
-            const result = solveSingleDay(
+            const result = await solveSingleDay(
               dayPlaces,
               state.hotels,
               dayIndex,
@@ -469,13 +481,19 @@ export const useRouteStore = create<RouteState>()(
                 ? state.departureFlight?.location
                 : null,
               !!manualSequence,
-              manualSequence
+              manualSequence,
+              state.startDate,
+              state.dayStartTime
             );
             if (idx >= 0) newRoutes[idx] = result;
           }
 
-          return { places: newPlaces, optimizedRoutes: newRoutes };
-        }),
+          set({ places: newPlaces, optimizedRoutes: newRoutes, isCalculating: false });
+        } catch (e) {
+          console.error(e);
+          set({ isCalculating: false });
+        }
+      },
 
       setHotelForDay: (dayIndex, hotel) =>
         set((state) => {
@@ -534,26 +552,33 @@ export const useRouteStore = create<RouteState>()(
         }),
 
       // Per-day optimization
-      optimizeDay: (dayIndex) => {
-        const state = get();
-        const dayPlaces = state.places.filter((p) => p.dayIndex === dayIndex);
-        if (dayPlaces.length === 0) return;
+      optimizeDay: async (dayIndex) => {
+        set({ isCalculating: true, calculatingText: "Optimizing day..." });
+        try {
+          const state = get();
+          const dayPlaces = state.places.filter((p) => p.dayIndex === dayIndex);
+          if (dayPlaces.length === 0) {
+            set({ isCalculating: false });
+            return;
+          }
 
-        const result = solveSingleDay(
-          dayPlaces,
-          state.hotels,
-          dayIndex,
-          state.travelMode,
-          dayIndex === 0 && state.showFlights
-            ? state.arrivalFlight?.location
-            : null,
-          dayIndex === state.days - 1 && state.showFlights
-            ? state.departureFlight?.location
-            : null,
-        );
+          const result = await solveSingleDay(
+            dayPlaces,
+            state.hotels,
+            dayIndex,
+            state.travelMode,
+            dayIndex === 0 && state.showFlights
+              ? state.arrivalFlight?.location
+              : null,
+            dayIndex === state.days - 1 && state.showFlights
+              ? state.departureFlight?.location
+              : null,
+            false,
+            undefined,
+            state.startDate,
+            state.dayStartTime
+          );
 
-        // Update only this day in optimizedRoutes
-        set((state) => {
           const newRoutes = [...state.optimizedRoutes];
           const existingIdx = newRoutes.findIndex((r) => r.day === dayIndex);
           if (existingIdx >= 0) {
@@ -563,26 +588,32 @@ export const useRouteStore = create<RouteState>()(
             newRoutes.sort((a, b) => a.day - b.day);
           }
 
-          // Also update place order in the places array based on optimization result
           const updatedPlaces = state.places.map((p) => {
             if (p.dayIndex !== dayIndex) return p;
             const stopIdx = result.stops.findIndex((s) => s.id === p.id);
             return stopIdx >= 0 ? { ...p, orderInDay: stopIdx } : p;
           });
 
-          return { optimizedRoutes: newRoutes, places: updatedPlaces };
-        });
+          set({ optimizedRoutes: newRoutes, places: updatedPlaces, isCalculating: false });
+        } catch (e) {
+          console.error(e);
+          set({ isCalculating: false });
+        }
       },
 
-      reorderDayStops: (dayIndex, activeId, overId) =>
-        set((state) => {
+      reorderDayStops: async (dayIndex, activeId, overId) => {
+        set({ isCalculating: true, calculatingText: "Updating route..." });
+        try {
+          const state = get();
           const routes = [...state.optimizedRoutes];
           const routeIdx = routes.findIndex((r) => r.day === dayIndex);
-          if (routeIdx === -1) return state;
+          if (routeIdx === -1) {
+            set({ isCalculating: false });
+            return;
+          }
 
           const route = routes[routeIdx];
 
-          // Build the CURRENT order of all sortable items for this day
           let currentOrder: string[] = [];
           if (route.manualSequence) {
             currentOrder = [...route.manualSequence];
@@ -603,14 +634,17 @@ export const useRouteStore = create<RouteState>()(
           const oldIndex = currentOrder.indexOf(activeId);
           const newIndex = currentOrder.indexOf(overId);
 
-          if (oldIndex === -1 || newIndex === -1) return state;
+          if (oldIndex === -1 || newIndex === -1) {
+            set({ isCalculating: false });
+            return;
+          }
 
           const newSequence = [...currentOrder];
           const [movedItem] = newSequence.splice(oldIndex, 1);
           newSequence.splice(newIndex, 0, movedItem);
 
           const dayPlaces = state.places.filter((p) => p.dayIndex === dayIndex);
-          const result = solveSingleDay(
+          const result = await solveSingleDay(
             dayPlaces,
             state.hotels,
             dayIndex,
@@ -623,6 +657,8 @@ export const useRouteStore = create<RouteState>()(
               : null,
             true, // manualOrder = true
             newSequence,
+            state.startDate,
+            state.dayStartTime
           );
 
           routes[routeIdx] = result;
@@ -635,8 +671,12 @@ export const useRouteStore = create<RouteState>()(
               : p;
           });
 
-          return { optimizedRoutes: routes, places: updatedPlaces };
-        }),
+          set({ optimizedRoutes: routes, places: updatedPlaces, isCalculating: false });
+        } catch (e) {
+          console.error(e);
+          set({ isCalculating: false });
+        }
+      },
 
       saveTrip: () =>
         set((state) => {

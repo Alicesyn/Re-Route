@@ -8,6 +8,8 @@ import {
   PlaceCategory,
 } from "../types";
 import { getDistance, estimateTime } from "../utils/distance";
+import { fetchRouteSegment } from "./mapsService";
+import { parseISO, addDays, setHours, setMinutes } from "date-fns";
 
 
 // Time-budget-aware clustering
@@ -379,8 +381,77 @@ function buildDayRoute(
   };
 }
 
+// Fetch accurate times using Google Maps API for a finalized DayRoute
+export async function fetchAccurateRouteTimes(
+  route: DayRoute,
+  startDateISO: string,
+  dayStartTime: string // HH:mm
+): Promise<DayRoute> {
+  const newSegments = [...route.segments];
+  let currentDistance = 0;
+  let currentTime = 0;
+
+  // Build points array for this route
+  const points: { lat: number; lng: number }[] = [];
+  if (route.startHotel) points.push(route.startHotel);
+  route.stops.forEach((s) => points.push(s));
+  if (route.endHotel) points.push(route.endHotel);
+
+  // Parse start time
+  const [startH, startM] = dayStartTime.split(":").map(Number);
+  let baseDate = addDays(parseISO(startDateISO), route.day);
+  baseDate = setMinutes(setHours(baseDate, startH), startM);
+
+  const segmentPromises = newSegments.map(async (seg, i) => {
+    if (!points[i] || !points[i + 1]) return seg;
+    try {
+      // Calculate departure time for this segment
+      // (baseDate + accumulated time so far + visit time of stops)
+      // Since we fetch in parallel, we don't know exact departure time easily unless we do it sequentially.
+      // But transit is the only one that needs it. Let's just pass baseDate for now to avoid sequential blocking,
+      // or we can calculate estimated departure time based on previous estimates.
+      let estimatedDeparture = new Date(baseDate);
+      
+      // Add previous segments time and visit times
+      let accumulatedSeconds = 0;
+      for (let j = 0; j < i; j++) {
+        accumulatedSeconds += newSegments[j].time;
+        if (j > 0 && route.stops[j - 1]) {
+          accumulatedSeconds += (route.stops[j - 1].estimatedDuration || 60) * 60;
+        }
+      }
+      estimatedDeparture = new Date(estimatedDeparture.getTime() + accumulatedSeconds * 1000);
+
+      const result = await fetchRouteSegment(
+        points[i],
+        points[i + 1],
+        seg.travelMode,
+        estimatedDeparture
+      );
+      return { ...seg, distance: result.distanceM, time: result.durationS };
+    } catch (e) {
+      console.warn("Failed to fetch accurate segment, using estimate", e);
+      return seg;
+    }
+  });
+
+  const resolvedSegments = await Promise.all(segmentPromises);
+
+  resolvedSegments.forEach(seg => {
+    currentDistance += seg.distance;
+    currentTime += seg.time;
+  });
+
+  return {
+    ...route,
+    segments: resolvedSegments,
+    totalDistance: currentDistance,
+    totalTime: currentTime,
+  };
+}
+
 // Optimize a single day's route
-export function solveSingleDay(
+export async function solveSingleDay(
   dayPlaces: Place[],
   hotels: Hotel[],
   dayIndex: number,
@@ -389,8 +460,10 @@ export function solveSingleDay(
   departureLocation?: Place | null,
   manualOrder: boolean = false,
   manualSequence?: string[],
-): DayRoute {
-  return buildDayRoute(
+  startDateISO: string = new Date().toISOString(),
+  dayStartTime: string = "09:00"
+): Promise<DayRoute> {
+  const route = buildDayRoute(
     dayPlaces,
     hotels,
     dayIndex,
@@ -400,9 +473,10 @@ export function solveSingleDay(
     manualOrder,
     manualSequence,
   );
+  return await fetchAccurateRouteTimes(route, startDateISO, dayStartTime);
 }
 
-export function solveTSP(
+export async function solveTSP(
   places: Place[],
   hotels: Hotel[],
   days: number,
@@ -412,7 +486,7 @@ export function solveTSP(
   arrivalLocation?: Place | null,
   departureLocation?: Place | null,
   categoryConfigs?: Partial<Record<PlaceCategory, CategoryConfig>>,
-): OptimizationResult {
+): Promise<OptimizationResult> {
   const startTime = performance.now();
 
   // 1. Cluster unassigned places (time-budget-aware, respects pinnedToDay)
@@ -500,15 +574,22 @@ export function solveTSP(
     }
 
     dayRoutes.push(route);
-    totalTripDistance += route.totalDistance;
-    totalTripTime += route.totalTime;
   }
 
-  console.log(`Optimization took ${performance.now() - startTime}ms`);
+  // 3. Post-process routes to use accurate APIs
+  const finalRoutes = await Promise.all(
+    dayRoutes.map(r => fetchAccurateRouteTimes(r, new Date().toISOString(), "09:00")) // Note: startDate and dayStartTime should ideally be passed in, but this is a fallback.
+  );
+
+  totalTripDistance = finalRoutes.reduce((sum, r) => sum + r.totalDistance, 0);
+  totalTripTime = finalRoutes.reduce((sum, r) => sum + r.totalTime, 0);
+
+  const endTime = performance.now();
+  console.log(`solveTSP completed in ${Math.round(endTime - startTime)}ms`);
 
   return {
     success: true,
-    days: dayRoutes,
+    days: finalRoutes,
     totalDistance: totalTripDistance,
     totalTime: totalTripTime,
     unassignedPlaces: clusteredPlaces.filter((p) => p.dayIndex === null),
