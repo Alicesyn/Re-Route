@@ -12,7 +12,7 @@ import { searchPlaces, clearMapsCache } from "./services/mapsService";
 import { Wand2, Sparkles, ChevronDown, ChevronUp, RefreshCw, Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { summarizePlacesBatch } from "./services/aiService";
-import { DayRoute, Place, OptimizationResult } from "./types";
+import type { DayRoute, Place } from "./types";
 
 function App() {
   const {
