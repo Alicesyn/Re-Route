@@ -11,7 +11,8 @@ import { solveTSP } from "./services/tspSolver";
 import { searchPlaces, clearMapsCache } from "./services/mapsService";
 import { Wand2, Sparkles, ChevronDown, ChevronUp, RefreshCw, Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { summarizePlace, summarizePlacesBatch } from "./services/aiService";
+import { summarizePlacesBatch } from "./services/aiService";
+import { DayRoute, Place, OptimizationResult } from "./types";
 
 function App() {
   const {
@@ -46,7 +47,7 @@ function App() {
     }
   }, [theme]);
 
-  const handleOptimize = () => {
+  const handleOptimize = async () => {
     if (places.length === 0) return;
     const [startH, startM] = dayStartTime.split(":").map(Number);
     const [endH, endM] = dayEndTime.split(":").map(Number);
@@ -92,7 +93,7 @@ function App() {
 
     console.log('[RE-Route] dayBudgets:', dayBudgets, '| showFlights:', showFlights, '| departureFlight:', departureFlight);
 
-    const result = solveTSP(
+    const result = await solveTSP(
       places,
       hotels,
       days,
@@ -111,8 +112,8 @@ function App() {
         id: string;
         updates: Partial<(typeof places)[0]>;
       }[] = [];
-      result.days.forEach((dayRoute) => {
-        dayRoute.stops.forEach((stop, idx) => {
+      result.days.forEach((dayRoute: DayRoute) => {
+        dayRoute.stops.forEach((stop: Place, idx: number) => {
           const originalPlace = places.find((p) => p.id === stop.id);
           // Only update dayIndex for non-pinned places or if orderInDay changed
           if (originalPlace) {
@@ -130,7 +131,7 @@ function App() {
       });
 
       if (result.unassignedPlaces) {
-        result.unassignedPlaces.forEach((unassigned) => {
+        result.unassignedPlaces.forEach((unassigned: Place) => {
           placeUpdates.push({
             id: unassigned.id,
             updates: {

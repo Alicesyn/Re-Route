@@ -437,8 +437,6 @@ export const DailySchedule: React.FC = () => {
     showFlights,
     arrivalFlight,
     departureFlight,
-    timeFormat,
-    distanceUnit,
   } = useRouteStore();
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 

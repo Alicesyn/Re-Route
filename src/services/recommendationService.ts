@@ -1,6 +1,5 @@
 import { Place, Hotel, PlaceCategory } from "../types";
 import { searchPlaces } from "./mapsService";
-import { autoCategorize } from "../utils/categoryUtils";
 import { getDistance } from "../utils/distance";
 import { suggestSights } from "./aiService";
 

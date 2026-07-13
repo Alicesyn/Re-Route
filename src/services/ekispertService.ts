@@ -1,4 +1,3 @@
-import { MapsPlace } from "./mapsService";
 
 const EKISPERT_API_KEY = import.meta.env.VITE_EKISPERT_API_KEY;
 const EKISPERT_API_ENDPOINT = "https://api.ekispert.jp/v1/json"; // Assuming JSON format

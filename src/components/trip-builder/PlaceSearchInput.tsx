@@ -31,7 +31,7 @@ export const PlaceSearchInput: React.FC<PlaceSearchInputProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const { appMode } = useRouteStore();
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     // Only search when the user is actively typing, not after a selection

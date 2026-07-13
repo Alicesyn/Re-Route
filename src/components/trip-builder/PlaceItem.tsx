@@ -9,7 +9,6 @@ import {
   getCategoryLabel,
   getDefaultDuration,
   ALL_CATEGORIES,
-  getCategoryFallbackImage,
   getActivePhotoUrl,
 } from "../../utils/categoryUtils";
 import { summarizePlace } from "../../services/aiService";
@@ -25,11 +24,9 @@ export const PlaceItem: React.FC<PlaceItemProps> = ({ place }) => {
     assignPlaceToDay,
     unassignPlace,
     days,
-    sidebarWidth,
     appMode,
     showImages,
   } = useRouteStore();
-  const isSidebarExpanded = sidebarWidth >= 450;
   const [isEditing, setIsEditing] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [desc, setDesc] = useState(place.description || "");
@@ -308,12 +305,10 @@ export const PlaceItem: React.FC<PlaceItemProps> = ({ place }) => {
                   className={`text-xs font-bold border rounded-md pl-1.5 pr-4 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary-500 appearance-none cursor-pointer text-center tracking-wide ${place.dayIndex === null ? "bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-surface-700" : getBadgeColor(place.dayIndex)}`}
                   title="Assign to day"
                 >
-                  <option value="">
-                    {isSidebarExpanded ? "Unassigned" : "-"}
-                  </option>
+                  <option value="">-</option>
                   {Array.from({ length: days }).map((_, i) => (
                     <option key={i} value={i}>
-                      {isSidebarExpanded ? "Day" : "D"}
+                      D
                       {i + 1}
                     </option>
                   ))}

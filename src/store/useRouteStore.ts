@@ -51,6 +51,7 @@ interface RouteState extends ModeData {
   distanceUnit: "metric" | "imperial";
   timeFormat: "12h" | "24h";
   categoryDurations: Record<PlaceCategory, number>;
+  categoryConfigs: Record<PlaceCategory, CategoryConfig>;
   optimizedRoutes: DayRoute[];
   savedTrips: ItinerarySnapshot[];
   isCalculating: boolean;
@@ -185,7 +186,13 @@ export const useRouteStore = create<RouteState>()(
         }),
         {} as Record<PlaceCategory, number>,
       ),
-      categoryConfigs: {},
+      categoryConfigs: ALL_CATEGORIES.reduce(
+        (acc, cat) => ({
+          ...acc,
+          [cat]: CATEGORY_DEFAULTS[cat] || {},
+        }),
+        {} as Record<PlaceCategory, CategoryConfig>,
+      ),
       optimizedRoutes: [],
       savedTrips: [],
       isCalculating: false,

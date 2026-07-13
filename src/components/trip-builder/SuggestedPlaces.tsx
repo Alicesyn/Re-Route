@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useRouteStore } from "../../store/useRouteStore";
 import { getSuggestedPlaces } from "../../services/recommendationService";
 import { Place } from "../../types";
-import { getCategoryEmoji, getCategoryLabel, getCategoryFallbackImage, getActivePhotoUrl } from "../../utils/categoryUtils";
+import { getCategoryEmoji, getCategoryLabel, getActivePhotoUrl } from "../../utils/categoryUtils";
 import { Sparkles, MapPin, Plus, Check, ChevronLeft, ChevronRight, X, ExternalLink } from "lucide-react";
 
 export const SuggestedPlaces: React.FC = () => {

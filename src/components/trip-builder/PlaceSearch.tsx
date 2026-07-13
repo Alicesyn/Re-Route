@@ -29,9 +29,8 @@ export const PlaceSearch: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const { addPlace, appMode, days, sidebarWidth, places, hotels } = useRouteStore();
-  const isSidebarExpanded = sidebarWidth >= 450;
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const { addPlace, appMode, days, places, hotels } = useRouteStore();
+  const debounceTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (appMode !== "real") {
@@ -131,10 +130,10 @@ export const PlaceSearch: React.FC = () => {
         className="text-xs font-medium bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500 appearance-none cursor-pointer"
         title="Assign to day"
       >
-        <option value="">{isSidebarExpanded ? "Unassigned" : "-"}</option>
+        <option value="">-</option>
         {Array.from({ length: days }).map((_, i) => (
           <option key={i} value={i}>
-            {isSidebarExpanded ? "Day" : "D"}
+            D
             {i + 1}
           </option>
         ))}
