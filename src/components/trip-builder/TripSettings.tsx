@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Clock,
   Building2,
@@ -62,7 +62,7 @@ const deriveStaysFromHotels = (hotels: any[], totalDays: number, stayBoundaries:
   return stays;
 };
 
-export const TripSettings: React.FC = () => {
+export const TripSettings: React.FC = React.memo(() => {
   const {
     days,
     setDays,
@@ -160,9 +160,10 @@ export const TripSettings: React.FC = () => {
     setHotelRange(startDay, endDay, hotel);
   };
 
-  const stays = deriveStaysFromHotels(hotels, days, stayBoundaries);
-
-
+  const stays = useMemo(
+    () => deriveStaysFromHotels(hotels, days, stayBoundaries),
+    [hotels, days, stayBoundaries],
+  );
 
   return (
     <div className="space-y-6 transition-colors">
@@ -597,4 +598,5 @@ export const TripSettings: React.FC = () => {
       </div>
     </div>
   );
-};
+});
+

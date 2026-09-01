@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -22,42 +22,80 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-// A component to auto-fit map bounds
-const MapBounds: React.FC<{ places: any[]; hotels: any[] }> = ({
-  places,
-  hotels,
-}) => {
-  const map = useMap();
-
-  useEffect(() => {
-    // Leaflet often renders tiles gray if container size changes. This fixes it.
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 100);
-
-    const points: [number, number][] = [
-      ...places.map((p) => [p.lat, p.lng] as [number, number]),
-      ...hotels.map((h) => [h.lat, h.lng] as [number, number]),
-    ];
-
-    if (points.length > 0) {
-      const bounds = L.latLngBounds(points);
-      map.fitBounds(bounds, { padding: [50, 50] });
-    }
-  }, [places, hotels, map]);
-
-  return null;
+// Cache custom div icons to prevent DOM thrashing
+const iconCache = new Map<string, L.DivIcon>();
+const getStopIcon = (color: string, number: number): L.DivIcon => {
+  const key = `${color}_${number}`;
+  if (!iconCache.has(key)) {
+    iconCache.set(
+      key,
+      L.divIcon({
+        className: "custom-div-icon",
+        html: `<div style="background-color: ${color}; color: white; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid white; font-weight: bold; font-size: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">${number}</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      }),
+    );
+  }
+  return iconCache.get(key)!;
 };
+
+// A component to auto-fit map bounds only when coordinates actually change
+const MapBounds: React.FC<{ places: any[]; hotels: any[] }> = React.memo(
+  ({ places, hotels }) => {
+    const map = useMap();
+    const prevPointsSignatureRef = useRef<string>("");
+
+    const pointsSignature = useMemo(() => {
+      const pStr = places
+        .map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`)
+        .join(";");
+      const hStr = hotels
+        .map((h) => `${h.lat.toFixed(4)},${h.lng.toFixed(4)}`)
+        .join(";");
+      return `${pStr}|${hStr}`;
+    }, [places, hotels]);
+
+    useEffect(() => {
+      if (prevPointsSignatureRef.current === pointsSignature) return;
+      prevPointsSignatureRef.current = pointsSignature;
+
+      const points: [number, number][] = [
+        ...places.map((p) => [p.lat, p.lng] as [number, number]),
+        ...hotels.map((h) => [h.lat, h.lng] as [number, number]),
+      ];
+
+      if (points.length > 0) {
+        const bounds = L.latLngBounds(points);
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+      }
+    }, [pointsSignature, places, hotels, map]);
+
+    useEffect(() => {
+      const resizeTimer = setTimeout(() => {
+        map.invalidateSize();
+      }, 200);
+      return () => clearTimeout(resizeTimer);
+    }, [map]);
+
+    return null;
+  },
+);
 
 // Colors for different days
 const ROUTE_COLORS = ["#14b8a6", "#f59e0b", "#ec4899", "#8b5cf6", "#3b82f6"];
 
-export const MapView: React.FC = () => {
-  const { places, hotels, optimizedRoutes } = useRouteStore();
+export const MapView: React.FC = React.memo(() => {
+  const places = useRouteStore((s) => s.places);
+  const hotels = useRouteStore((s) => s.hotels);
+  const optimizedRoutes = useRouteStore((s) => s.optimizedRoutes);
 
   // If no places, show NYC by default
-  const defaultCenter: [number, number] =
-    places.length > 0 ? [places[0].lat, places[0].lng] : [40.758, -73.9855];
+  const defaultCenter: [number, number] = useMemo(() => {
+    return places.length > 0
+      ? [places[0].lat, places[0].lng]
+      : [40.758, -73.9855];
+  }, [places]);
 
   return (
     <div className="h-full w-full relative z-0">
@@ -137,12 +175,7 @@ export const MapView: React.FC = () => {
 
               {/* Stop Markers */}
               {route.stops.map((stop, stopIdx) => {
-                const icon = L.divIcon({
-                  className: "custom-div-icon",
-                  html: `<div style="background-color: ${color}; color: white; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid white; font-weight: bold; font-size: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">${stopIdx + 1}</div>`,
-                  iconSize: [24, 24],
-                  iconAnchor: [12, 12],
-                });
+                const icon = getStopIcon(color, stopIdx + 1);
 
                 return (
                   <Marker
@@ -165,4 +198,4 @@ export const MapView: React.FC = () => {
       </MapContainer>
     </div>
   );
-};
+});

@@ -17,16 +17,15 @@ interface PlaceItemProps {
   place: Place;
 }
 
-export const PlaceItem: React.FC<PlaceItemProps> = ({ place }) => {
-  const {
-    updatePlace,
-    removePlace,
-    assignPlaceToDay,
-    unassignPlace,
-    days,
-    appMode,
-    showImages,
-  } = useRouteStore();
+export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
+  const updatePlace = useRouteStore((s) => s.updatePlace);
+  const removePlace = useRouteStore((s) => s.removePlace);
+  const assignPlaceToDay = useRouteStore((s) => s.assignPlaceToDay);
+  const unassignPlace = useRouteStore((s) => s.unassignPlace);
+  const days = useRouteStore((s) => s.days);
+  const appMode = useRouteStore((s) => s.appMode);
+  const showImages = useRouteStore((s) => s.showImages);
+
   const [isEditing, setIsEditing] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [desc, setDesc] = useState(place.description || "");
@@ -391,4 +390,5 @@ export const PlaceItem: React.FC<PlaceItemProps> = ({ place }) => {
       )}
     </div>
   );
-};
+});
+

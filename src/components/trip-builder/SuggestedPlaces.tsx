@@ -5,8 +5,14 @@ import { Place } from "../../types";
 import { getCategoryEmoji, getCategoryLabel, getActivePhotoUrl } from "../../utils/categoryUtils";
 import { Sparkles, MapPin, Plus, Check, ChevronLeft, ChevronRight, X, ExternalLink } from "lucide-react";
 
-export const SuggestedPlaces: React.FC = () => {
-  const { places, hotels, appMode, addPlace, showImages, distanceUnit } = useRouteStore();
+export const SuggestedPlaces: React.FC = React.memo(() => {
+  const places = useRouteStore((s) => s.places);
+  const hotels = useRouteStore((s) => s.hotels);
+  const appMode = useRouteStore((s) => s.appMode);
+  const addPlace = useRouteStore((s) => s.addPlace);
+  const showImages = useRouteStore((s) => s.showImages);
+  const distanceUnit = useRouteStore((s) => s.distanceUnit);
+
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
@@ -16,6 +22,8 @@ export const SuggestedPlaces: React.FC = () => {
   // Track previous mode/hotels to know when to completely replace vs when to backfill
   const prevAppModeRef = useRef(appMode);
   const prevHotelsLengthRef = useRef(hotels.length);
+
+  const dismissedKey = dismissedNames.join(",");
 
   useEffect(() => {
     const loadSuggestions = async () => {
@@ -55,7 +63,8 @@ export const SuggestedPlaces: React.FC = () => {
     };
 
     loadSuggestions();
-  }, [places.length, hotels.length, appMode, dismissedNames]);
+  }, [places.length, hotels.length, appMode, dismissedKey]);
+
 
   const handleDismiss = (e: React.MouseEvent, place: Place) => {
     e.stopPropagation();
@@ -302,4 +311,5 @@ export const SuggestedPlaces: React.FC = () => {
       </div>
     </div>
   );
-};
+});
+

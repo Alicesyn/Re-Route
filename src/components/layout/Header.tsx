@@ -16,62 +16,96 @@ import {
   Settings,
   ChevronDown,
   FileJson,
+  Loader2,
 } from "lucide-react";
 
 import { ImportModal } from "../trip-builder/ImportModal";
 import { CategorySettingsModal } from "./CategorySettingsModal";
 import { LoadTripModal } from "./LoadTripModal";
+import { toast } from "../../services/toastService";
 
-export const Header: React.FC = () => {
-  const {
-    appMode,
-    setAppMode,
-    title,
-    setTitle,
-    saveTrip,
-    exportTripAsJson,
-    places,
-    theme,
-    setTheme,
-    showImages,
-    setShowImages,
-  } = useRouteStore();
+export const Header: React.FC = React.memo(() => {
+  const appMode = useRouteStore((s) => s.appMode);
+  const setAppMode = useRouteStore((s) => s.setAppMode);
+  const title = useRouteStore((s) => s.title);
+  const setTitle = useRouteStore((s) => s.setTitle);
+  const saveTrip = useRouteStore((s) => s.saveTrip);
+  const exportTripAsJson = useRouteStore((s) => s.exportTripAsJson);
+  const theme = useRouteStore((s) => s.theme);
+  const setTheme = useRouteStore((s) => s.setTheme);
+  const showImages = useRouteStore((s) => s.showImages);
+  const setShowImages = useRouteStore((s) => s.setShowImages);
+
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isLoadOpen, setIsLoadOpen] = useState(false);
   const [isCategorySettingsOpen, setIsCategorySettingsOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
 
-  const handleSave = () => {
-    saveTrip();
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
+  const handleSave = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await new Promise((r) => setTimeout(r, 200));
+      saveTrip();
+      setIsSaving(false);
+      setIsSaved(true);
+      toast.success(`"${title || "Trip"}" saved to your trips!`, "Trip Saved");
+      setTimeout(() => setIsSaved(false), 2500);
+    } catch (err: any) {
+      setIsSaving(false);
+      toast.error(err?.message || "Failed to save trip", "Save Error");
+    }
+  };
+
+  const handleExportTripJson = () => {
+    try {
+      exportTripAsJson();
+      toast.success(`Exported "${title || "Trip"}" to JSON file.`, "Export Complete");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to export trip file", "Export Error");
+    }
   };
 
   const handleExportTxt = () => {
-    const textContent = places
-      .map((p, i) => `${i + 1}. ${p.name}\n   ${p.address}`)
-      .join("\n\n");
-    const blob = new Blob([`Places to Visit - ${title}\n\n${textContent}`], {
-      type: "text/plain",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Wanderlog_Places_${title.replace(/\s+/g, "_")}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const placesList = useRouteStore.getState().places;
+      const textContent = placesList
+        .map((p, i) => `${i + 1}. ${p.name}\n   ${p.address}`)
+        .join("\n\n");
+      const blob = new Blob([`Places to Visit - ${title}\n\n${textContent}`], {
+        type: "text/plain",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Wanderlog_Places_${title.replace(/\s+/g, "_")}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Places list exported to text file.", "Export Complete");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to export text file", "Export Error");
+    }
   };
 
   const handleExportNamesTxt = () => {
-    const textContent = places.map((p) => p.name).join("\n");
-    const blob = new Blob([textContent], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `RE-ROUTE_Import_${title.replace(/\s+/g, "_")}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const placesList = useRouteStore.getState().places;
+      const textContent = placesList.map((p) => p.name).join("\n");
+      const blob = new Blob([textContent], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `RE-ROUTE_Import_${title.replace(/\s+/g, "_")}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Place names exported to text file.", "Export Complete");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to export names file", "Export Error");
+    }
   };
+
+
 
   return (
     <header className="bg-white dark:bg-surface-800 border-b border-gray-200 dark:border-surface-700 px-6 py-4 flex items-center justify-between sticky top-0 z-50 transition-colors">
@@ -156,18 +190,23 @@ export const Header: React.FC = () => {
 
         <button
           onClick={handleSave}
-          className={`flex items-center gap-2 font-medium text-sm transition-colors ${
+          disabled={isSaving}
+          className={`flex items-center gap-2 font-medium text-sm transition-all ${
             isSaved
-              ? "text-green-600 dark:text-green-500"
-              : "text-surface-600 dark:text-surface-300 hover:text-primary-600 dark:hover:text-primary-400"
+              ? "text-emerald-600 dark:text-emerald-400 font-bold"
+              : isSaving
+                ? "text-primary-600 dark:text-primary-400 opacity-80 cursor-wait"
+                : "text-surface-600 dark:text-surface-300 hover:text-primary-600 dark:hover:text-primary-400"
           }`}
         >
-          {isSaved ? (
-            <Check className="w-4 h-4" />
+          {isSaving ? (
+            <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
+          ) : isSaved ? (
+            <Check className="w-4 h-4 text-emerald-500" />
           ) : (
             <Save className="w-4 h-4" />
           )}
-          {isSaved ? "Saved!" : "Save"}
+          {isSaving ? "Saving..." : isSaved ? "Saved!" : "Save"}
         </button>
 
         <button
@@ -186,7 +225,7 @@ export const Header: React.FC = () => {
 
         <div className="relative group">
           <button
-            onClick={() => exportTripAsJson()}
+            onClick={handleExportTripJson}
             className="btn-secondary flex items-center gap-2"
           >
             <Download className="w-4 h-4" /> Export
@@ -196,7 +235,7 @@ export const Header: React.FC = () => {
           {/* Dropdown for export formats on hover */}
           <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden flex flex-col">
             <button
-              onClick={() => exportTripAsJson()}
+              onClick={handleExportTripJson}
               className="w-full text-left px-4 py-3 text-sm text-surface-800 dark:text-surface-100 hover:bg-primary-50 dark:hover:bg-primary-950/40 hover:text-primary-600 dark:hover:text-primary-400 flex items-start gap-3 transition-colors border-b border-surface-100 dark:border-surface-700"
             >
               <FileJson className="w-4 h-4 shrink-0 mt-0.5 text-primary-500" />
@@ -255,5 +294,6 @@ export const Header: React.FC = () => {
       />
     </header>
   );
-};
+});
+
 

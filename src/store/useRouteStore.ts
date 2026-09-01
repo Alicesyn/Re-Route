@@ -137,8 +137,14 @@ interface RouteState extends ModeData {
   importTripFromJson: (jsonString: string) => { success: boolean; error?: string; tripTitle?: string };
 }
 
+let setTimer: any = null;
+let pendingWrite: { name: string; value: string } | null = null;
+
 const idbStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
+    if (pendingWrite && pendingWrite.name === name) {
+      return pendingWrite.value;
+    }
     const value = await getIDB(name);
     if (value) {
       return value;
@@ -152,9 +158,22 @@ const idbStorage: StateStorage = {
     return null;
   },
   setItem: async (name: string, value: string): Promise<void> => {
-    await setIDB(name, value);
+    pendingWrite = { name, value };
+    if (setTimer) clearTimeout(setTimer);
+    setTimer = setTimeout(async () => {
+      try {
+        if (pendingWrite) {
+          await setIDB(pendingWrite.name, pendingWrite.value);
+          pendingWrite = null;
+        }
+      } catch (e) {
+        console.error("Failed to save to IndexedDB:", e);
+      }
+    }, 250);
   },
   removeItem: async (name: string): Promise<void> => {
+    if (setTimer) clearTimeout(setTimer);
+    pendingWrite = null;
     await delIDB(name);
   },
 };
@@ -163,6 +182,7 @@ export const useRouteStore = create<RouteState>()(
   persist(
     (set, get) => ({
       title: "RE:ROUTE",
+
       days: 3,
       startDate: format(new Date(), "yyyy-MM-dd"),
       endDate: format(addDays(new Date(), 2), "yyyy-MM-dd"),
@@ -935,6 +955,36 @@ export const useRouteStore = create<RouteState>()(
     {
       name: "reroute-storage",
       storage: createJSONStorage(() => idbStorage),
+      partialize: (state) => ({
+        title: state.title,
+        days: state.days,
+        startDate: state.startDate,
+        endDate: state.endDate,
+        dateMode: state.dateMode,
+        dayStartTime: state.dayStartTime,
+        dayEndTime: state.dayEndTime,
+        showFlights: state.showFlights,
+        arrivalFlight: state.arrivalFlight,
+        departureFlight: state.departureFlight,
+        travelMode: state.travelMode,
+        dailyBudget: state.dailyBudget,
+        strictBudget: state.strictBudget,
+        places: state.places,
+        hotels: state.hotels,
+        missingPlaces: state.missingPlaces,
+        categoryDurations: state.categoryDurations,
+        categoryConfigs: state.categoryConfigs,
+        optimizedRoutes: state.optimizedRoutes,
+        savedTrips: state.savedTrips,
+        appMode: state.appMode,
+        theme: state.theme,
+        showImages: state.showImages,
+        distanceUnit: state.distanceUnit,
+        timeFormat: state.timeFormat,
+        mockData: state.mockData,
+        realData: state.realData,
+      }),
     },
   ),
 );
+

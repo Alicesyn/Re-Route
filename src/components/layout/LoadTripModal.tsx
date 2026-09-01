@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef } from "react";
 import { useRouteStore } from "../../store/useRouteStore";
 import {
   X,
@@ -9,10 +9,9 @@ import {
   Download,
   Upload,
   FileJson,
-  CheckCircle2,
-  AlertCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "../../services/toastService";
 
 interface LoadTripModalProps {
   isOpen: boolean;
@@ -26,10 +25,6 @@ export const LoadTripModal: React.FC<LoadTripModalProps> = ({
   const { savedTrips, loadTrip, deleteTrip, exportTripAsJson, importTripFromJson } =
     useRouteStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [notification, setNotification] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -40,22 +35,15 @@ export const LoadTripModal: React.FC<LoadTripModalProps> = ({
       const content = event.target?.result as string;
       const res = importTripFromJson(content);
       if (res.success) {
-        setNotification({
-          type: "success",
-          message: `Loaded "${res.tripTitle || "Trip"}" successfully!`,
-        });
-        setTimeout(() => setNotification(null), 3000);
+        toast.success(`Loaded "${res.tripTitle || "Trip"}" successfully!`, "Trip Imported");
       } else {
-        setNotification({
-          type: "error",
-          message: res.error || "Failed to import trip file.",
-        });
-        setTimeout(() => setNotification(null), 4000);
+        toast.error(res.error || "Failed to import trip file.", "Import Error");
       }
     };
     reader.readAsText(file);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
 
   if (!isOpen) return null;
 
@@ -85,24 +73,6 @@ export const LoadTripModal: React.FC<LoadTripModalProps> = ({
               <X className="w-5 h-5" />
             </button>
           </div>
-
-          {/* Notification banner */}
-          {notification && (
-            <div
-              className={`px-4 py-2.5 text-xs font-semibold flex items-center gap-2 transition-all ${
-                notification.type === "success"
-                  ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-b border-emerald-200 dark:border-emerald-800"
-                  : "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-b border-red-200 dark:border-red-800"
-              }`}
-            >
-              {notification.type === "success" ? (
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-              ) : (
-                <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-              )}
-              <span>{notification.message}</span>
-            </div>
-          )}
 
           {/* Quick Import Action Header */}
           <div className="px-4 py-2.5 bg-surface-100/50 dark:bg-surface-900/40 border-b border-surface-200/60 dark:border-surface-700/60 flex items-center justify-between">
@@ -152,6 +122,7 @@ export const LoadTripModal: React.FC<LoadTripModalProps> = ({
                       <button
                         onClick={() => {
                           loadTrip(trip.id);
+                          toast.success(`Loaded "${trip.title}" itinerary.`, "Trip Loaded");
                           onClose();
                         }}
                         className="w-full text-left bg-white dark:bg-surface-800 p-4 rounded-xl border border-surface-200 dark:border-surface-700 shadow-sm hover:shadow-md hover:border-primary-300 dark:hover:border-primary-500 transition-all flex flex-col gap-3"
@@ -188,7 +159,12 @@ export const LoadTripModal: React.FC<LoadTripModalProps> = ({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            exportTripAsJson(trip.id);
+                            try {
+                              exportTripAsJson(trip.id);
+                              toast.success(`Exported "${trip.title}" to JSON.`, "Export Complete");
+                            } catch (err: any) {
+                              toast.error(err?.message || "Failed to export trip", "Export Error");
+                            }
                           }}
                           className="p-1.5 text-surface-500 hover:text-primary-600 hover:bg-surface-100 dark:hover:bg-surface-700 rounded-lg transition-colors"
                           title="Export trip as JSON file"
@@ -199,6 +175,7 @@ export const LoadTripModal: React.FC<LoadTripModalProps> = ({
                           onClick={(e) => {
                             e.stopPropagation();
                             deleteTrip(trip.id);
+                            toast.info(`Deleted "${trip.title}" from saved trips.`, "Trip Deleted");
                           }}
                           className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                           title="Delete saved trip"

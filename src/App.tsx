@@ -5,7 +5,8 @@ import { SuggestedPlaces } from "./components/trip-builder/SuggestedPlaces";
 import { TripSettings } from "./components/trip-builder/TripSettings";
 import { MapView } from "./components/map/MapView";
 import { DailySchedule } from "./components/schedule/DailySchedule";
-import { ApiErrorToast } from "./components/layout/ApiErrorToast";
+import { ToastContainer } from "./components/layout/ToastContainer";
+import { toast } from "./services/toastService";
 import { useRouteStore } from "./store/useRouteStore";
 import { solveTSP } from "./services/tspSolver";
 import { clearMapsCache, fetchFreshPhoto } from "./services/mapsService";
@@ -37,6 +38,7 @@ function App() {
   } = useRouteStore();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
 
   // Apply dark mode
   useEffect(() => {
@@ -47,14 +49,20 @@ function App() {
     }
   }, [theme]);
 
+  const upgradedPhotoPlaceIdsRef = useRef<Set<string>>(new Set());
+
   // Auto-upgrade any legacy or missing photo URLs to fresh direct Google CDN URLs
   useEffect(() => {
     if (appMode !== "real" || places.length === 0) return;
 
     const placesNeedingPhotos = places.filter(
-      (p) => !p.photoUrl || p.photoUrl.includes("places.googleapis.com")
+      (p) =>
+        (!p.photoUrl || p.photoUrl.includes("places.googleapis.com")) &&
+        !upgradedPhotoPlaceIdsRef.current.has(p.id)
     );
     if (placesNeedingPhotos.length === 0) return;
+
+    placesNeedingPhotos.forEach((p) => upgradedPhotoPlaceIdsRef.current.add(p.id));
 
     const upgradeLegacyPhotos = async () => {
       const updates: { id: string; updates: { photoUrl?: string } }[] = [];
@@ -79,107 +87,128 @@ function App() {
     upgradeLegacyPhotos();
   }, [places.length, appMode]);
 
+
   const handleOptimize = async () => {
-    if (places.length === 0) return;
-    const [startH, startM] = dayStartTime.split(":").map(Number);
-    const [endH, endM] = dayEndTime.split(":").map(Number);
-    let baseDayMinutes = endH * 60 + endM - (startH * 60 + startM);
-    if (baseDayMinutes < 0) baseDayMinutes += 24 * 60; // Handle overnight
+    if (places.length === 0 || isOptimizing) return;
+    setIsOptimizing(true);
+    try {
+      const [startH, startM] = dayStartTime.split(":").map(Number);
+      const [endH, endM] = dayEndTime.split(":").map(Number);
+      let baseDayMinutes = endH * 60 + endM - (startH * 60 + startM);
+      if (baseDayMinutes < 0) baseDayMinutes += 24 * 60; // Handle overnight
 
-    const dayBudgets = Array.from({ length: days }).map((_, i) => {
-      let dayAvailableMinutes = baseDayMinutes;
-      const isFirstDay = i === 0;
-      const isLastDay = i === days - 1;
+      const dayBudgets = Array.from({ length: days }).map((_, i) => {
+        let dayAvailableMinutes = baseDayMinutes;
+        const isFirstDay = i === 0;
+        const isLastDay = i === days - 1;
 
-      if (showFlights) {
-        if (isFirstDay && arrivalFlight) {
-          const [arrH, arrM] = arrivalFlight.time.split(":").map(Number);
-          const arrivalTotal = arrH * 60 + arrM;
-          const dayStartTotal = startH * 60 + startM;
-          const effectiveStart = Math.max(dayStartTotal, arrivalTotal);
+        if (showFlights) {
+          if (isFirstDay && arrivalFlight) {
+            const [arrH, arrM] = arrivalFlight.time.split(":").map(Number);
+            const arrivalTotal = arrH * 60 + arrM;
+            const dayStartTotal = startH * 60 + startM;
+            const effectiveStart = Math.max(dayStartTotal, arrivalTotal);
 
-          let available = endH * 60 + endM - effectiveStart;
-          if (available < 0) available += 24 * 60;
-          dayAvailableMinutes = available;
-        }
-        if (isLastDay && departureFlight) {
-          const [depH, depM] = departureFlight.time.split(":").map(Number);
-          const depTotal = depH * 60 + depM;
-          // Handle overnight: if dayEndTime is "00:00" (midnight), treat as 1440 (next-day midnight)
-          const rawDayEnd = endH * 60 + endM;
-          const dayEndTotal = rawDayEnd === 0 ? 24 * 60 : rawDayEnd;
-          const effectiveEnd = Math.min(dayEndTotal, depTotal);
-
-          let available = effectiveEnd - (startH * 60 + startM);
-          if (available < 0) available += 24 * 60;
-          dayAvailableMinutes = available;
-          console.log(`[RE-Route] Departure day (i=${i}): depTotal=${depTotal}, dayEndTotal=${dayEndTotal}, effectiveEnd=${effectiveEnd}, available=${available}`);
-        }
-        if (isLastDay) {
-          console.log(`[RE-Route] Last day check: i=${i}, days=${days}, isLastDay=${isLastDay}, departureFlight=${JSON.stringify(departureFlight)}, budget=${dayAvailableMinutes}`);
-        }
-      }
-      return dayAvailableMinutes;
-    });
-
-
-    console.log('[RE-Route] dayBudgets:', dayBudgets, '| showFlights:', showFlights, '| departureFlight:', departureFlight);
-
-    const result = await solveTSP(
-      places,
-      hotels,
-      days,
-      travelMode,
-      dayBudgets,
-      strictBudget,
-      showFlights ? arrivalFlight?.location : null,
-      showFlights ? departureFlight?.location : null,
-      categoryConfigs,
-    );
-    if (result.success) {
-      setOptimizedRoutes(result.days);
-
-      // Update places with their optimizer-assigned days and order
-      const placeUpdates: {
-        id: string;
-        updates: Partial<(typeof places)[0]>;
-      }[] = [];
-      result.days.forEach((dayRoute: DayRoute) => {
-        dayRoute.stops.forEach((stop: Place, idx: number) => {
-          const originalPlace = places.find((p) => p.id === stop.id);
-          // Only update dayIndex for non-pinned places or if orderInDay changed
-          if (originalPlace) {
-            placeUpdates.push({
-              id: stop.id,
-              updates: {
-                dayIndex: dayRoute.day,
-                orderInDay: idx,
-                // Preserve pinnedToDay: if user pinned it, keep it pinned
-                pinnedToDay: originalPlace.pinnedToDay,
-              },
-            });
+            let available = endH * 60 + endM - effectiveStart;
+            if (available < 0) available += 24 * 60;
+            dayAvailableMinutes = available;
           }
-        });
+          if (isLastDay && departureFlight) {
+            const [depH, depM] = departureFlight.time.split(":").map(Number);
+            const depTotal = depH * 60 + depM;
+            const rawDayEnd = endH * 60 + endM;
+            const dayEndTotal = rawDayEnd === 0 ? 24 * 60 : rawDayEnd;
+            const effectiveEnd = Math.min(dayEndTotal, depTotal);
+
+            let available = effectiveEnd - (startH * 60 + startM);
+            if (available < 0) available += 24 * 60;
+            dayAvailableMinutes = available;
+          }
+        }
+        return dayAvailableMinutes;
       });
 
-      if (result.unassignedPlaces) {
-        result.unassignedPlaces.forEach((unassigned: Place) => {
-          placeUpdates.push({
-            id: unassigned.id,
-            updates: {
-              dayIndex: null,
-              orderInDay: null,
-              unfeasibleReason: unassigned.unfeasibleReason,
-            },
+      const result = await solveTSP(
+        places,
+        hotels,
+        days,
+        travelMode,
+        dayBudgets,
+        strictBudget,
+        showFlights ? arrivalFlight?.location : null,
+        showFlights ? departureFlight?.location : null,
+        categoryConfigs,
+      );
+
+      if (result.success) {
+        setOptimizedRoutes(result.days);
+
+        // Update places with their optimizer-assigned days and order
+        const placeUpdates: {
+          id: string;
+          updates: Partial<(typeof places)[0]>;
+        }[] = [];
+        result.days.forEach((dayRoute: DayRoute) => {
+          dayRoute.stops.forEach((stop: Place, idx: number) => {
+            const originalPlace = places.find((p) => p.id === stop.id);
+            if (originalPlace) {
+              placeUpdates.push({
+                id: stop.id,
+                updates: {
+                  dayIndex: dayRoute.day,
+                  orderInDay: idx,
+                  pinnedToDay: originalPlace.pinnedToDay,
+                },
+              });
+            }
           });
         });
-      }
 
-      if (placeUpdates.length > 0) {
-        updatePlacesBulk(placeUpdates);
+        if (result.unassignedPlaces) {
+          result.unassignedPlaces.forEach((unassigned: Place) => {
+            placeUpdates.push({
+              id: unassigned.id,
+              updates: {
+                dayIndex: null,
+                orderInDay: null,
+                unfeasibleReason: unassigned.unfeasibleReason,
+              },
+            });
+          });
+        }
+
+        if (placeUpdates.length > 0) {
+          updatePlacesBulk(placeUpdates);
+        }
+
+        if (result.unassignedPlaces && result.unassignedPlaces.length > 0) {
+          toast.warning(
+            `${result.unassignedPlaces.length} of ${places.length} places could not fit within the daily time budget.`,
+            "Schedule Over Capacity",
+          );
+        } else {
+          toast.success(
+            `Optimized ${places.length} places across ${days} days!`,
+            "Route Optimized",
+          );
+        }
+      } else {
+        toast.error(
+          "Could not optimize routes. Try adjusting day times or budgets.",
+          "Optimization Failed",
+        );
       }
+    } catch (err: any) {
+      console.error("Optimization error:", err);
+      toast.error(
+        err?.message || "An unexpected error occurred during optimization.",
+        "Optimization Error",
+      );
+    } finally {
+      setIsOptimizing(false);
     }
   };
+
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -285,12 +314,13 @@ function App() {
       if (updates.length > 0) {
         console.log(`[AI Describe] Saving ${updates.length} descriptions to state...`);
         updatePlacesBulk(updates);
-        console.log(`[AI Describe] Finished!`);
+        toast.success(`Generated AI descriptions for ${updates.length} places!`, "AI Descriptions Ready");
       } else {
-        console.log(`[AI Describe] Finished with no updates to save.`);
+        toast.info("No description updates needed.", "AI Describe");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("AI Batch Processing Error:", err);
+      toast.error(err?.message || "Failed to generate AI descriptions.", "AI Error");
     } finally {
       setIsGenerating(false);
     }
@@ -301,7 +331,6 @@ function App() {
   const handleSyncPhotos = async () => {
     if (places.length === 0 || isSyncingPhotos) return;
     setIsSyncingPhotos(true);
-    console.log(`[Sync Photos] Starting photo sync for ${places.length} places...`);
     try {
       clearMapsCache();
 
@@ -309,7 +338,6 @@ function App() {
       await Promise.all(
         places.map(async (p) => {
           try {
-            console.log(`[Sync Photos] Fetching fresh photo for: ${p.name}`);
             const freshPhotoUri = await fetchFreshPhoto(p);
             if (freshPhotoUri) {
               updates.push({
@@ -325,22 +353,32 @@ function App() {
 
       if (updates.length > 0) {
         updatePlacesBulk(updates);
-        console.log(`[Sync Photos] Successfully synced ${updates.length} photos!`);
+        toast.success(`Synced fresh photos for ${updates.length} places!`, "Photos Synced");
       } else {
-        console.log(`[Sync Photos] No photo updates found.`);
+        toast.info("All place photos are already up to date.", "Photos Synced");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Photo Sync Error:", err);
+      toast.error("Failed to sync photos from Google Maps.", "Photo Sync Error");
     } finally {
       setIsSyncingPhotos(false);
     }
   };
 
+  const handleUnassignAll = () => {
+    unassignAll();
+    toast.info("All places unassigned from schedule.", "Schedule Cleared");
+  };
+
+  const handleClearAll = () => {
+    clearAll();
+    toast.info("All places removed from trip.", "Places Cleared");
+  };
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-900 flex flex-col font-sans transition-colors overflow-hidden">
       <Header />
-      <ApiErrorToast />
+      <ToastContainer />
 
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 w-full custom-scrollbar">
         <div className="max-w-[1600px] mx-auto space-y-8 pb-12">
@@ -379,9 +417,11 @@ function App() {
                     className="flex items-center gap-1.5 text-sm font-semibold text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-all"
                     title={isGenerating ? "Stop generating descriptions" : "Auto-generate missing descriptions"}
                   >
-                    <Sparkles
-                      className={`w-4 h-4 ${isGenerating ? "animate-pulse" : ""}`}
-                    />
+                    {isGenerating ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+                    ) : (
+                      <Sparkles className="w-4 h-4" />
+                    )}
                     {isGenerating ? "Stop AI" : "AI Describe"}
                   </button>
                 )}
@@ -389,7 +429,7 @@ function App() {
                   <button
                     onClick={handleSyncPhotos}
                     disabled={isSyncingPhotos}
-                    className="flex items-center gap-1.5 text-sm font-semibold text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/10 dark:hover:bg-primary-950/20 px-3 py-1.5 rounded-lg transition-all"
+                    className="flex items-center gap-1.5 text-sm font-semibold text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/10 dark:hover:bg-primary-950/20 px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
                     title="Refresh all place photos from Google Maps"
                   >
                     {isSyncingPhotos ? (
@@ -402,7 +442,7 @@ function App() {
                 )}
                 {places.some((p) => p.dayIndex !== null) && (
                   <button
-                    onClick={() => unassignAll()}
+                    onClick={handleUnassignAll}
                     className="text-sm font-semibold text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/10 dark:hover:bg-amber-900/20 px-3 py-1.5 rounded-lg transition-all"
                   >
                     Unassign All
@@ -410,7 +450,7 @@ function App() {
                 )}
                 {places.length > 0 && (
                   <button
-                    onClick={() => clearAll()}
+                    onClick={handleClearAll}
                     className="text-sm font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 px-3 py-1.5 rounded-lg transition-all"
                   >
                     Clear All
@@ -449,11 +489,20 @@ function App() {
           {/* Optimize Button */}
           <button
             onClick={handleOptimize}
-            disabled={places.length === 0}
-            className="btn-primary w-full flex items-center justify-center gap-2 group py-4 text-lg rounded-xl"
+            disabled={places.length === 0 || isOptimizing}
+            className="btn-primary w-full flex items-center justify-center gap-2 group py-4 text-lg rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Wand2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-            Optimize Route
+            {isOptimizing ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Optimizing Route ({places.length} places)...</span>
+              </>
+            ) : (
+              <>
+                <Wand2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                <span>Optimize Route</span>
+              </>
+            )}
           </button>
 
           {/* Bottom Row: Daily Schedule */}
@@ -469,3 +518,4 @@ function App() {
 }
 
 export default App;
+

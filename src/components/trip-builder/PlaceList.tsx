@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Search } from "lucide-react";
 import {
   DndContext,
@@ -26,8 +26,9 @@ interface PlaceListProps {
 
 type FilterTab = "all" | "unassigned";
 
-export const PlaceList: React.FC<PlaceListProps> = ({ isExpanded }) => {
-  const { places, reorderPlaces } = useRouteStore();
+export const PlaceList: React.FC<PlaceListProps> = React.memo(({ isExpanded }) => {
+  const places = useRouteStore((s) => s.places);
+  const reorderPlaces = useRouteStore((s) => s.reorderPlaces);
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<PlaceCategory | "all">("all");
@@ -53,27 +54,38 @@ export const PlaceList: React.FC<PlaceListProps> = ({ isExpanded }) => {
     }
   };
 
-  let baseFilteredPlaces = places;
-
-  if (searchQuery.trim()) {
-    const query = searchQuery.toLowerCase();
-    baseFilteredPlaces = baseFilteredPlaces.filter((p) =>
-      p.name.toLowerCase().includes(query) ||
-      p.address?.toLowerCase().includes(query),
-    );
-  }
-
-  if (categoryFilter !== "all") {
-    baseFilteredPlaces = baseFilteredPlaces.filter((p) => p.category === categoryFilter);
-  }
+  const baseFilteredPlaces = useMemo(() => {
+    let list = places;
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      list = list.filter((p) =>
+        p.name.toLowerCase().includes(query) ||
+        p.address?.toLowerCase().includes(query),
+      );
+    }
+    if (categoryFilter !== "all") {
+      list = list.filter((p) => p.category === categoryFilter);
+    }
+    return list;
+  }, [places, searchQuery, categoryFilter]);
 
   const allCount = baseFilteredPlaces.length;
-  const unassignedCount = baseFilteredPlaces.filter((p) => p.dayIndex === null).length;
+  const unassignedCount = useMemo(
+    () => baseFilteredPlaces.filter((p) => p.dayIndex === null).length,
+    [baseFilteredPlaces],
+  );
 
-  const filteredPlaces =
-    activeTab === "unassigned"
+  const filteredPlaces = useMemo(() => {
+    return activeTab === "unassigned"
       ? baseFilteredPlaces.filter((p) => p.dayIndex === null)
       : baseFilteredPlaces;
+  }, [baseFilteredPlaces, activeTab]);
+
+  const sortableItemIds = useMemo(
+    () => filteredPlaces.map((p) => p.id),
+    [filteredPlaces],
+  );
+
 
   if (places.length === 0) {
     return (
@@ -163,7 +175,7 @@ export const PlaceList: React.FC<PlaceListProps> = ({ isExpanded }) => {
           onDragEnd={handleDragEnd}
         >
           <SortableContext
-            items={filteredPlaces.map((p) => p.id)}
+            items={sortableItemIds}
             strategy={rectSortingStrategy}
           >
             <div
@@ -180,4 +192,5 @@ export const PlaceList: React.FC<PlaceListProps> = ({ isExpanded }) => {
       )}
     </div>
   );
-};
+});
+

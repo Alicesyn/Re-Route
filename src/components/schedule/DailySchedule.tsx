@@ -14,7 +14,10 @@ import {
   PlaneLanding,
   GripVertical,
   AlertTriangle,
+  Loader2,
+  Pin,
 } from "lucide-react";
+import { toast } from "../../services/toastService";
 import { TravelMode, RouteSegment } from "../../types";
 import { getCategoryEmoji } from "../../utils/categoryUtils";
 import { format, addDays, parseISO } from "date-fns";
@@ -116,7 +119,7 @@ interface SortableStopProps {
   onEdit: () => void;
 }
 
-const SortableStop: React.FC<SortableStopProps> = ({
+const SortableStop: React.FC<SortableStopProps> = React.memo(({
   stop,
   stopArrivalTime,
   isFirst,
@@ -196,22 +199,40 @@ const SortableStop: React.FC<SortableStopProps> = ({
             </button>
             <div className="flex items-center gap-1.5 shrink-0">
               {timeConflict.hasConflict && (
-                <div title={`Hours Conflict: ${timeConflict.reason}`}>
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                <div 
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-[10px] font-bold border border-red-200 dark:border-red-800"
+                  title={timeConflict.reason}
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  <span className="hidden sm:inline">Closed</span>
                 </div>
               )}
-              <span className={`text-[10px] font-bold font-mono ${timeConflict.hasConflict ? "text-amber-500" : "text-surface-400"}`}>
-                {formatTime(stopArrivalTime)}
-              </span>
+              {stop.pinnedToDay && (
+                <span
+                  className="p-1 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
+                  title="Pinned to this day (optimizer won't move this stop)"
+                >
+                  <Pin className="w-3 h-3 fill-current" />
+                </span>
+              )}
             </div>
-
             <button
               onClick={() => unassignPlace(stop.id)}
-              className="absolute top-1/2 -translate-y-1/2 right-[-10px] opacity-0 group-hover:opacity-100 p-1.5 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-600 text-surface-400 hover:text-red-500 hover:border-red-200 dark:hover:border-red-900/50 shadow-lg rounded-lg transition-all z-20"
+              className="absolute right-0 top-0.5 p-1 text-surface-300 dark:text-surface-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors opacity-0 group-hover:opacity-100"
               title="Remove from day"
             >
               <X className="w-3.5 h-3.5" />
             </button>
+          </div>
+
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-[10px] font-bold font-mono text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30 px-1.5 py-0.5 rounded">
+              {formatTime(stopArrivalTime)}
+            </span>
+            <span className="text-[10px] font-bold text-surface-400 uppercase tracking-tight flex items-center gap-1">
+              <Timer className="w-2.5 h-2.5" />
+              {stop.estimatedDuration || 60}m visit
+            </span>
           </div>
 
           {(stop.description || (stop.openingHours && stop.openingHours.length > 0)) && (
@@ -232,7 +253,7 @@ const SortableStop: React.FC<SortableStopProps> = ({
       </div>
     </div>
   );
-};
+});
 
 const SortableAnchor: React.FC<{
   id: string;
@@ -243,7 +264,7 @@ const SortableAnchor: React.FC<{
   buffer?: number;
   isFirst: boolean;
   isLast: boolean;
-}> = ({ id, type, name, time, calculatedTime, buffer, isFirst, isLast }) => {
+}> = React.memo(({ id, type, name, time, calculatedTime, buffer, isFirst, isLast }) => {
   const {
     attributes,
     listeners,
@@ -350,14 +371,15 @@ const SortableAnchor: React.FC<{
       )}
     </div>
   );
-};
+});
 
 const SegmentPill: React.FC<{
   segment: RouteSegment;
   dayIndex: number;
   segmentIndex: number;
-}> = ({ segment, dayIndex, segmentIndex }) => {
-  const { updateSegmentTravelMode } = useRouteStore();
+}> = React.memo(({ segment, dayIndex, segmentIndex }) => {
+  const updateSegmentTravelMode = useRouteStore((s) => s.updateSegmentTravelMode);
+  const distanceUnit = useRouteStore((s) => s.distanceUnit);
 
   const handleModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     updateSegmentTravelMode(
@@ -390,7 +412,7 @@ const SegmentPill: React.FC<{
         <span>
           {(() => {
             const dist = segment.distance;
-            if (useRouteStore.getState().distanceUnit === "imperial") {
+            if (distanceUnit === "imperial") {
               const ft = dist * 3.28084;
               if (ft >= 100) {
                 const mi = ft / 5280;
@@ -421,10 +443,12 @@ const SegmentPill: React.FC<{
       </div>
     </div>
   );
-};
+});
+
 
 export const DailySchedule: React.FC = () => {
   const [editingPlaceId, setEditingPlaceId] = useState<string | null>(null);
+  const [optimizingDayIndex, setOptimizingDayIndex] = useState<number | null>(null);
   const {
     optimizedRoutes,
     optimizeDay,
@@ -439,6 +463,19 @@ export const DailySchedule: React.FC = () => {
     departureFlight,
   } = useRouteStore();
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+  const handleOptimizeSingleDay = async (dayIndex: number) => {
+    if (optimizingDayIndex !== null) return;
+    setOptimizingDayIndex(dayIndex);
+    try {
+      await optimizeDay(dayIndex);
+      toast.success(`Day ${dayIndex + 1} route re-optimized!`, "Day Optimized");
+    } catch (err: any) {
+      toast.error(err?.message || `Failed to optimize Day ${dayIndex + 1}`, "Optimization Error");
+    } finally {
+      setOptimizingDayIndex(null);
+    }
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -602,11 +639,16 @@ export const DailySchedule: React.FC = () => {
                     <div className="flex items-center gap-2">
                       {route.stops.length > 1 && (
                         <button
-                          onClick={() => optimizeDay(i)}
-                          className="p-1.5 rounded-lg bg-white dark:bg-surface-700 border border-surface-200 dark:border-surface-600 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-all"
-                          title="Optimize this day"
+                          onClick={() => handleOptimizeSingleDay(i)}
+                          disabled={optimizingDayIndex !== null}
+                          className="p-1.5 rounded-lg bg-white dark:bg-surface-700 border border-surface-200 dark:border-surface-600 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-all disabled:opacity-50"
+                          title="Optimize this day's route"
                         >
-                          <Wand2 className="w-4 h-4" />
+                          {optimizingDayIndex === i ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
+                          ) : (
+                            <Wand2 className="w-4 h-4" />
+                          )}
                         </button>
                       )}
                     </div>
