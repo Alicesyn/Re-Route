@@ -83,9 +83,38 @@ export interface ItinerarySnapshot {
   id: string;
   title: string;
   days: number;
+  startDate?: string;
+  endDate?: string;
+  dateMode?: "fixed" | "duration";
+  dayStartTime?: string;
+  dayEndTime?: string;
+  showFlights?: boolean;
+  arrivalFlight?: {
+    time: string;
+    buffer: number;
+    location: Place | null;
+  } | null;
+  departureFlight?: {
+    time: string;
+    buffer: number;
+    location: Place | null;
+  } | null;
   travelMode: TravelMode;
+  dailyBudget?: number;
+  strictBudget?: boolean;
   places: Place[];
   hotels: Hotel[];
+  missingPlaces?: string[];
+  categoryDurations?: Record<PlaceCategory, number>;
+  categoryConfigs?: Record<PlaceCategory, CategoryConfig>;
   optimizedRoutes: DayRoute[];
   savedAt: number;
 }
+
+export interface TripExportFile {
+  version: 1;
+  app: "RE-Route";
+  exportedAt: string;
+  trip: ItinerarySnapshot;
+}
+

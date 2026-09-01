@@ -7,6 +7,7 @@ import {
   TravelMode,
   DayRoute,
   ItinerarySnapshot,
+  TripExportFile,
   CategoryConfig,
 } from "../types";
 import { solveSingleDay } from "../services/tspSolver";
@@ -127,10 +128,13 @@ interface RouteState extends ModeData {
   optimizeDay: (dayIndex: number) => void;
   reorderDayStops: (dayIndex: number, activeId: string, overId: string) => void;
 
-  // Trips
+  // Trips & Export/Import
   saveTrip: () => void;
   loadTrip: (id: string) => void;
   deleteTrip: (id: string) => void;
+  applyTripSnapshot: (snapshot: ItinerarySnapshot) => void;
+  exportTripAsJson: (tripId?: string) => void;
+  importTripFromJson: (jsonString: string) => { success: boolean; error?: string; tripTitle?: string };
 }
 
 const idbStorage: StateStorage = {
@@ -691,9 +695,22 @@ export const useRouteStore = create<RouteState>()(
             id: `trip_${Date.now()}`,
             title: state.title,
             days: state.days,
+            startDate: state.startDate,
+            endDate: state.endDate,
+            dateMode: state.dateMode,
+            dayStartTime: state.dayStartTime,
+            dayEndTime: state.dayEndTime,
+            showFlights: state.showFlights,
+            arrivalFlight: state.arrivalFlight,
+            departureFlight: state.departureFlight,
             travelMode: state.travelMode,
+            dailyBudget: state.dailyBudget,
+            strictBudget: state.strictBudget,
             places: state.places,
             hotels: state.hotels,
+            missingPlaces: state.missingPlaces,
+            categoryDurations: state.categoryDurations,
+            categoryConfigs: state.categoryConfigs,
             optimizedRoutes: state.optimizedRoutes,
             savedAt: Date.now(),
           };
@@ -717,15 +734,198 @@ export const useRouteStore = create<RouteState>()(
           const trip = state.savedTrips.find((t) => t.id === id);
           if (!trip) return state;
           return {
-            title: trip.title,
-            days: trip.days,
-            travelMode: trip.travelMode,
-            places: trip.places,
-            hotels: trip.hotels,
-            optimizedRoutes: trip.optimizedRoutes,
+            title: trip.title || state.title,
+            days: trip.days ?? state.days,
+            startDate: trip.startDate || state.startDate,
+            endDate: trip.endDate || state.endDate,
+            dateMode: trip.dateMode || state.dateMode,
+            dayStartTime: trip.dayStartTime || state.dayStartTime,
+            dayEndTime: trip.dayEndTime || state.dayEndTime,
+            showFlights: trip.showFlights ?? state.showFlights,
+            arrivalFlight: trip.arrivalFlight ?? state.arrivalFlight,
+            departureFlight: trip.departureFlight ?? state.departureFlight,
+            travelMode: trip.travelMode || state.travelMode,
+            dailyBudget: trip.dailyBudget ?? state.dailyBudget,
+            strictBudget: trip.strictBudget ?? state.strictBudget,
+            places: trip.places || [],
+            hotels: trip.hotels || [],
+            missingPlaces: trip.missingPlaces || [],
+            categoryDurations: trip.categoryDurations || state.categoryDurations,
+            categoryConfigs: trip.categoryConfigs || state.categoryConfigs,
+            optimizedRoutes: trip.optimizedRoutes || [],
           };
         }),
 
+      applyTripSnapshot: (trip) =>
+        set((state) => {
+          const existingIndex = state.savedTrips.findIndex(
+            (t) => t.id === trip.id || t.title === trip.title,
+          );
+          const snapshotWithId: ItinerarySnapshot = {
+            ...trip,
+            id: trip.id || `trip_${Date.now()}`,
+            savedAt: trip.savedAt || Date.now(),
+          };
+          const newSavedTrips = [...state.savedTrips];
+          if (existingIndex >= 0) {
+            newSavedTrips[existingIndex] = snapshotWithId;
+          } else {
+            newSavedTrips.push(snapshotWithId);
+          }
+
+          return {
+            title: trip.title || state.title,
+            days: trip.days ?? state.days,
+            startDate: trip.startDate || state.startDate,
+            endDate: trip.endDate || state.endDate,
+            dateMode: trip.dateMode || state.dateMode,
+            dayStartTime: trip.dayStartTime || state.dayStartTime,
+            dayEndTime: trip.dayEndTime || state.dayEndTime,
+            showFlights: trip.showFlights ?? state.showFlights,
+            arrivalFlight: trip.arrivalFlight ?? state.arrivalFlight,
+            departureFlight: trip.departureFlight ?? state.departureFlight,
+            travelMode: trip.travelMode || state.travelMode,
+            dailyBudget: trip.dailyBudget ?? state.dailyBudget,
+            strictBudget: trip.strictBudget ?? state.strictBudget,
+            places: trip.places || [],
+            hotels: trip.hotels || [],
+            missingPlaces: trip.missingPlaces || [],
+            categoryDurations: trip.categoryDurations || state.categoryDurations,
+            categoryConfigs: trip.categoryConfigs || state.categoryConfigs,
+            optimizedRoutes: trip.optimizedRoutes || [],
+            savedTrips: newSavedTrips,
+          };
+        }),
+
+      exportTripAsJson: (tripId?: string) => {
+        const state = get();
+        let tripToExport: ItinerarySnapshot;
+        if (tripId) {
+          const found = state.savedTrips.find((t) => t.id === tripId);
+          if (!found) return;
+          tripToExport = found;
+        } else {
+          tripToExport = {
+            id: `trip_${Date.now()}`,
+            title: state.title,
+            days: state.days,
+            startDate: state.startDate,
+            endDate: state.endDate,
+            dateMode: state.dateMode,
+            dayStartTime: state.dayStartTime,
+            dayEndTime: state.dayEndTime,
+            showFlights: state.showFlights,
+            arrivalFlight: state.arrivalFlight,
+            departureFlight: state.departureFlight,
+            travelMode: state.travelMode,
+            dailyBudget: state.dailyBudget,
+            strictBudget: state.strictBudget,
+            places: state.places,
+            hotels: state.hotels,
+            missingPlaces: state.missingPlaces,
+            categoryDurations: state.categoryDurations,
+            categoryConfigs: state.categoryConfigs,
+            optimizedRoutes: state.optimizedRoutes,
+            savedAt: Date.now(),
+          };
+        }
+
+        const exportPayload: TripExportFile = {
+          version: 1,
+          app: "RE-Route",
+          exportedAt: new Date().toISOString(),
+          trip: tripToExport,
+        };
+
+        const jsonStr = JSON.stringify(exportPayload, null, 2);
+        const blob = new Blob([jsonStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const sanitizedTitle = (tripToExport.title || "Trip")
+          .trim()
+          .replace(/[^a-zA-Z0-9_-]/g, "_");
+        const dateStr = format(new Date(), "yyyy-MM-dd");
+        a.download = `RE-Route_${sanitizedTitle}_${dateStr}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+
+      importTripFromJson: (jsonString: string) => {
+        try {
+          const parsed = JSON.parse(jsonString);
+          let trip: ItinerarySnapshot | null = null;
+
+          if (parsed && typeof parsed === "object") {
+            if (parsed.trip && typeof parsed.trip === "object") {
+              trip = parsed.trip as ItinerarySnapshot;
+            } else if (parsed.state && typeof parsed.state === "object") {
+              trip = parsed.state as ItinerarySnapshot;
+            } else if (Array.isArray(parsed.places) || typeof parsed.title === "string") {
+              trip = parsed as ItinerarySnapshot;
+            }
+          }
+
+          if (!trip || (!Array.isArray(trip.places) && typeof trip.days !== "number" && !trip.title)) {
+            return {
+              success: false,
+              error: "Invalid file format. Please upload a valid RE-Route trip JSON file.",
+            };
+          }
+
+          // Apply default fallbacks
+          const snapshot: ItinerarySnapshot = {
+            id: trip.id || `trip_${Date.now()}`,
+            title: trip.title || "Imported Trip",
+            days: typeof trip.days === "number" && trip.days > 0 ? trip.days : 3,
+            startDate: trip.startDate || format(new Date(), "yyyy-MM-dd"),
+            endDate: trip.endDate || format(addDays(new Date(), 2), "yyyy-MM-dd"),
+            dateMode: trip.dateMode || "duration",
+            dayStartTime: trip.dayStartTime || "09:00",
+            dayEndTime: trip.dayEndTime || "21:00",
+            showFlights: Boolean(trip.showFlights),
+            arrivalFlight: trip.arrivalFlight || null,
+            departureFlight: trip.departureFlight || null,
+            travelMode: trip.travelMode || "driving",
+            dailyBudget: trip.dailyBudget ?? 720,
+            strictBudget: trip.strictBudget ?? true,
+            places: Array.isArray(trip.places) ? trip.places : [],
+            hotels: Array.isArray(trip.hotels) ? trip.hotels : [],
+            missingPlaces: Array.isArray(trip.missingPlaces) ? trip.missingPlaces : [],
+            categoryDurations:
+              trip.categoryDurations ||
+              ALL_CATEGORIES.reduce(
+                (acc, cat) => ({
+                  ...acc,
+                  [cat]: CATEGORY_DEFAULTS[cat]?.duration || 60,
+                }),
+                {} as Record<PlaceCategory, number>,
+              ),
+            categoryConfigs:
+              trip.categoryConfigs ||
+              ALL_CATEGORIES.reduce(
+                (acc, cat) => ({
+                  ...acc,
+                  [cat]: CATEGORY_DEFAULTS[cat] || {},
+                }),
+                {} as Record<PlaceCategory, CategoryConfig>,
+              ),
+            optimizedRoutes: Array.isArray(trip.optimizedRoutes)
+              ? trip.optimizedRoutes
+              : [],
+            savedAt: trip.savedAt || Date.now(),
+          };
+
+          get().applyTripSnapshot(snapshot);
+          return { success: true, tripTitle: snapshot.title };
+        } catch (err: any) {
+          console.error("Failed to parse trip JSON:", err);
+          return {
+            success: false,
+            error: err?.message || "Failed to parse JSON file.",
+          };
+        }
+      },
 
       deleteTrip: (id) =>
         set((state) => ({

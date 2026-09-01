@@ -15,6 +15,7 @@ import {
   List,
   Settings,
   ChevronDown,
+  FileJson,
 } from "lucide-react";
 
 import { ImportModal } from "../trip-builder/ImportModal";
@@ -22,8 +23,19 @@ import { CategorySettingsModal } from "./CategorySettingsModal";
 import { LoadTripModal } from "./LoadTripModal";
 
 export const Header: React.FC = () => {
-  const { appMode, setAppMode, title, setTitle, saveTrip, places, theme, setTheme, showImages, setShowImages } =
-    useRouteStore();
+  const {
+    appMode,
+    setAppMode,
+    title,
+    setTitle,
+    saveTrip,
+    exportTripAsJson,
+    places,
+    theme,
+    setTheme,
+    showImages,
+    setShowImages,
+  } = useRouteStore();
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isLoadOpen, setIsLoadOpen] = useState(false);
   const [isCategorySettingsOpen, setIsCategorySettingsOpen] = useState(false);
@@ -174,27 +186,55 @@ export const Header: React.FC = () => {
 
         <div className="relative group">
           <button
-            onClick={() => window.print()}
+            onClick={() => exportTripAsJson()}
             className="btn-secondary flex items-center gap-2"
           >
-            <Download className="w-4 h-4" /> Export PDF
+            <Download className="w-4 h-4" /> Export
+            <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
           </button>
 
-          {/* Dropdown for TXT export on hover */}
-          <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-surface-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden flex flex-col">
+          {/* Dropdown for export formats on hover */}
+          <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden flex flex-col">
+            <button
+              onClick={() => exportTripAsJson()}
+              className="w-full text-left px-4 py-3 text-sm text-surface-800 dark:text-surface-100 hover:bg-primary-50 dark:hover:bg-primary-950/40 hover:text-primary-600 dark:hover:text-primary-400 flex items-start gap-3 transition-colors border-b border-surface-100 dark:border-surface-700"
+            >
+              <FileJson className="w-4 h-4 shrink-0 mt-0.5 text-primary-500" />
+              <div>
+                <div className="font-semibold flex items-center gap-1.5">
+                  Export Entire Trip (.json)
+                  <span className="text-[9px] font-bold bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 px-1.5 py-0.5 rounded">
+                    Full
+                  </span>
+                </div>
+                <div className="text-[11px] text-surface-500 dark:text-surface-400">
+                  PTVs, Stay, Schedule, Flights & Settings
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => window.print()}
+              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium"
+            >
+              <Download className="w-4 h-4 shrink-0 text-surface-400" />
+              Export PDF / Print
+            </button>
+
             <button
               onClick={handleExportTxt}
-              className="w-full text-left px-4 py-3 text-sm text-surface-700 hover:bg-surface-50 hover:text-primary-600 flex items-center gap-2 transition-colors font-medium border-b border-surface-100"
+              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium"
             >
-              <FileText className="w-4 h-4 shrink-0" />
-              Export Full Details
+              <FileText className="w-4 h-4 shrink-0 text-surface-400" />
+              Export Text (Full Details)
             </button>
+
             <button
               onClick={handleExportNamesTxt}
-              className="w-full text-left px-4 py-3 text-sm text-surface-700 hover:bg-surface-50 hover:text-primary-600 flex items-center gap-2 transition-colors font-medium"
+              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-3 transition-colors font-medium"
             >
-              <List className="w-4 h-4 shrink-0" />
-              Export Names Only (For Import)
+              <List className="w-4 h-4 shrink-0 text-surface-400" />
+              Export Place Names List
             </button>
           </div>
         </div>
@@ -216,3 +256,4 @@ export const Header: React.FC = () => {
     </header>
   );
 };
+
