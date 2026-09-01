@@ -1,5 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { Settings, Timer, X, Maximize2, Minimize2, ChevronDown, PlaneLanding, PlaneTakeoff } from "lucide-react";
+import {
+  Settings,
+  Timer,
+  X,
+  Maximize2,
+  Minimize2,
+  ChevronDown,
+  PlaneLanding,
+  PlaneTakeoff,
+  Sun,
+  Moon,
+  Image,
+  ImageOff,
+} from "lucide-react";
 import { useRouteStore } from "../../store/useRouteStore";
 import { ALL_CATEGORIES } from "../../utils/categoryConstants";
 import { getCategoryEmoji, getCategoryLabel } from "../../utils/categoryUtils";
@@ -16,7 +29,9 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     categoryConfigs, setCategoryConfig, 
     applyCategoryDurationsToPlaces,
     distanceUnit, setDistanceUnit,
-    timeFormat, setTimeFormat
+    timeFormat, setTimeFormat,
+    theme, setTheme,
+    showImages, setShowImages,
   } = useRouteStore();
 
   // Local state for inputs to allow empty strings while typing
@@ -148,7 +163,69 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
               General
             </h3>
             
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Appearance / Theme */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
+                  Appearance
+                </label>
+                <div className="flex bg-surface-100 dark:bg-surface-900 p-1 rounded-lg">
+                  <button
+                    onClick={() => setTheme("light")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                      theme === "light"
+                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm"
+                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                    }`}
+                  >
+                    <Sun className="w-4 h-4 text-amber-500" />
+                    Light Mode
+                  </button>
+                  <button
+                    onClick={() => setTheme("dark")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                      theme === "dark"
+                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm"
+                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                    }`}
+                  >
+                    <Moon className="w-4 h-4 text-surface-400" />
+                    Dark Mode
+                  </button>
+                </div>
+              </div>
+
+              {/* Place Images */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
+                  Place Photos
+                </label>
+                <div className="flex bg-surface-100 dark:bg-surface-900 p-1 rounded-lg">
+                  <button
+                    onClick={() => setShowImages(true)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                      showImages
+                        ? "bg-white dark:bg-surface-700 text-emerald-600 dark:text-emerald-400 shadow-sm"
+                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                    }`}
+                  >
+                    <Image className="w-4 h-4 text-emerald-500" />
+                    Photos On
+                  </button>
+                  <button
+                    onClick={() => setShowImages(false)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                      !showImages
+                        ? "bg-white dark:bg-surface-700 text-surface-800 dark:text-white shadow-sm"
+                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                    }`}
+                  >
+                    <ImageOff className="w-4 h-4 text-surface-400" />
+                    Photos Off
+                  </button>
+                </div>
+              </div>
+
               {/* Distance Unit */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider">

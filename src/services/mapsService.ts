@@ -1,5 +1,7 @@
-const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 import { emitApiError } from "./apiErrorBus";
+import { apiUsageService } from "./apiUsageService";
+
+const getApiKey = () => apiUsageService.getActiveMapsKey();
 
 // Persistent cache for search queries
 const CACHE_KEY = "reroute_search_cache_v2";
@@ -12,7 +14,6 @@ export const clearMapsCache = () => {
   localStorage.removeItem(CACHE_KEY);
   localStorage.removeItem("reroute_search_cache");
 };
-
 
 const saveToCache = (query: string, results: any[]) => {
   searchCache[query] = results;
@@ -63,22 +64,25 @@ export const searchPlaces = async (
     const cached = searchCache[cacheKey];
     const hasLegacy = cached.some((p: any) => p.photoUrl && p.photoUrl.includes("places.googleapis.com"));
     if (!hasLegacy) {
+      apiUsageService.recordCacheHit();
       return cached;
     }
   }
 
-  if (!API_KEY) {
-    throw new Error("Google Maps API Key is missing");
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error("Google Maps API Key is missing. Please configure one in Settings/API Budget.");
   }
 
   try {
+    apiUsageService.recordCall("maps_search");
     const response = await fetch(
       `https://places.googleapis.com/v1/places:searchText`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Goog-Api-Key": API_KEY,
+          "X-Goog-Api-Key": apiKey,
           "X-Goog-FieldMask":
             "places.id,places.displayName,places.formattedAddress,places.location,places.types,places.regularOpeningHours,places.editorialSummary,places.photos",
         },
@@ -100,53 +104,55 @@ export const searchPlaces = async (
     );
 
     if (!response.ok) {
-      let errorMessage = "Failed to fetch places from Google";
+      let errorMessage = "Failed to search places";
       let isQuota = false;
       try {
         const errorData = await response.json();
         errorMessage = errorData.error?.message || errorMessage;
-        isQuota = response.status === 429 && errorMessage.toLowerCase().includes("quota");
+        isQuota = response.status === 429 || errorMessage.toLowerCase().includes("quota");
       } catch (e) {}
       emitApiError({ source: "google-maps", message: errorMessage, isQuota });
       throw new Error(errorMessage);
     }
 
     const data = await response.json();
-    const rawPlaces = data.places || [];
+    if (!data.places) return [];
 
-    const results: MapsPlace[] = await Promise.all(
-      rawPlaces.map(async (p: any) => {
+    const mapped: MapsPlace[] = await Promise.all(
+      data.places.map(async (p: any) => {
         let photoUrl: string | undefined = undefined;
-        if (p.photos?.[0]?.name && API_KEY && API_KEY !== "undefined") {
+        if (p.photos && p.photos.length > 0) {
+          const photoName = p.photos[0].name;
           try {
+            apiUsageService.recordCall("maps_photo");
             const photoRes = await fetch(
-              `https://places.googleapis.com/v1/${p.photos[0].name}/media?key=${API_KEY}&maxHeightPx=400&skipHttpRedirect=true`
+              `https://places.googleapis.com/v1/${photoName}/media?key=${apiKey}&maxHeightPx=400&skipHttpRedirect=true`
             );
             if (photoRes.ok) {
-              const photoData = await photoRes.json();
-              photoUrl = photoData.photoUri;
+              const pData = await photoRes.json();
+              photoUrl = pData.photoUri;
             }
           } catch (e) {
-            console.warn("Failed to resolve direct photoUri:", e);
+            console.warn("Failed to fetch direct photo URI, falling back:", e);
           }
         }
 
         return {
           id: p.id,
-          name: p.displayName?.text || p.name || "",
+          name: p.displayName?.text || "",
           address: p.formattedAddress || "",
-          lat: p.location?.latitude ?? 0,
-          lng: p.location?.longitude ?? 0,
+          lat: p.location?.latitude || 0,
+          lng: p.location?.longitude || 0,
           types: p.types || [],
           openingHours: p.regularOpeningHours?.weekdayDescriptions || [],
           editorialSummary: p.editorialSummary?.text,
           photoUrl,
         };
-      })
+      }),
     );
 
-    saveToCache(cacheKey, results);
-    return results;
+    saveToCache(cacheKey, mapped);
+    return mapped;
   } catch (error) {
     console.error("Maps Search Error:", error);
     throw error;
@@ -159,7 +165,8 @@ export const fetchRouteSegment = async (
   mode: "driving" | "transit" | "walking",
   departureTime?: Date
 ): Promise<{ distanceM: number; durationS: number }> => {
-  if (!API_KEY) throw new Error("Google Maps API Key is missing");
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("Google Maps API Key is missing");
 
   // Format mode for API
   let travelMode = "DRIVE";
@@ -174,12 +181,12 @@ export const fetchRouteSegment = async (
   const cacheKey = `${oLat},${oLng}_${dLat},${dLng}_${travelMode}`;
 
   if (routesCache[cacheKey] && mode !== "transit") {
-    // Transit is time-dependent, so we might not want to aggressively cache it if departureTime matters a lot.
-    // However, for limited API calls, caching transit is also fine. We'll cache all modes.
+    apiUsageService.recordCacheHit();
     return routesCache[cacheKey];
   }
 
   try {
+    apiUsageService.recordCall("maps_route");
     const body: any = {
       origin: { location: { latLng: { latitude: origin.lat, longitude: origin.lng } } },
       destination: { location: { latLng: { latitude: destination.lat, longitude: destination.lng } } },
@@ -195,7 +202,7 @@ export const fetchRouteSegment = async (
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Goog-Api-Key": API_KEY,
+        "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask": "routes.distanceMeters,routes.duration",
       },
       body: JSON.stringify(body),
@@ -238,14 +245,16 @@ export const fetchFreshPhoto = async (place: {
   lat?: number;
   lng?: number;
 }): Promise<string | undefined> => {
-  if (!API_KEY || API_KEY === "undefined") return undefined;
+  const apiKey = getApiKey();
+  if (!apiKey || apiKey === "undefined") return undefined;
 
   let photoName: string | undefined = undefined;
   if (place.id && place.id.startsWith("ChIJ")) {
     try {
+      apiUsageService.recordCall("maps_photo");
       const r = await fetch(`https://places.googleapis.com/v1/places/${place.id}`, {
         headers: {
-          "X-Goog-Api-Key": API_KEY,
+          "X-Goog-Api-Key": apiKey,
           "X-Goog-FieldMask": "id,photos",
         },
       });
@@ -260,8 +269,9 @@ export const fetchFreshPhoto = async (place: {
 
   if (photoName) {
     try {
+      apiUsageService.recordCall("maps_photo");
       const photoRes = await fetch(
-        `https://places.googleapis.com/v1/${photoName}/media?key=${API_KEY}&maxHeightPx=400&skipHttpRedirect=true`
+        `https://places.googleapis.com/v1/${photoName}/media?key=${apiKey}&maxHeightPx=400&skipHttpRedirect=true`
       );
       if (photoRes.ok) {
         const pData = await photoRes.json();

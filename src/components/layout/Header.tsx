@@ -4,25 +4,25 @@ import {
   Map,
   Download,
   Save,
-  Moon,
-  Sun,
   Upload,
   FolderOpen,
   Check,
   FileText,
-  Image,
-  ImageOff,
   List,
   Settings,
   ChevronDown,
   FileJson,
   Loader2,
+  Activity,
+  Key,
 } from "lucide-react";
 
 import { ImportModal } from "../trip-builder/ImportModal";
 import { CategorySettingsModal } from "./CategorySettingsModal";
 import { LoadTripModal } from "./LoadTripModal";
+import { ApiBudgetModal } from "./ApiBudgetModal";
 import { toast } from "../../services/toastService";
+import { apiUsageService, ApiUsageStats, ApiBudgetLimits } from "../../services/apiUsageService";
 
 export const Header: React.FC = React.memo(() => {
   const appMode = useRouteStore((s) => s.appMode);
@@ -31,16 +31,31 @@ export const Header: React.FC = React.memo(() => {
   const setTitle = useRouteStore((s) => s.setTitle);
   const saveTrip = useRouteStore((s) => s.saveTrip);
   const exportTripAsJson = useRouteStore((s) => s.exportTripAsJson);
-  const theme = useRouteStore((s) => s.theme);
-  const setTheme = useRouteStore((s) => s.setTheme);
-  const showImages = useRouteStore((s) => s.showImages);
-  const setShowImages = useRouteStore((s) => s.setShowImages);
+
 
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isLoadOpen, setIsLoadOpen] = useState(false);
   const [isCategorySettingsOpen, setIsCategorySettingsOpen] = useState(false);
+  const [isApiBudgetOpen, setIsApiBudgetOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+
+  const [apiStats, setApiStats] = useState<ApiUsageStats>(apiUsageService.getStats());
+  const [apiLimits, setApiLimits] = useState<ApiBudgetLimits>(apiUsageService.getLimits());
+
+  React.useEffect(() => {
+    return apiUsageService.subscribe((stats) => {
+      setApiStats(stats);
+      setApiLimits(apiUsageService.getLimits());
+    });
+  }, []);
+
+  const totalMaps = apiStats.mapsSearchCalls + apiStats.mapsPhotoCalls + apiStats.mapsRouteCalls;
+  const mapsPercent = Math.min(100, Math.round((totalMaps / apiLimits.dailyMapsLimit) * 100));
+  const geminiPercent = Math.min(100, Math.round((apiStats.geminiCalls / apiLimits.dailyGeminiLimit) * 100));
+  const maxPercent = Math.max(mapsPercent, geminiPercent);
+  const hasCustomKey = apiUsageService.isUsingCustomMapsKey() || apiUsageService.isUsingCustomGeminiKey();
+
 
   const handleSave = async () => {
     if (isSaving) return;
@@ -144,20 +159,38 @@ export const Header: React.FC = React.memo(() => {
           </div>
         </div>
 
-        {/* Theme Toggle */}
+        {/* API Budget & Usage Button */}
         <button
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors border outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-surface-800 text-surface-700 dark:text-surface-200 border-surface-200 dark:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-700"
+          onClick={() => setIsApiBudgetOpen(true)}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-bold transition-all border outline-none focus:ring-2 focus:ring-primary-500 shadow-sm ${
+            hasCustomKey
+              ? "bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800/60 hover:bg-purple-100"
+              : maxPercent >= 90
+                ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800/60 hover:bg-red-100 animate-pulse"
+                : maxPercent >= 70
+                  ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800/60 hover:bg-amber-100"
+                  : "bg-white dark:bg-surface-800 text-surface-700 dark:text-surface-200 border-surface-200 dark:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-700"
+          }`}
+          title="Open API Usage & Budget Monitor / BYOK"
         >
-          {theme === "dark" ? (
+          {hasCustomKey ? (
             <>
-              <Moon className="w-4 h-4 text-surface-400 dark:text-surface-500" />
-              <span>Dark Mode</span>
+              <Key className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+              <span>BYOK Key</span>
             </>
           ) : (
             <>
-              <Sun className="w-4 h-4 text-amber-600 dark:text-amber-500" />
-              <span>Light Mode</span>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  maxPercent >= 90
+                    ? "bg-red-500"
+                    : maxPercent >= 70
+                      ? "bg-amber-500"
+                      : "bg-emerald-500"
+                }`}
+              />
+              <Activity className="w-3.5 h-3.5 text-surface-400 dark:text-surface-500" />
+              <span>API Budget ({maxPercent}%)</span>
             </>
           )}
         </button>
@@ -168,24 +201,6 @@ export const Header: React.FC = React.memo(() => {
         >
           <Settings className="w-4 h-4 text-surface-400 dark:text-surface-500" />
           <span>Settings</span>
-        </button>
-
-        {/* Images Toggle */}
-        <button
-          onClick={() => setShowImages(!showImages)}
-          className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors border outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-surface-800 text-surface-700 dark:text-surface-200 border-surface-200 dark:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-700"
-        >
-          {showImages ? (
-            <>
-              <Image className="w-4 h-4 text-emerald-600 dark:text-emerald-500" />
-              <span>Images On</span>
-            </>
-          ) : (
-            <>
-              <ImageOff className="w-4 h-4 text-surface-400 dark:text-surface-500" />
-              <span>Images Off</span>
-            </>
-          )}
         </button>
 
         <button
@@ -291,6 +306,10 @@ export const Header: React.FC = React.memo(() => {
       <CategorySettingsModal
         isOpen={isCategorySettingsOpen}
         onClose={() => setIsCategorySettingsOpen(false)}
+      />
+      <ApiBudgetModal
+        isOpen={isApiBudgetOpen}
+        onClose={() => setIsApiBudgetOpen(false)}
       />
     </header>
   );

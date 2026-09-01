@@ -1,7 +1,7 @@
 import { PlaceCategory } from "../types";
 import { emitApiError } from "./apiErrorBus";
+import { apiUsageService } from "./apiUsageService";
 
-const CLIENT_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-lite-latest"];
 
 export interface AISummary {
@@ -29,6 +29,7 @@ const callGeminiDirectWithFallback = async (
   for (let i = 0; i < FALLBACK_MODELS.length; i++) {
     const model = FALLBACK_MODELS[i];
     try {
+      apiUsageService.recordCall("gemini");
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
@@ -82,35 +83,41 @@ export const summarizePlace = async (
   _retries = 3,
   signal?: AbortSignal
 ): Promise<AISummary> => {
-  // 1. Try secure serverless proxy first
-  try {
-    const proxyRes = await fetch("/api/summarize", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ place: { name, address, types } }),
-      signal,
-    });
+  const customKey = apiUsageService.getCustomGeminiKey();
+  const activeKey = apiUsageService.getActiveGeminiKey();
 
-    if (proxyRes.ok) {
-      return await proxyRes.json();
-    }
+  // 1. If no custom key is provided, try secure serverless proxy first
+  if (!customKey) {
+    try {
+      apiUsageService.recordCall("gemini");
+      const proxyRes = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ place: { name, address, types } }),
+        signal,
+      });
 
-    if (proxyRes.status !== 404 && proxyRes.status !== 500) {
-      const errData = await proxyRes.json().catch(() => ({}));
-      const msg = errData.error || "Failed to summarize place";
-      emitApiError({ source: "gemini", message: msg, isQuota: proxyRes.status === 429 });
-      throw new Error(msg);
-    }
-  } catch (err: any) {
-    if (err?.name === "AbortError") throw err;
-    if (!CLIENT_API_KEY) {
-      throw err;
+      if (proxyRes.ok) {
+        return await proxyRes.json();
+      }
+
+      if (proxyRes.status !== 404 && proxyRes.status !== 500) {
+        const errData = await proxyRes.json().catch(() => ({}));
+        const msg = errData.error || "Failed to summarize place";
+        emitApiError({ source: "gemini", message: msg, isQuota: proxyRes.status === 429 });
+        throw new Error(msg);
+      }
+    } catch (err: any) {
+      if (err?.name === "AbortError") throw err;
+      if (!activeKey) {
+        throw err;
+      }
     }
   }
 
-  // 2. Direct client fallback with multi-model resilience
-  if (!CLIENT_API_KEY) {
-    throw new Error("Gemini API is not configured (missing server or client key)");
+  // 2. Direct client fallback / Custom BYOK Key execution
+  if (!activeKey) {
+    throw new Error("Gemini API is not configured. Please add an API key in API Budget / BYOK.");
   }
 
   const prompt = `
@@ -131,7 +138,7 @@ export const summarizePlace = async (
   `;
 
   return await callGeminiDirectWithFallback(
-    CLIENT_API_KEY,
+    activeKey,
     {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { responseMimeType: "application/json" },
@@ -145,35 +152,41 @@ export const summarizePlacesBatch = async (
   _retries = 3,
   signal?: AbortSignal
 ): Promise<(AISummary & { id: string })[]> => {
-  // 1. Try secure serverless proxy first
-  try {
-    const proxyRes = await fetch("/api/summarize", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ places }),
-      signal,
-    });
+  const customKey = apiUsageService.getCustomGeminiKey();
+  const activeKey = apiUsageService.getActiveGeminiKey();
 
-    if (proxyRes.ok) {
-      return await proxyRes.json();
-    }
+  // 1. If no custom key is provided, try secure serverless proxy first
+  if (!customKey) {
+    try {
+      apiUsageService.recordCall("gemini");
+      const proxyRes = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ places }),
+        signal,
+      });
 
-    if (proxyRes.status !== 404 && proxyRes.status !== 500) {
-      const errData = await proxyRes.json().catch(() => ({}));
-      const msg = errData.error || "Failed to batch summarize places";
-      emitApiError({ source: "gemini", message: msg, isQuota: proxyRes.status === 429 });
-      throw new Error(msg);
-    }
-  } catch (err: any) {
-    if (err?.name === "AbortError") throw err;
-    if (!CLIENT_API_KEY) {
-      throw err;
+      if (proxyRes.ok) {
+        return await proxyRes.json();
+      }
+
+      if (proxyRes.status !== 404 && proxyRes.status !== 500) {
+        const errData = await proxyRes.json().catch(() => ({}));
+        const msg = errData.error || "Failed to batch summarize places";
+        emitApiError({ source: "gemini", message: msg, isQuota: proxyRes.status === 429 });
+        throw new Error(msg);
+      }
+    } catch (err: any) {
+      if (err?.name === "AbortError") throw err;
+      if (!activeKey) {
+        throw err;
+      }
     }
   }
 
-  // 2. Direct client fallback with multi-model resilience
-  if (!CLIENT_API_KEY) {
-    throw new Error("Gemini API is not configured (missing server or client key)");
+  // 2. Direct client fallback / Custom BYOK Key execution
+  if (!activeKey) {
+    throw new Error("Gemini API is not configured. Please add an API key in API Budget / BYOK.");
   }
 
   const prompt = `
@@ -197,7 +210,7 @@ export const summarizePlacesBatch = async (
   `;
 
   return await callGeminiDirectWithFallback(
-    CLIENT_API_KEY,
+    activeKey,
     {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { responseMimeType: "application/json" },
@@ -212,33 +225,39 @@ export const suggestSights = async (
   rejectedNames: string[],
   _retries = 3
 ): Promise<{ name: string; description: string; category: PlaceCategory; lat: number; lng: number; estimatedDuration: number }[]> => {
-  // 1. Try secure serverless proxy first
-  try {
-    const proxyRes = await fetch("/api/suggest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lat, lng, rejectedNames }),
-    });
+  const customKey = apiUsageService.getCustomGeminiKey();
+  const activeKey = apiUsageService.getActiveGeminiKey();
 
-    if (proxyRes.ok) {
-      return await proxyRes.json();
-    }
+  // 1. If no custom key, try secure serverless proxy first
+  if (!customKey) {
+    try {
+      apiUsageService.recordCall("gemini");
+      const proxyRes = await fetch("/api/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat, lng, rejectedNames }),
+      });
 
-    if (proxyRes.status !== 404 && proxyRes.status !== 500) {
-      const errData = await proxyRes.json().catch(() => ({}));
-      const msg = errData.error || "Failed to fetch suggestions";
-      emitApiError({ source: "gemini", message: msg, isQuota: proxyRes.status === 429 });
-      throw new Error(msg);
-    }
-  } catch (err: any) {
-    if (!CLIENT_API_KEY) {
-      console.warn("Serverless suggest failed and no client key available:", err);
-      return [];
+      if (proxyRes.ok) {
+        return await proxyRes.json();
+      }
+
+      if (proxyRes.status !== 404 && proxyRes.status !== 500) {
+        const errData = await proxyRes.json().catch(() => ({}));
+        const msg = errData.error || "Failed to fetch suggestions";
+        emitApiError({ source: "gemini", message: msg, isQuota: proxyRes.status === 429 });
+        throw new Error(msg);
+      }
+    } catch (err: any) {
+      if (!activeKey) {
+        console.warn("Serverless suggest failed and no client key available:", err);
+        return [];
+      }
     }
   }
 
-  // 2. Direct client fallback with multi-model resilience
-  if (!CLIENT_API_KEY) {
+  // 2. Direct client fallback / Custom BYOK Key execution
+  if (!activeKey) {
     return [];
   }
 
@@ -261,7 +280,7 @@ export const suggestSights = async (
 
   try {
     return await callGeminiDirectWithFallback(
-      CLIENT_API_KEY,
+      activeKey,
       {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { responseMimeType: "application/json" },
