@@ -24,7 +24,7 @@ export const HotelSearchInput: React.FC<HotelSearchInputProps> = ({
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const { appMode } = useRouteStore();
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceTimerRef = useRef<number | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (appMode !== "real") {

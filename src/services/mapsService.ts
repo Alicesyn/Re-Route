@@ -2,7 +2,7 @@ const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 import { emitApiError } from "./apiErrorBus";
 
 // Persistent cache for search queries
-const CACHE_KEY = "reroute_search_cache";
+const CACHE_KEY = "reroute_search_cache_v2";
 let searchCache: Record<string, any[]> = JSON.parse(
   localStorage.getItem(CACHE_KEY) || "{}",
 );
@@ -10,6 +10,7 @@ let searchCache: Record<string, any[]> = JSON.parse(
 export const clearMapsCache = () => {
   searchCache = {};
   localStorage.removeItem(CACHE_KEY);
+  localStorage.removeItem("reroute_search_cache");
 };
 
 
@@ -58,7 +59,13 @@ export const searchPlaces = async (
     ? `${query}_${Math.round(biasLocation.lat)}_${Math.round(biasLocation.lng)}`
     : query;
 
-  if (searchCache[cacheKey]) return searchCache[cacheKey];
+  if (searchCache[cacheKey]) {
+    const cached = searchCache[cacheKey];
+    const hasLegacy = cached.some((p: any) => p.photoUrl && p.photoUrl.includes("places.googleapis.com"));
+    if (!hasLegacy) {
+      return cached;
+    }
+  }
 
   if (!API_KEY) {
     throw new Error("Google Maps API Key is missing");
@@ -105,19 +112,38 @@ export const searchPlaces = async (
     }
 
     const data = await response.json();
-    const results: MapsPlace[] = (data.places || []).map((p: any) => ({
-      id: p.id,
-      name: p.displayName.text,
-      address: p.formattedAddress,
-      lat: p.location.latitude,
-      lng: p.location.longitude,
-      types: p.types || [],
-      openingHours: p.regularOpeningHours?.weekdayDescriptions || [],
-      editorialSummary: p.editorialSummary?.text,
-      photoUrl: p.photos?.[0]?.name
-        ? `https://places.googleapis.com/v1/${p.photos[0].name}/media?key=${API_KEY}&maxHeightPx=400&maxWidthPx=400`
-        : undefined,
-    }));
+    const rawPlaces = data.places || [];
+
+    const results: MapsPlace[] = await Promise.all(
+      rawPlaces.map(async (p: any) => {
+        let photoUrl: string | undefined = undefined;
+        if (p.photos?.[0]?.name && API_KEY && API_KEY !== "undefined") {
+          try {
+            const photoRes = await fetch(
+              `https://places.googleapis.com/v1/${p.photos[0].name}/media?key=${API_KEY}&maxHeightPx=400&skipHttpRedirect=true`
+            );
+            if (photoRes.ok) {
+              const photoData = await photoRes.json();
+              photoUrl = photoData.photoUri;
+            }
+          } catch (e) {
+            console.warn("Failed to resolve direct photoUri:", e);
+          }
+        }
+
+        return {
+          id: p.id,
+          name: p.displayName?.text || p.name || "",
+          address: p.formattedAddress || "",
+          lat: p.location?.latitude ?? 0,
+          lng: p.location?.longitude ?? 0,
+          types: p.types || [],
+          openingHours: p.regularOpeningHours?.weekdayDescriptions || [],
+          editorialSummary: p.editorialSummary?.text,
+          photoUrl,
+        };
+      })
+    );
 
     saveToCache(cacheKey, results);
     return results;
@@ -203,4 +229,61 @@ export const fetchRouteSegment = async (
     console.error("Maps Routes Error:", error);
     throw error;
   }
+};
+
+export const fetchFreshPhoto = async (place: {
+  id: string;
+  name: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
+}): Promise<string | undefined> => {
+  if (!API_KEY || API_KEY === "undefined") return undefined;
+
+  let photoName: string | undefined = undefined;
+  if (place.id && place.id.startsWith("ChIJ")) {
+    try {
+      const r = await fetch(`https://places.googleapis.com/v1/places/${place.id}`, {
+        headers: {
+          "X-Goog-Api-Key": API_KEY,
+          "X-Goog-FieldMask": "id,photos",
+        },
+      });
+      if (r.ok) {
+        const d = await r.json();
+        photoName = d.photos?.[0]?.name;
+      }
+    } catch (e) {
+      console.warn("Place details photo lookup failed:", e);
+    }
+  }
+
+  if (photoName) {
+    try {
+      const photoRes = await fetch(
+        `https://places.googleapis.com/v1/${photoName}/media?key=${API_KEY}&maxHeightPx=400&skipHttpRedirect=true`
+      );
+      if (photoRes.ok) {
+        const pData = await photoRes.json();
+        return pData.photoUri;
+      }
+    } catch (e) {
+      console.warn("Photo media redirect lookup failed:", e);
+    }
+  }
+
+  try {
+    const queryStr = place.address ? `${place.name} ${place.address}` : place.name;
+    const searchResults = await searchPlaces(
+      queryStr,
+      place.lat && place.lng ? { lat: place.lat, lng: place.lng } : undefined
+    );
+    if (searchResults && searchResults.length > 0) {
+      return searchResults[0].photoUrl;
+    }
+  } catch (e) {
+    console.warn("Search fallback photo lookup failed:", e);
+  }
+
+  return undefined;
 };

@@ -1,8 +1,8 @@
 import { PlaceCategory } from "../types";
 import { emitApiError } from "./apiErrorBus";
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const MODEL = "gemini-flash-latest";
+const CLIENT_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-lite-latest"];
 
 export interface AISummary {
   description: string;
@@ -10,15 +10,107 @@ export interface AISummary {
   estimatedDuration: number;
 }
 
+const parseJsonResponse = <T>(rawText: string): T => {
+  const cleaned = rawText
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+  return JSON.parse(cleaned);
+};
+
+const callGeminiDirectWithFallback = async (
+  apiKey: string,
+  payload: any,
+  signal?: AbortSignal
+): Promise<any> => {
+  let lastError: Error | null = null;
+
+  for (let i = 0; i < FALLBACK_MODELS.length; i++) {
+    const model = FALLBACK_MODELS[i];
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal,
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) throw new Error("Empty response from Gemini");
+        return parseJsonResponse(text);
+      }
+
+      let errorMessage = `Failed with status ${response.status}`;
+      let isQuota = response.status === 429;
+      try {
+        const errJson = await response.json();
+        errorMessage = errJson.error?.message || errorMessage;
+        if (errorMessage.includes("Quota exceeded")) isQuota = true;
+      } catch (e) {}
+
+      // If 503 (high demand) or 429 (rate limit) and we have more models, try the next model immediately
+      if ((response.status === 503 || response.status === 429) && i < FALLBACK_MODELS.length - 1) {
+        console.warn(`[Gemini] Model ${model} returned ${response.status}. Trying fallback model ${FALLBACK_MODELS[i + 1]}...`);
+        continue;
+      }
+
+      lastError = new Error(errorMessage);
+      emitApiError({ source: "gemini", message: errorMessage, isQuota });
+      throw lastError;
+    } catch (err: any) {
+      if (err?.name === "AbortError") throw err;
+      lastError = err;
+      if (i < FALLBACK_MODELS.length - 1) {
+        continue;
+      }
+    }
+  }
+
+  throw lastError || new Error("All Gemini model attempts failed");
+};
+
 export const summarizePlace = async (
   name: string,
   address: string,
   types: string[],
-  retries = 3,
+  _retries = 3,
   signal?: AbortSignal
 ): Promise<AISummary> => {
-  if (!API_KEY) {
-    throw new Error("Gemini API Key is missing");
+  // 1. Try secure serverless proxy first
+  try {
+    const proxyRes = await fetch("/api/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ place: { name, address, types } }),
+      signal,
+    });
+
+    if (proxyRes.ok) {
+      return await proxyRes.json();
+    }
+
+    if (proxyRes.status !== 404 && proxyRes.status !== 500) {
+      const errData = await proxyRes.json().catch(() => ({}));
+      const msg = errData.error || "Failed to summarize place";
+      emitApiError({ source: "gemini", message: msg, isQuota: proxyRes.status === 429 });
+      throw new Error(msg);
+    }
+  } catch (err: any) {
+    if (err?.name === "AbortError") throw err;
+    if (!CLIENT_API_KEY) {
+      throw err;
+    }
+  }
+
+  // 2. Direct client fallback with multi-model resilience
+  if (!CLIENT_API_KEY) {
+    throw new Error("Gemini API is not configured (missing server or client key)");
   }
 
   const prompt = `
@@ -38,61 +130,50 @@ export const summarizePlace = async (
     }
   `;
 
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-          },
-        }),
-        signal,
-      },
-    );
-
-    if (!response.ok) {
-      let errorMessage = "Failed to call Gemini API";
-      let isQuotaExceeded = false;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.error?.message || errorMessage;
-        if (errorMessage.includes("Quota exceeded")) {
-          isQuotaExceeded = true;
-        }
-      } catch (e) {}
-
-      if (response.status === 429 && retries > 0 && !isQuotaExceeded) {
-        console.warn(`Gemini API rate limit hit. Retrying in 25s...`);
-        await new Promise((resolve) => setTimeout(resolve, 25000));
-        return summarizePlace(name, address, types, retries - 1, signal);
-      }
-      emitApiError({ source: "gemini", message: errorMessage, isQuota: isQuotaExceeded || response.status === 429 });
-      throw new Error(errorMessage);
-    }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!text) throw new Error("Empty response from Gemini");
-
-    return JSON.parse(text);
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    throw error;
-  }
+  return await callGeminiDirectWithFallback(
+    CLIENT_API_KEY,
+    {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json" },
+    },
+    signal
+  );
 };
 
 export const summarizePlacesBatch = async (
   places: { id: string; name: string; address: string; types: string[] }[],
-  retries = 3,
+  _retries = 3,
   signal?: AbortSignal
 ): Promise<(AISummary & { id: string })[]> => {
-  if (!API_KEY) {
-    throw new Error("Gemini API Key is missing");
+  // 1. Try secure serverless proxy first
+  try {
+    const proxyRes = await fetch("/api/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ places }),
+      signal,
+    });
+
+    if (proxyRes.ok) {
+      return await proxyRes.json();
+    }
+
+    if (proxyRes.status !== 404 && proxyRes.status !== 500) {
+      const errData = await proxyRes.json().catch(() => ({}));
+      const msg = errData.error || "Failed to batch summarize places";
+      emitApiError({ source: "gemini", message: msg, isQuota: proxyRes.status === 429 });
+      throw new Error(msg);
+    }
+  } catch (err: any) {
+    if (err?.name === "AbortError") throw err;
+    if (!CLIENT_API_KEY) {
+      throw err;
+    }
+  }
+
+  // 2. Direct client fallback with multi-model resilience
+  if (!CLIENT_API_KEY) {
+    throw new Error("Gemini API is not configured (missing server or client key)");
   }
 
   const prompt = `
@@ -115,64 +196,50 @@ export const summarizePlacesBatch = async (
     ]
   `;
 
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-          },
-        }),
-        signal,
-      },
-    );
-
-    if (!response.ok) {
-      let errorMessage = "Failed to call Gemini API";
-      let isQuotaExceeded = false;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.error?.message || errorMessage;
-        if (errorMessage.includes("Quota exceeded")) {
-          isQuotaExceeded = true;
-        }
-      } catch (e) {}
-
-      if (response.status === 429 && retries > 0 && !isQuotaExceeded) {
-        console.warn(`Gemini API rate limit hit in batch. Retrying in 25s...`);
-        await new Promise((resolve) => setTimeout(resolve, 25000));
-        return summarizePlacesBatch(places, retries - 1, signal);
-      }
-      emitApiError({ source: "gemini", message: errorMessage, isQuota: isQuotaExceeded || response.status === 429 });
-      throw new Error(errorMessage);
-    }
-
-    const data = await response.json();
-    let text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!text) throw new Error("Empty response from Gemini");
-
-    text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-
-    return JSON.parse(text);
-  } catch (error) {
-    console.error("Gemini API Error in batch:", error);
-    throw error;
-  }
+  return await callGeminiDirectWithFallback(
+    CLIENT_API_KEY,
+    {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json" },
+    },
+    signal
+  );
 };
 
 export const suggestSights = async (
   lat: number,
   lng: number,
   rejectedNames: string[],
-  retries = 3
+  _retries = 3
 ): Promise<{ name: string; description: string; category: PlaceCategory; lat: number; lng: number; estimatedDuration: number }[]> => {
-  if (!API_KEY) {
-    throw new Error("Gemini API Key is missing");
+  // 1. Try secure serverless proxy first
+  try {
+    const proxyRes = await fetch("/api/suggest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lat, lng, rejectedNames }),
+    });
+
+    if (proxyRes.ok) {
+      return await proxyRes.json();
+    }
+
+    if (proxyRes.status !== 404 && proxyRes.status !== 500) {
+      const errData = await proxyRes.json().catch(() => ({}));
+      const msg = errData.error || "Failed to fetch suggestions";
+      emitApiError({ source: "gemini", message: msg, isQuota: proxyRes.status === 429 });
+      throw new Error(msg);
+    }
+  } catch (err: any) {
+    if (!CLIENT_API_KEY) {
+      console.warn("Serverless suggest failed and no client key available:", err);
+      return [];
+    }
+  }
+
+  // 2. Direct client fallback with multi-model resilience
+  if (!CLIENT_API_KEY) {
+    return [];
   }
 
   const prompt = `
@@ -193,43 +260,13 @@ export const suggestSights = async (
   `;
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`,
+    return await callGeminiDirectWithFallback(
+      CLIENT_API_KEY,
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-          },
-        }),
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" },
       }
     );
-
-    if (!response.ok) {
-      let errorMessage = "Failed to fetch suggestions from Gemini API";
-      let isQuotaExceeded = false;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.error?.message || errorMessage;
-        if (errorMessage.includes("Quota exceeded")) {
-          isQuotaExceeded = true;
-        }
-      } catch (e) {}
-
-      if (response.status === 429 && retries > 0 && !isQuotaExceeded) {
-        console.warn(`Gemini API rate limit hit in suggest. Retrying in 25s...`);
-        await new Promise((resolve) => setTimeout(resolve, 25000));
-        return suggestSights(lat, lng, rejectedNames, retries - 1);
-      }
-      emitApiError({ source: "gemini", message: errorMessage, isQuota: isQuotaExceeded || response.status === 429 });
-      throw new Error(errorMessage);
-    }
-
-    const data = await response.json();
-    const jsonStr = data.candidates[0].content.parts[0].text;
-    return JSON.parse(jsonStr);
   } catch (error) {
     console.error("Gemini Suggestion Error:", error);
     return [];

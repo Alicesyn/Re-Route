@@ -14,6 +14,7 @@ import {
   ImageOff,
   List,
   Settings,
+  ChevronDown,
 } from "lucide-react";
 
 import { ImportModal } from "../trip-builder/ImportModal";
@@ -82,22 +83,18 @@ export const Header: React.FC = () => {
             onChange={(e) =>
               setAppMode(e.target.value as "real" | "mock" | "dropdown-mock")
             }
-            className={`appearance-none flex items-center gap-2 pl-4 pr-10 py-2 rounded-full text-sm font-medium transition-colors border cursor-pointer outline-none focus:ring-2 focus:ring-primary-500 ${
+            className={`appearance-none flex items-center gap-2 pl-4 pr-9 py-2 rounded-full text-sm font-medium transition-colors border cursor-pointer outline-none focus:ring-2 focus:ring-primary-500 ${
               appMode === "real"
-                ? "bg-white dark:bg-surface-800 text-surface-700 dark:text-surface-200 border-surface-200 dark:border-surface-600"
+                ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800/60"
                 : "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border-amber-200 dark:border-amber-800/50"
             }`}
           >
-            <option value="real">Real Mode</option>
-            <option value="mock">Mock Mode</option>
-            <option value="dropdown-mock">Dropdown Mock Mode</option>
+            <option value="real">🌐 Real Mode (Live APIs)</option>
+            <option value="mock">⚡ Mock Mode</option>
+            <option value="dropdown-mock">📋 Dropdown Mock Mode</option>
           </select>
           <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-            {appMode === "real" ? (
-              <Moon className="w-4 h-4 text-surface-400 dark:text-surface-500" />
-            ) : (
-              <Sun className="w-4 h-4 text-amber-600 dark:text-amber-500" />
-            )}
+            <ChevronDown className="w-4 h-4 text-surface-400 dark:text-surface-500" />
           </div>
         </div>
 

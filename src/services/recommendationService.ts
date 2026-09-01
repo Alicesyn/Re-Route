@@ -266,7 +266,7 @@ export async function getSuggestedPlaces(
   const seenSuggestionNames = new Set<string>();
 
   for (const anchor of anchors) {
-    const cacheKey = `re_route_suggestions_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
+    const cacheKey = `re_route_suggestions_v2_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
     let candidateSights: any[] = [];
 
     if (appMode === "real") {

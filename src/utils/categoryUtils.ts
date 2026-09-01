@@ -24,20 +24,13 @@ export function getDefaultDuration(cat: PlaceCategory): number {
 
 export function getActivePhotoUrl(photoUrl: string | undefined): string | undefined {
   if (!photoUrl) return undefined;
+  // If it's a direct Google CDN or external photo, use directly
+  if (photoUrl.includes("googleusercontent.com") || photoUrl.includes("loremflickr.com")) {
+    return photoUrl;
+  }
+  // Prevent raw places.googleapis.com redirect URLs from rendering in <img> to avoid Safari 400 errors
   if (photoUrl.includes("places.googleapis.com")) {
-    try {
-      const url = new URL(photoUrl);
-      const activeKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-      if (activeKey) {
-        url.searchParams.set("key", activeKey);
-        return url.toString();
-      }
-    } catch (e) {
-      const activeKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-      if (activeKey) {
-        return photoUrl.replace(/key=[^&]*/, `key=${activeKey}`);
-      }
-    }
+    return undefined;
   }
   return photoUrl;
 }

@@ -21,7 +21,7 @@ if (!API_KEY) {
   process.exit(1);
 }
 
-const MODEL = "gemini-flash-latest";
+const MODEL = "gemini-1.5-flash";
 
 async function testPrompt(name, address, types) {
   console.log(`\n========================================`);

@@ -8,7 +8,7 @@ import { DailySchedule } from "./components/schedule/DailySchedule";
 import { ApiErrorToast } from "./components/layout/ApiErrorToast";
 import { useRouteStore } from "./store/useRouteStore";
 import { solveTSP } from "./services/tspSolver";
-import { searchPlaces, clearMapsCache } from "./services/mapsService";
+import { clearMapsCache, fetchFreshPhoto } from "./services/mapsService";
 import { Wand2, Sparkles, ChevronDown, ChevronUp, RefreshCw, Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { summarizePlacesBatch } from "./services/aiService";
@@ -46,6 +46,38 @@ function App() {
       document.documentElement.classList.remove("dark");
     }
   }, [theme]);
+
+  // Auto-upgrade any legacy or missing photo URLs to fresh direct Google CDN URLs
+  useEffect(() => {
+    if (appMode !== "real" || places.length === 0) return;
+
+    const placesNeedingPhotos = places.filter(
+      (p) => !p.photoUrl || p.photoUrl.includes("places.googleapis.com")
+    );
+    if (placesNeedingPhotos.length === 0) return;
+
+    const upgradeLegacyPhotos = async () => {
+      const updates: { id: string; updates: { photoUrl?: string } }[] = [];
+      await Promise.all(
+        placesNeedingPhotos.map(async (p) => {
+          try {
+            const freshPhotoUri = await fetchFreshPhoto(p);
+            if (freshPhotoUri) {
+              updates.push({ id: p.id, updates: { photoUrl: freshPhotoUri } });
+            }
+          } catch (e) {
+            console.warn(`[Auto-Upgrade Photo] Failed for ${p.name}:`, e);
+          }
+        })
+      );
+
+      if (updates.length > 0) {
+        updatePlacesBulk(updates);
+      }
+    };
+
+    upgradeLegacyPhotos();
+  }, [places.length, appMode]);
 
   const handleOptimize = async () => {
     if (places.length === 0) return;
@@ -271,34 +303,25 @@ function App() {
     setIsSyncingPhotos(true);
     console.log(`[Sync Photos] Starting photo sync for ${places.length} places...`);
     try {
-      // Clear cache so we fetch fresh URLs from Google Places API
       clearMapsCache();
-      
+
       const updates: { id: string; updates: any }[] = [];
-      
-      // Perform searches sequentially to be kind to the API
-      for (const p of places) {
-        try {
-          console.log(`[Sync Photos] Fetching photo for: ${p.name}`);
-          const queryStr = p.address ? `${p.name} ${p.address}` : p.name;
-          const results = await searchPlaces(queryStr, { lat: p.lat, lng: p.lng });
-          
-          if (results && results.length > 0) {
-            const match = results.find(r => r.name.toLowerCase() === p.name.toLowerCase()) || results[0];
-            if (match.photoUrl) {
-              console.log(`[Sync Photos] Found photoUrl for ${p.name}: ${match.photoUrl}`);
+      await Promise.all(
+        places.map(async (p) => {
+          try {
+            console.log(`[Sync Photos] Fetching fresh photo for: ${p.name}`);
+            const freshPhotoUri = await fetchFreshPhoto(p);
+            if (freshPhotoUri) {
               updates.push({
                 id: p.id,
-                updates: {
-                  photoUrl: match.photoUrl,
-                }
+                updates: { photoUrl: freshPhotoUri },
               });
             }
+          } catch (err) {
+            console.error(`[Sync Photos] Failed for ${p.name}:`, err);
           }
-        } catch (err) {
-          console.error(`[Sync Photos] Failed to fetch photo for ${p.name}:`, err);
-        }
-      }
+        })
+      );
 
       if (updates.length > 0) {
         updatePlacesBulk(updates);

@@ -30,7 +30,7 @@ export const PlaceSearch: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const { addPlace, appMode, days, places, hotels } = useRouteStore();
-  const debounceTimerRef = useRef<number | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (appMode !== "real") {
