@@ -77,16 +77,28 @@ const BufferPill: React.FC<{ minutes: number; showLine?: boolean }> = ({
   );
 };
 
-const ExpandableDescription: React.FC<{ text: string }> = ({ text }) => {
+const ExpandableDescription: React.FC<{ text: any }> = ({ text }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const shouldTruncate = text.length > 100;
+
+  const rawText =
+    typeof text === "string"
+      ? text
+      : text && typeof text === "object" && "text" in text
+      ? String(text.text)
+      : text && typeof text === "object"
+      ? JSON.stringify(text)
+      : String(text || "");
+
+  if (!rawText.trim()) return null;
+
+  const shouldTruncate = rawText.length > 100;
 
   return (
     <div className="relative">
       <p
         className={`text-xs text-surface-500 dark:text-surface-400 leading-relaxed ${!isExpanded && shouldTruncate ? "line-clamp-2" : ""}`}
       >
-        {text}
+        {rawText}
       </p>
       {shouldTruncate && (
         <button
@@ -235,13 +247,13 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
             </span>
           </div>
 
-          {(stop.description || (stop.openingHours && stop.openingHours.length > 0)) && (
+          {(stop.description || (Array.isArray(stop.openingHours) && stop.openingHours.length > 0)) && (
             <div className="mt-1 space-y-1">
               {stop.description && <ExpandableDescription text={stop.description} />}
-              {stop.openingHours && stop.openingHours.length > 0 && (
+              {Array.isArray(stop.openingHours) && stop.openingHours.length > 0 && (
                 <div 
                   className="inline-flex items-center gap-1 text-[10px] text-surface-400 dark:text-surface-500 cursor-help"
-                  title={stop.openingHours.join("\n")}
+                  title={stop.openingHours.filter((h: any) => typeof h === "string").join("\n")}
                 >
                   <Clock className="w-3 h-3" />
                   <span>View Hours</span>

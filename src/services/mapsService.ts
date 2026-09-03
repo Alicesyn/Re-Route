@@ -1,5 +1,6 @@
 import { emitApiError } from "./apiErrorBus";
 import { apiUsageService } from "./apiUsageService";
+import { getDistance, estimateTime } from "../utils/distance";
 
 const getApiKey = () => apiUsageService.getActiveMapsKey();
 
@@ -223,6 +224,13 @@ export const fetchRouteSegment = async (
     const data = await response.json();
     const route = data.routes?.[0];
     if (!route) {
+      if (mode === "transit") {
+        const dist = getDistance(origin.lat, origin.lng, destination.lat, destination.lng);
+        const durationS = Math.round(estimateTime(dist, "transit"));
+        const fallbackResult = { distanceM: Math.round(dist), durationS };
+        saveToRoutesCache(cacheKey, fallbackResult);
+        return fallbackResult;
+      }
       throw new Error("No route found");
     }
 

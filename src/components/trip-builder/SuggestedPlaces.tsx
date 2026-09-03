@@ -1,13 +1,39 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useRouteStore } from "../../store/useRouteStore";
-import { getSuggestedPlaces } from "../../services/recommendationService";
+import { getSuggestedPlaces, getCachedSuggestions } from "../../services/recommendationService";
+import { searchPlaces } from "../../services/mapsService";
 import { Place } from "../../types";
 import { getCategoryEmoji, getCategoryLabel, getActivePhotoUrl } from "../../utils/categoryUtils";
-import { Sparkles, MapPin, Plus, Check, ChevronLeft, ChevronRight, X, ExternalLink } from "lucide-react";
+import {
+  Sparkles,
+  MapPin,
+  Plus,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  ExternalLink,
+  Search,
+  Compass,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
+
+// Popular curated quick-start destinations for exploring suggestions
+const PRESET_DESTINATIONS = [
+  { name: "New York, USA", lat: 40.7128, lng: -74.006 },
+  { name: "Paris, France", lat: 48.8566, lng: 2.3522 },
+  { name: "Tokyo, Japan", lat: 35.6762, lng: 139.6503 },
+  { name: "London, UK", lat: 51.5074, lng: -0.1278 },
+  { name: "Kyoto, Japan", lat: 35.0116, lng: 135.7681 },
+  { name: "Rome, Italy", lat: 41.9028, lng: 12.4964 },
+];
 
 export const SuggestedPlaces: React.FC = React.memo(() => {
   const places = useRouteStore((s) => s.places);
   const hotels = useRouteStore((s) => s.hotels);
+  const arrivalFlight = useRouteStore((s) => s.arrivalFlight);
+  const departureFlight = useRouteStore((s) => s.departureFlight);
   const appMode = useRouteStore((s) => s.appMode);
   const addPlace = useRouteStore((s) => s.addPlace);
   const showImages = useRouteStore((s) => s.showImages);
@@ -19,74 +45,158 @@ export const SuggestedPlaces: React.FC = React.memo(() => {
   const [dismissedNames, setDismissedNames] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Track previous mode/hotels to know when to completely replace vs when to backfill
-  const prevAppModeRef = useRef(appMode);
-  const prevHotelsLengthRef = useRef(hotels.length);
+  // Custom anchor state for on-demand exploration
+  const [customAnchor, setCustomAnchor] = useState<{
+    lat: number;
+    lng: number;
+    label: string;
+  } | null>(null);
+  const [showLocationSearch, setShowLocationSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<
+    { name: string; address?: string; lat: number; lng: number }[]
+  >([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const dismissedKey = dismissedNames.join(",");
+  // Check if any context exists from the itinerary
+  const hasTripContext = useMemo(() => {
+    return (
+      hotels.length > 0 ||
+      places.length > 0 ||
+      !!arrivalFlight?.location ||
+      !!departureFlight?.location
+    );
+  }, [hotels.length, places.length, arrivalFlight?.location, departureFlight?.location]);
 
+  const hasAnyAnchor = hasTripContext || !!customAnchor;
+
+  // Check local cache on mount or when context changes (0 API calls!)
   useEffect(() => {
-    const loadSuggestions = async () => {
-      const modeChanged = prevAppModeRef.current !== appMode;
-      const hotelsChanged = prevHotelsLengthRef.current !== hotels.length;
+    if (!hasAnyAnchor) {
+      setSuggestions([]);
+      return;
+    }
 
-      // Don't spam the API on every single dismiss/add unless we are running out of suggestions
-      if (!modeChanged && !hotelsChanged && suggestions.length >= 3) {
-        return;
-      }
+    const flights = [arrivalFlight?.location || null, departureFlight?.location || null];
+    const cached = getCachedSuggestions(places, hotels, customAnchor, flights);
+    if (cached && cached.length > 0) {
+      setSuggestions(cached);
+    }
+  }, [
+    places.length,
+    hotels.length,
+    arrivalFlight?.location?.id,
+    departureFlight?.location?.id,
+    customAnchor?.lat,
+    customAnchor?.lng,
+    hasAnyAnchor,
+  ]);
 
-      // Only show full loading spinner if we are doing a total wipe
-      if (modeChanged || hotelsChanged || suggestions.length === 0) {
-        setLoading(true);
-      }
+  // Explicit user-triggered fetch function (NEVER run automatically in a background effect)
+  const handleFetchSuggestions = useCallback(
+    async (overrideAnchor?: { lat: number; lng: number; label: string }) => {
+      const anchorToUse = overrideAnchor !== undefined ? overrideAnchor : customAnchor;
+      if (!hasTripContext && !anchorToUse) return;
 
+      setLoading(true);
       try {
-        const fetched = await getSuggestedPlaces(places, hotels, appMode, dismissedNames);
-        
-        setSuggestions((prev) => {
-          const isTotalRefresh = modeChanged || hotelsChanged || prev.length === 0;
-          if (isTotalRefresh) {
-            return fetched;
-          }
-          // Backfill strategy: Keep existing items in order, append only the completely new ones
-          const existingNames = new Set(prev.map(p => p.name.toLowerCase()));
-          const newSuggestions = fetched.filter(p => !existingNames.has(p.name.toLowerCase()));
-          return [...prev, ...newSuggestions];
-        });
+        const flights = [arrivalFlight?.location || null, departureFlight?.location || null];
+        const fetched = await getSuggestedPlaces(
+          places,
+          hotels,
+          appMode,
+          dismissedNames,
+          anchorToUse,
+          flights
+        );
+        setSuggestions(fetched);
       } catch (err) {
-        console.error("Failed to fetch suggestions:", err);
+        console.error("Failed to fetch suggestions on user request:", err);
       } finally {
         setLoading(false);
-        prevAppModeRef.current = appMode;
-        prevHotelsLengthRef.current = hotels.length;
       }
+    },
+    [places, hotels, appMode, dismissedNames, customAnchor, arrivalFlight, departureFlight, hasTripContext]
+  );
+
+  // Search logic for custom destination input
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    if (appMode !== "real") {
+      const filtered = PRESET_DESTINATIONS.filter((d) =>
+        d.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setSearchResults(filtered);
+      return;
+    }
+
+    setIsSearching(true);
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        const results = await searchPlaces(searchQuery);
+        setSearchResults(
+          results.slice(0, 5).map((r) => ({
+            name: r.name,
+            address: r.address,
+            lat: r.lat,
+            lng: r.lng,
+          }))
+        );
+      } catch (err) {
+        console.warn("Place search for suggestions failed:", err);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 450);
+
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     };
+  }, [searchQuery, appMode]);
 
-    loadSuggestions();
-  }, [places.length, hotels.length, appMode, dismissedKey]);
+  const handleSelectAnchor = (anchor: { lat: number; lng: number; label: string }) => {
+    setCustomAnchor(anchor);
+    setSearchQuery("");
+    setSearchResults([]);
+    setShowLocationSearch(false);
+    // User explicitly chose a destination -> fetch suggestions for it
+    handleFetchSuggestions(anchor);
+  };
 
+  const handleClearCustomAnchor = () => {
+    setCustomAnchor(null);
+    setSearchQuery("");
+    setSearchResults([]);
+    setShowLocationSearch(false);
+    setSuggestions([]);
+  };
 
   const handleDismiss = (e: React.MouseEvent, place: Place) => {
     e.stopPropagation();
-    // Optimistically remove from view
     setSuggestions((prev) => prev.filter((p) => p.id !== place.id));
     setDismissedNames((prev) => [...prev, place.name]);
   };
 
   const handleAdd = (place: Place) => {
-    // Add success state animation
     setAddedIds((prev) => {
       const next = new Set(prev);
       next.add(place.id);
       return next;
     });
 
-    // Animate item out of recommendations after brief checkmark delay
     setTimeout(() => {
-      // Destructure to remove dayIndex, orderInDay, pinnedToDay as addPlace requires
       const { dayIndex, orderInDay, pinnedToDay, ...cleanPlace } = place;
       addPlace(cleanPlace);
-      
+
       setSuggestions((prev) => prev.filter((p) => p.id !== place.id));
       setAddedIds((prev) => {
         const next = new Set(prev);
@@ -106,6 +216,7 @@ export const SuggestedPlaces: React.FC = React.memo(() => {
     }
   };
 
+  // State 1: Currently loading on user demand
   if (loading) {
     return (
       <div className="mt-8 border-t border-surface-100 dark:border-surface-700/50 pt-6">
@@ -115,7 +226,10 @@ export const SuggestedPlaces: React.FC = React.memo(() => {
         </div>
         <div className="flex gap-4 overflow-hidden py-2">
           {Array.from({ length: 3 }).map((_, idx) => (
-            <div key={idx} className="w-72 h-44 bg-surface-100 dark:bg-surface-800 border border-surface-200/50 dark:border-surface-700/50 rounded-xl flex-shrink-0 animate-pulse p-4 flex flex-col justify-between">
+            <div
+              key={idx}
+              className="w-72 h-44 bg-surface-100 dark:bg-surface-800 border border-surface-200/50 dark:border-surface-700/50 rounded-xl flex-shrink-0 animate-pulse p-4 flex flex-col justify-between"
+            >
               <div className="space-y-2">
                 <div className="h-4 w-16 bg-surface-200 dark:bg-surface-700 rounded-full"></div>
                 <div className="h-5 w-40 bg-surface-200 dark:bg-surface-700 rounded-md"></div>
@@ -129,52 +243,247 @@ export const SuggestedPlaces: React.FC = React.memo(() => {
     );
   }
 
+  // State 2: No suggestions loaded yet -> Render clean on-demand prompt
+  // (NEVER makes automatic API calls)
   if (suggestions.length === 0) {
-    return null; // Don't show recommendations if there are none or they are all added
+    return (
+      <div className="mt-8 border-t border-surface-100 dark:border-surface-700/50 pt-6">
+        <div className="bg-gradient-to-br from-purple-50/50 via-white to-surface-50 dark:from-purple-950/20 dark:via-surface-800 dark:to-surface-850 border border-purple-100 dark:border-purple-900/30 rounded-2xl p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+                <Compass className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-surface-900 dark:text-white flex items-center gap-1.5">
+                  Suggested Sights
+                  <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border border-purple-200/50 dark:border-purple-800/40 px-2 py-0.5 rounded-full">
+                    On Demand
+                  </span>
+                </h3>
+                <p className="text-xs text-surface-500 dark:text-surface-400">
+                  {hasTripContext
+                    ? "Discover curated sights and top tourist attractions near your itinerary:"
+                    : "Add a hotel or place above, or explore suggestions around any destination:"}
+                </p>
+              </div>
+            </div>
+
+            {/* If itinerary context exists, show explicit "Suggest Sights" action button */}
+            {hasTripContext && (
+              <button
+                onClick={() => handleFetchSuggestions()}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition-all shrink-0 self-start sm:self-auto active:scale-95"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Suggest Nearby Sights</span>
+              </button>
+            )}
+          </div>
+
+          {/* Optional Location Search Input */}
+          <div className="relative max-w-md">
+            <div className="relative flex items-center">
+              <Search className="w-4 h-4 text-surface-400 absolute left-3 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Or search any city (e.g. Paris, Chicago, Kyoto)..."
+                className="w-full pl-9 pr-8 py-2 text-xs bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-surface-800 dark:text-surface-200 placeholder:text-surface-400"
+              />
+              {isSearching && (
+                <Loader2 className="w-3.5 h-3.5 text-purple-500 animate-spin absolute right-3" />
+              )}
+              {searchQuery && !isSearching && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-200"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Dropdown Results */}
+            {searchResults.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-lg z-30 overflow-hidden divide-y divide-surface-100 dark:divide-surface-700/50">
+                {searchResults.map((res, i) => (
+                  <button
+                    key={i}
+                    onClick={() =>
+                      handleSelectAnchor({
+                        lat: res.lat,
+                        lng: res.lng,
+                        label: res.name,
+                      })
+                    }
+                    className="w-full text-left px-3.5 py-2.5 text-xs hover:bg-purple-50 dark:hover:bg-purple-950/30 flex items-center gap-2 transition-colors"
+                  >
+                    <MapPin className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                    <div className="truncate">
+                      <span className="font-semibold text-surface-800 dark:text-surface-200">
+                        {res.name}
+                      </span>
+                      {res.address && (
+                        <span className="text-[11px] text-surface-400 ml-1.5 truncate">
+                          {res.address}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Preset Pills */}
+          <div className="flex flex-wrap items-center gap-1.5 mt-3 pt-3 border-t border-purple-100/60 dark:border-purple-900/20">
+            <span className="text-[11px] font-medium text-surface-400">Popular:</span>
+            {PRESET_DESTINATIONS.map((city) => (
+              <button
+                key={city.name}
+                onClick={() =>
+                  handleSelectAnchor({
+                    lat: city.lat,
+                    lng: city.lng,
+                    label: city.name,
+                  })
+                }
+                className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 hover:text-purple-700 bg-white dark:bg-surface-900 hover:bg-purple-50 dark:hover:bg-purple-950/40 border border-purple-200/60 dark:border-purple-800/40 px-2.5 py-1 rounded-lg transition-all"
+              >
+                {city.name.split(",")[0]}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
+  // State 3: Suggestions loaded and ready in carousel
   return (
     <div className="mt-8 border-t border-surface-100 dark:border-surface-700/50 pt-6 relative group/section">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        <div className="flex items-center gap-2 flex-wrap">
           <Sparkles className="w-5 h-5 text-purple-500 animate-pulse" />
           <h3 className="text-sm font-black text-surface-900 dark:text-white uppercase tracking-wider">
             Suggested Sights
           </h3>
-          <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 px-2 py-0.5 rounded-full uppercase tracking-tight">
-            Curated Hidden Gems
-          </span>
+
+          {/* Anchor Context Tag */}
+          {customAnchor ? (
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100/70 dark:bg-purple-950/50 px-2.5 py-0.5 rounded-full">
+              <MapPin className="w-3 h-3" />
+              Near {customAnchor.label}
+              <button
+                onClick={handleClearCustomAnchor}
+                className="hover:text-red-500 ml-0.5"
+                title={hasTripContext ? "Reset to itinerary stay" : "Clear location"}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ) : (
+            <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 px-2 py-0.5 rounded-full uppercase tracking-tight">
+              Near Your Itinerary
+            </span>
+          )}
+
+          {/* Explicit Refresh Button */}
+          <button
+            onClick={() => handleFetchSuggestions()}
+            className="text-[11px] font-semibold text-surface-500 hover:text-purple-600 dark:text-surface-400 dark:hover:text-purple-300 flex items-center gap-1 transition-colors ml-1"
+            title="Refresh suggestions"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>Refresh</span>
+          </button>
+
+          {/* Toggle Search Another Area */}
+          <button
+            onClick={() => setShowLocationSearch(!showLocationSearch)}
+            className="text-[11px] font-semibold text-surface-500 hover:text-purple-600 dark:text-surface-400 dark:hover:text-purple-300 flex items-center gap-1 transition-colors ml-1"
+          >
+            <Search className="w-3 h-3" />
+            {showLocationSearch ? "Close search" : "Explore other area"}
+          </button>
         </div>
 
-        {/* Navigation buttons */}
-        <div className="flex gap-1.5 opacity-0 group-hover/section:opacity-100 transition-opacity duration-300">
+        {/* Carousel Scroll Buttons */}
+        <div className="flex gap-1.5 opacity-0 group-hover/section:opacity-100 transition-opacity duration-300 self-end sm:self-auto">
           <button
             onClick={() => scroll("left")}
             className="p-1.5 rounded-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 hover:border-primary-500 hover:text-primary-500 text-surface-400 shadow-sm transition-all"
+            title="Scroll left"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
             onClick={() => scroll("right")}
             className="p-1.5 rounded-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 hover:border-primary-500 hover:text-primary-500 text-surface-400 shadow-sm transition-all"
+            title="Scroll right"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>
 
+      {/* Expanded Explore Search Area */}
+      {showLocationSearch && (
+        <div className="mb-4 p-3 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl relative max-w-md">
+          <div className="relative flex items-center">
+            <Search className="w-4 h-4 text-surface-400 absolute left-3 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search destination to suggest around..."
+              className="w-full pl-9 pr-8 py-1.5 text-xs bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-surface-800 dark:text-surface-200"
+            />
+            {isSearching && (
+              <Loader2 className="w-3 h-3 text-purple-500 animate-spin absolute right-3" />
+            )}
+          </div>
+
+          {searchResults.length > 0 && (
+            <div className="mt-2 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg shadow-md divide-y divide-surface-100 dark:divide-surface-700/50 overflow-hidden">
+              {searchResults.map((res, i) => (
+                <button
+                  key={i}
+                  onClick={() =>
+                    handleSelectAnchor({
+                      lat: res.lat,
+                      lng: res.lng,
+                      label: res.name,
+                    })
+                  }
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-purple-50 dark:hover:bg-purple-950/30 flex items-center gap-2"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                  <span className="font-semibold text-surface-800 dark:text-surface-200 truncate">
+                    {res.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Suggested Carousel Container */}
       <div className="relative">
-        {/* Left Gradient Fade */}
         <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white dark:from-surface-800 to-transparent pointer-events-none z-10 opacity-60" />
-        
+
         <div
           ref={scrollRef}
           className="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth py-2 pr-12 pl-2 -ml-2"
         >
           {suggestions.map((place) => {
             const isAdded = addedIds.has(place.id);
-            const nearestHotel = (place as any).nearestHotel as { name: string; distanceM: number } | undefined;
+            const nearestHotel = (place as any).nearestHotel as
+              | { name: string; distanceM: number }
+              | undefined;
             const activePhotoUrl = getActivePhotoUrl(place.photoUrl);
             const hasImage = showImages && !!activePhotoUrl;
 
@@ -205,13 +514,13 @@ export const SuggestedPlaces: React.FC = React.memo(() => {
               <div
                 key={place.id}
                 className={`w-72 md:w-80 flex-shrink-0 bg-white dark:bg-surface-800 border border-surface-200/60 dark:border-surface-700/50 rounded-xl flex flex-col justify-between shadow-sm hover:shadow-md hover:border-purple-300 dark:hover:border-purple-900/50 transition-all duration-300 relative overflow-hidden ${
-                  isAdded ? "scale-[0.98] border-emerald-400 dark:border-emerald-800/80 bg-emerald-50/10 dark:bg-emerald-950/10" : ""
+                  isAdded
+                    ? "scale-[0.98] border-emerald-400 dark:border-emerald-800/80 bg-emerald-50/10 dark:bg-emerald-950/10"
+                    : ""
                 }`}
               >
-                {/* Visual Glassmorphism Highlight */}
                 <div className="absolute -top-12 -right-12 w-24 h-24 bg-purple-500/5 rounded-full blur-xl pointer-events-none" />
 
-                {/* Dismiss Button */}
                 <button
                   onClick={(e) => handleDismiss(e, place)}
                   className="absolute top-2 right-2 p-1.5 bg-white/80 dark:bg-surface-900/80 backdrop-blur-sm rounded-full text-surface-400 hover:text-red-500 dark:hover:text-red-400 shadow-sm z-20 transition-colors"
@@ -249,7 +558,12 @@ export const SuggestedPlaces: React.FC = React.memo(() => {
                         <MapPin className="w-3 h-3 text-purple-400 shrink-0" />
                         <span className="truncate">
                           {distanceStr}
-                          {hotelLabel && <span className="text-surface-300 dark:text-surface-600"> · {hotelLabel}</span>}
+                          {hotelLabel && (
+                            <span className="text-surface-300 dark:text-surface-600">
+                              {" "}
+                              · {hotelLabel}
+                            </span>
+                          )}
                         </span>
                       </span>
                     )}
@@ -259,7 +573,10 @@ export const SuggestedPlaces: React.FC = React.memo(() => {
                     {place.name}
                   </h4>
                   {place.address && (
-                    <p className="text-[10px] text-surface-400 dark:text-surface-500 mb-2 truncate relative z-10" title={place.address}>
+                    <p
+                      className="text-[10px] text-surface-400 dark:text-surface-500 mb-2 truncate relative z-10"
+                      title={place.address}
+                    >
                       {place.address}
                     </p>
                   )}
@@ -270,7 +587,9 @@ export const SuggestedPlaces: React.FC = React.memo(() => {
 
                 <div className="flex items-center justify-between p-4 pt-0 z-10">
                   <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + " " + place.address)}`}
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      place.name + " " + place.address
+                    )}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:underline transition-colors"
@@ -306,10 +625,8 @@ export const SuggestedPlaces: React.FC = React.memo(() => {
           })}
         </div>
 
-        {/* Right Gradient Fade */}
         <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white dark:from-surface-800 to-transparent pointer-events-none z-10 opacity-60" />
       </div>
     </div>
   );
 });
-

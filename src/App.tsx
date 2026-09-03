@@ -5,6 +5,7 @@ import { SuggestedPlaces } from "./components/trip-builder/SuggestedPlaces";
 import { TripSettings } from "./components/trip-builder/TripSettings";
 import { MapView } from "./components/map/MapView";
 import { DailySchedule } from "./components/schedule/DailySchedule";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { ToastContainer } from "./components/layout/ToastContainer";
 import { toast } from "./services/toastService";
 import { useRouteStore } from "./store/useRouteStore";
@@ -508,7 +509,9 @@ function App() {
           {/* Bottom Row: Daily Schedule */}
           {optimizedRoutes.length > 0 && (
             <div className="bg-white dark:bg-surface-800 rounded-xl shadow-sm border border-surface-200 dark:border-surface-700 overflow-hidden">
-              <DailySchedule />
+              <ErrorBoundary fallbackTitle="Could not load daily schedule">
+                <DailySchedule />
+              </ErrorBoundary>
             </div>
           )}
         </div>

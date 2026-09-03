@@ -43,31 +43,36 @@ export const checkTimeConflict = (
   openingHours: string[] | undefined,
   date: Date
 ): { hasConflict: boolean; reason?: string } => {
-  if (!openingHours || openingHours.length === 0) return { hasConflict: false };
+  if (!openingHours || !Array.isArray(openingHours) || openingHours.length === 0) return { hasConflict: false };
+  if (!date || isNaN(new Date(date).getTime())) return { hasConflict: false };
 
-  const dayOfWeekString = format(date, "EEEE"); // e.g., "Monday"
-  const todaysHours = openingHours.find(h => h.startsWith(dayOfWeekString));
+  try {
+    const dayOfWeekString = format(date instanceof Date ? date : new Date(date), "EEEE");
+    const todaysHours = openingHours.find(h => typeof h === "string" && h.startsWith(dayOfWeekString));
 
-  if (!todaysHours) return { hasConflict: false }; // Can't determine
+    if (!todaysHours || typeof todaysHours !== "string") return { hasConflict: false };
 
-  const parsed = parseOpeningHoursString(todaysHours);
+    const parsed = parseOpeningHoursString(todaysHours);
 
-  if (parsed === "closed") {
-    return { hasConflict: true, reason: "Closed today" };
-  }
-  if (parsed === "24hours" || parsed === null) {
+    if (parsed === "closed") {
+      return { hasConflict: true, reason: "Closed today" };
+    }
+    if (parsed === "24hours" || parsed === null) {
+      return { hasConflict: false };
+    }
+
+    const departureTimeMinutes = arrivalTimeMinutes + durationMinutes;
+
+    if (arrivalTimeMinutes < parsed.open) {
+      return { hasConflict: true, reason: "Arriving before opening time" };
+    }
+    
+    if (departureTimeMinutes > parsed.close) {
+      return { hasConflict: true, reason: "Leaving after closing time" };
+    }
+
+    return { hasConflict: false };
+  } catch {
     return { hasConflict: false };
   }
-
-  const departureTimeMinutes = arrivalTimeMinutes + durationMinutes;
-
-  if (arrivalTimeMinutes < parsed.open) {
-    return { hasConflict: true, reason: "Arriving before opening time" };
-  }
-  
-  if (departureTimeMinutes > parsed.close) {
-    return { hasConflict: true, reason: "Leaving after closing time" };
-  }
-
-  return { hasConflict: false };
 };

@@ -196,15 +196,23 @@ const getGenericSights = (lat: number, lng: number) => [
 ];
 
 /**
- * Calculates the center point of hotels & places in the itinerary
+ * Calculates the center point of hotels & places in the itinerary.
+ * Returns null if no context is present.
  */
-function getItineraryCenter(places: Place[], hotels: Hotel[]): { lat: number; lng: number } {
-  const points = [...hotels];
+function getItineraryCenter(
+  places: Place[],
+  hotels: Hotel[],
+  flights: (Place | null)[] = []
+): { lat: number; lng: number } | null {
+  const points: { lat: number; lng: number }[] = [...hotels];
   places.forEach((p) => points.push(p as any));
+  flights.forEach((f) => {
+    if (f) points.push(f);
+  });
 
   if (points.length === 0) {
-    // Default to Tokyo if itinerary is completely empty
-    return { lat: 35.6895, lng: 139.6917 };
+    // No context available - return null instead of hardcoded default
+    return null;
   }
 
   const lats = points.map((p) => p.lat);
@@ -239,7 +247,9 @@ export async function getSuggestedPlaces(
   places: Place[],
   hotels: Hotel[],
   appMode: "real" | "mock" | "dropdown-mock",
-  rejectedNames: string[] = []
+  rejectedNames: string[] = [],
+  customAnchor?: { lat: number; lng: number; label: string } | null,
+  flights: (Place | null)[] = []
 ): Promise<(Place & { nearestHotel?: { name: string; distanceM: number } })[]> {
   // Existing place names/coordinates to filter duplicates
   const existingNames = new Set(places.map((p) => p.name.toLowerCase()));
@@ -254,23 +264,39 @@ export async function getSuggestedPlaces(
     return false;
   };
 
-  // Determine anchor points — prefer unique hotels, fall back to itinerary center
-  const uniqueHotels = getUniqueHotels(hotels);
-  const anchors: { lat: number; lng: number; label: string }[] =
-    uniqueHotels.length > 0
-      ? uniqueHotels.map((h) => ({ lat: h.lat, lng: h.lng, label: h.name }))
-      : [{ ...getItineraryCenter(places, hotels), label: "" }];
+  // Determine anchor points — prefer custom anchor, then unique hotels, then itinerary center
+  let anchors: { lat: number; lng: number; label: string }[] = [];
+
+  if (customAnchor) {
+    anchors = [customAnchor];
+  } else {
+    const uniqueHotels = getUniqueHotels(hotels);
+    if (uniqueHotels.length > 0) {
+      anchors = uniqueHotels.map((h) => ({ lat: h.lat, lng: h.lng, label: h.name }));
+    } else {
+      const center = getItineraryCenter(places, hotels, flights);
+      if (center) {
+        anchors = [{ ...center, label: "" }];
+      }
+    }
+  }
+
+  // If no anchor points exist at all (no hotel, place, flight, or custom anchor), don't fetch anything!
+  if (anchors.length === 0) {
+    return [];
+  }
 
   // Collect all suggestions across all anchor points
   const allSuggestions: any[] = [];
   const seenSuggestionNames = new Set<string>();
 
   for (const anchor of anchors) {
-    const cacheKey = `re_route_suggestions_v2_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
+    const cacheKey = `re_route_suggestions_v3_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
     let candidateSights: any[] = [];
 
     if (appMode === "real") {
-      const cachedData = sessionStorage.getItem(cacheKey);
+      // Check persistent localStorage first, then sessionStorage
+      const cachedData = localStorage.getItem(cacheKey) || sessionStorage.getItem(cacheKey);
       if (cachedData) {
         try {
           candidateSights = JSON.parse(cachedData);
@@ -330,7 +356,11 @@ export async function getSuggestedPlaces(
           );
 
           candidateSights = enrichedSuggestions;
-          sessionStorage.setItem(cacheKey, JSON.stringify(candidateSights));
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(candidateSights));
+          } catch (_) {
+            sessionStorage.setItem(cacheKey, JSON.stringify(candidateSights));
+          }
         } catch (err) {
           console.warn("Failed to fetch suggestions from Gemini API, falling back to local dataset:", err);
         }
@@ -382,5 +412,75 @@ export async function getSuggestedPlaces(
       ? { name: s._nearestHotelName, distanceM: s._nearestHotelDistanceM }
       : undefined,
   }));
+}
+
+/**
+ * Checks if suggestions are already cached in localStorage/sessionStorage for the current anchor.
+ * Returns the cached places if present, or null if un-queried.
+ * This guarantees 0 API calls.
+ */
+export function getCachedSuggestions(
+  places: Place[],
+  hotels: Hotel[],
+  customAnchor?: { lat: number; lng: number; label: string } | null,
+  flights: (Place | null)[] = []
+): (Place & { nearestHotel?: { name: string; distanceM: number } })[] | null {
+  let anchors: { lat: number; lng: number; label: string }[] = [];
+
+  if (customAnchor) {
+    anchors = [customAnchor];
+  } else {
+    const uniqueHotels = getUniqueHotels(hotels);
+    if (uniqueHotels.length > 0) {
+      anchors = uniqueHotels.map((h) => ({ lat: h.lat, lng: h.lng, label: h.name }));
+    } else {
+      const center = getItineraryCenter(places, hotels, flights);
+      if (center) {
+        anchors = [{ ...center, label: "" }];
+      }
+    }
+  }
+
+  if (anchors.length === 0) return null;
+
+  const existingNames = new Set(places.map((p) => p.name.toLowerCase()));
+  const existingCoords = places.map((p) => ({ lat: p.lat, lng: p.lng }));
+
+  const isDuplicate = (name: string, lat: number, lng: number) => {
+    if (existingNames.has(name.toLowerCase())) return true;
+    for (const coord of existingCoords) {
+      const dist = getDistance(lat, lng, coord.lat, coord.lng);
+      if (dist < 100) return true;
+    }
+    return false;
+  };
+
+  const allSuggestions: any[] = [];
+  const seenSuggestionNames = new Set<string>();
+
+  for (const anchor of anchors) {
+    const cacheKey = `re_route_suggestions_v3_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
+    const cachedData = localStorage.getItem(cacheKey) || sessionStorage.getItem(cacheKey);
+    if (!cachedData) return null; // not cached yet
+
+    try {
+      const candidateSights: any[] = JSON.parse(cachedData);
+      for (const s of candidateSights) {
+        if (isDuplicate(s.name, s.lat, s.lng)) continue;
+        if (seenSuggestionNames.has(s.name.toLowerCase())) continue;
+        seenSuggestionNames.add(s.name.toLowerCase());
+
+        const distanceM = getDistance(s.lat, s.lng, anchor.lat, anchor.lng);
+        allSuggestions.push({
+          ...s,
+          nearestHotel: anchor.label ? { name: anchor.label, distanceM } : undefined,
+        });
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return allSuggestions.length > 0 ? allSuggestions.slice(0, 10) : null;
 }
 

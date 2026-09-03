@@ -2,7 +2,17 @@ import { PlaceCategory } from "../types";
 import { emitApiError } from "./apiErrorBus";
 import { apiUsageService } from "./apiUsageService";
 
-const FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-lite-latest"];
+const FALLBACK_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-flash-lite-latest",
+  "gemini-3.6-flash",
+];
+
+const isLocalhost =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
 export interface AISummary {
   description: string;
@@ -86,8 +96,8 @@ export const summarizePlace = async (
   const customKey = apiUsageService.getCustomGeminiKey();
   const activeKey = apiUsageService.getActiveGeminiKey();
 
-  // 1. If no custom key is provided, try secure serverless proxy first
-  if (!customKey) {
+  // 1. If no custom key and not on localhost, try secure serverless proxy first
+  if (!customKey && !isLocalhost) {
     try {
       apiUsageService.recordCall("gemini");
       const proxyRes = await fetch("/api/summarize", {
@@ -155,8 +165,8 @@ export const summarizePlacesBatch = async (
   const customKey = apiUsageService.getCustomGeminiKey();
   const activeKey = apiUsageService.getActiveGeminiKey();
 
-  // 1. If no custom key is provided, try secure serverless proxy first
-  if (!customKey) {
+  // 1. If no custom key and not on localhost, try secure serverless proxy first
+  if (!customKey && !isLocalhost) {
     try {
       apiUsageService.recordCall("gemini");
       const proxyRes = await fetch("/api/summarize", {
@@ -228,8 +238,8 @@ export const suggestSights = async (
   const customKey = apiUsageService.getCustomGeminiKey();
   const activeKey = apiUsageService.getActiveGeminiKey();
 
-  // 1. If no custom key, try secure serverless proxy first
-  if (!customKey) {
+  // 1. If no custom key and not on localhost, try secure serverless proxy first
+  if (!customKey && !isLocalhost) {
     try {
       apiUsageService.recordCall("gemini");
       const proxyRes = await fetch("/api/suggest", {
