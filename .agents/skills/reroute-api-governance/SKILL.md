@@ -27,6 +27,7 @@ This skill outlines the strict rules and patterns for integrating, securing, and
 - Always check `isLocalDev()` before making any `fetch("/api/...")` call.
 - In local development:
   - Usage tracking falls back to browser `localStorage` silently with 0 network calls.
+  - AI budget displayed locally reflects local session counters, while `reroute.tools` queries Upstash Redis cloud counters. This ensures local testing never drains production quotas or skews live metrics.
   - AI summarization calls Gemini directly using `activeKey`.
   - Cloud synchronization activates automatically when deployed to Vercel.
 
@@ -47,12 +48,23 @@ This skill outlines the strict rules and patterns for integrating, securing, and
 - If Gemini returns HTTP 503 (temporary high demand spike) or HTTP 429, wait 800ms before trying the next model in the fallback array.
 - Only emit an API error toast if ALL fallback models fail.
 
-### 4. Ekispert Web Service (Japan Transit)
+### 4. AI Prompt Engineering & Output Standards (`src/services/aiService.ts`, `api/summarize.ts`)
+- **Hyper-Specific Highlights**: Prompts must instruct the model to produce actionable, specific recommendations:
+  - Restaurants: Signature dish names (e.g., *"Tsukemen special"*, *"Wagyu beef bowl"*, never generic *"try noodles"*).
+  - Markets / Shopping: Specific stall numbers or shop names (e.g., *"Stall #14 for tamagoyaki"*).
+  - Attractions: Specific viewpoint, room, or best photo angle.
+- **Reservation Intelligence**:
+  - Must return `required: boolean` and `recommended: boolean`.
+  - Must specify `bookingWindow` (e.g., *"1 month in advance"*, *"7 days prior at 10 AM"*, *"Walk-in only"*).
+- **Price Estimates**:
+  - Always return concise dual currency if possible (e.g., *"$15 - $30 / ¥2,000 - ¥4,000"*) or *"Free"*.
+
+### 5. Ekispert Web Service (Japan Transit)
 - Use the **Station Spato API Free Plan** key (NOT the Route Map key).
 - Free plan keys are domain-restricted to the registered domain (`reroute.tools`).
 - Fall back gracefully to Google Maps transit if Ekispert returns a domain error on localhost.
 
-### 5. Google Maps Caching & Quota Protection
+### 6. Google Maps Caching & Quota Protection
 - Google Maps search and photo requests are cached in IndexedDB / localStorage.
 - Always check cache before hitting `places.googleapis.com` or `routes.googleapis.com`.
 - Respect user-configured daily limits in `src/services/apiUsageService.ts`.

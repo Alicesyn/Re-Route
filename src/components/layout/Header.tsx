@@ -17,10 +17,18 @@ import {
   Key,
 } from "lucide-react";
 
-import { ImportModal } from "../trip-builder/ImportModal";
-import { CategorySettingsModal } from "./CategorySettingsModal";
-import { LoadTripModal } from "./LoadTripModal";
-import { ApiBudgetModal } from "./ApiBudgetModal";
+const ImportModal = React.lazy(() =>
+  import("../trip-builder/ImportModal").then((m) => ({ default: m.ImportModal }))
+);
+const CategorySettingsModal = React.lazy(() =>
+  import("./CategorySettingsModal").then((m) => ({ default: m.CategorySettingsModal }))
+);
+const LoadTripModal = React.lazy(() =>
+  import("./LoadTripModal").then((m) => ({ default: m.LoadTripModal }))
+);
+const ApiBudgetModal = React.lazy(() =>
+  import("./ApiBudgetModal").then((m) => ({ default: m.ApiBudgetModal }))
+);
 import { toast } from "../../services/toastService";
 import { apiUsageService, ApiUsageStats, ApiBudgetLimits } from "../../services/apiUsageService";
 
@@ -123,46 +131,46 @@ export const Header: React.FC = React.memo(() => {
 
 
   return (
-    <header className="bg-white dark:bg-surface-800 border-b border-gray-200 dark:border-surface-700 px-6 py-4 flex items-center justify-between sticky top-0 z-50 transition-colors">
-      <div className="flex items-center gap-3">
-        <div className="bg-primary-500 p-2 rounded-lg">
-          <Map className="text-white w-6 h-6" />
+    <header className="bg-white dark:bg-surface-800 border-b border-gray-200 dark:border-surface-700 px-3 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between sticky top-0 z-50 transition-colors safe-pt flex-wrap gap-2 sm:gap-4">
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-primary-500 p-1.5 sm:p-2 rounded-lg shrink-0">
+          <Map className="text-white w-5 h-5 sm:w-6 h-6" />
         </div>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="text-2xl font-bold text-surface-900 dark:text-white tracking-tight bg-transparent border-none outline-none focus:ring-0 focus:border-b focus:border-primary-500 transition-all p-0 w-64"
+          className="text-lg sm:text-2xl font-bold text-surface-900 dark:text-white tracking-tight bg-transparent border-none outline-none focus:ring-0 focus:border-b focus:border-primary-500 transition-all p-0 w-36 sm:w-64 truncate"
           placeholder="Trip Title..."
         />
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-1.5 sm:gap-3 flex-wrap">
         <div className="relative">
           <select
             value={appMode}
             onChange={(e) =>
               setAppMode(e.target.value as "real" | "mock" | "dropdown-mock")
             }
-            className={`appearance-none flex items-center gap-2 pl-4 pr-9 py-2 rounded-full text-sm font-medium transition-colors border cursor-pointer outline-none focus:ring-2 focus:ring-primary-500 ${
+            className={`appearance-none flex items-center gap-1.5 pl-3 pr-8 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-colors border cursor-pointer outline-none focus:ring-2 focus:ring-primary-500 ${
               appMode === "real"
                 ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800/60"
                 : "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border-amber-200 dark:border-amber-800/50"
             }`}
           >
-            <option value="real">🌐 Real Mode (Live APIs)</option>
+            <option value="real">🌐 Real Mode</option>
             <option value="mock">⚡ Mock Mode</option>
-            <option value="dropdown-mock">📋 Dropdown Mock Mode</option>
+            <option value="dropdown-mock">📋 Dropdown Mock</option>
           </select>
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-            <ChevronDown className="w-4 h-4 text-surface-400 dark:text-surface-500" />
+          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+            <ChevronDown className="w-3.5 h-3.5 text-surface-400 dark:text-surface-500" />
           </div>
         </div>
 
         {/* API Budget & Usage Button */}
         <button
           onClick={() => setIsApiBudgetOpen(true)}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-bold transition-all border outline-none focus:ring-2 focus:ring-primary-500 shadow-sm ${
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-bold transition-all border outline-none focus:ring-2 focus:ring-primary-500 shadow-2xs ${
             hasCustomKey
               ? "bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800/60 hover:bg-purple-100"
               : maxPercent >= 90
@@ -190,29 +198,32 @@ export const Header: React.FC = React.memo(() => {
                 }`}
               />
               <Activity className="w-3.5 h-3.5 text-surface-400 dark:text-surface-500" />
-              <span>API Budget ({maxPercent}%)</span>
+              <span className="hidden sm:inline">API Budget</span>
+              <span>({maxPercent}%)</span>
             </>
           )}
         </button>
 
         <button
           onClick={() => setIsCategorySettingsOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors border outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-surface-800 text-surface-700 dark:text-surface-200 border-surface-200 dark:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-700"
+          className="flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-colors border outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-surface-800 text-surface-700 dark:text-surface-200 border-surface-200 dark:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-700"
+          title="Trip Settings"
         >
           <Settings className="w-4 h-4 text-surface-400 dark:text-surface-500" />
-          <span>Settings</span>
+          <span className="hidden sm:inline">Settings</span>
         </button>
 
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className={`flex items-center gap-2 font-medium text-sm transition-all ${
+          className={`flex items-center gap-1.5 font-medium text-xs sm:text-sm transition-all px-2 py-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 ${
             isSaved
               ? "text-emerald-600 dark:text-emerald-400 font-bold"
               : isSaving
                 ? "text-primary-600 dark:text-primary-400 opacity-80 cursor-wait"
                 : "text-surface-600 dark:text-surface-300 hover:text-primary-600 dark:hover:text-primary-400"
           }`}
+          title="Save trip to device storage"
         >
           {isSaving ? (
             <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
@@ -221,29 +232,31 @@ export const Header: React.FC = React.memo(() => {
           ) : (
             <Save className="w-4 h-4" />
           )}
-          {isSaving ? "Saving..." : isSaved ? "Saved!" : "Save"}
+          <span className="hidden sm:inline">{isSaving ? "Saving..." : isSaved ? "Saved!" : "Save"}</span>
         </button>
 
         <button
           onClick={() => setIsLoadOpen(true)}
-          className="flex items-center gap-2 text-surface-600 dark:text-surface-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium text-sm transition-colors"
+          className="flex items-center gap-1.5 text-surface-600 dark:text-surface-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium text-xs sm:text-sm transition-colors px-2 py-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700"
+          title="Load saved trips"
         >
-          <FolderOpen className="w-4 h-4" /> Load
+          <FolderOpen className="w-4 h-4" /> <span className="hidden sm:inline">Load</span>
         </button>
 
         <button
           onClick={() => setIsImportOpen(true)}
-          className="flex items-center gap-2 text-surface-600 dark:text-surface-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium text-sm transition-colors"
+          className="flex items-center gap-1.5 text-surface-600 dark:text-surface-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium text-xs sm:text-sm transition-colors px-2 py-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700"
+          title="Import trip from Wanderlog, Google Maps, or CSV"
         >
-          <Upload className="w-4 h-4" /> Import
+          <Upload className="w-4 h-4" /> <span className="hidden sm:inline">Import</span>
         </button>
 
         <div className="relative group">
           <button
             onClick={handleExportTripJson}
-            className="btn-secondary flex items-center gap-2"
+            className="btn-secondary flex items-center gap-1.5 py-1.5 px-3 text-xs sm:text-sm"
           >
-            <Download className="w-4 h-4" /> Export
+            <Download className="w-4 h-4" /> <span className="hidden sm:inline">Export</span>
             <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
           </button>
 
@@ -294,23 +307,38 @@ export const Header: React.FC = React.memo(() => {
         </div>
       </div>
 
-      <ImportModal
-        isOpen={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
-      />
-      <LoadTripModal
-        isOpen={isLoadOpen}
-        onClose={() => setIsLoadOpen(false)}
-      />
-      
-      <CategorySettingsModal
-        isOpen={isCategorySettingsOpen}
-        onClose={() => setIsCategorySettingsOpen(false)}
-      />
-      <ApiBudgetModal
-        isOpen={isApiBudgetOpen}
-        onClose={() => setIsApiBudgetOpen(false)}
-      />
+      {isImportOpen && (
+        <React.Suspense fallback={null}>
+          <ImportModal
+            isOpen={isImportOpen}
+            onClose={() => setIsImportOpen(false)}
+          />
+        </React.Suspense>
+      )}
+      {isLoadOpen && (
+        <React.Suspense fallback={null}>
+          <LoadTripModal
+            isOpen={isLoadOpen}
+            onClose={() => setIsLoadOpen(false)}
+          />
+        </React.Suspense>
+      )}
+      {isCategorySettingsOpen && (
+        <React.Suspense fallback={null}>
+          <CategorySettingsModal
+            isOpen={isCategorySettingsOpen}
+            onClose={() => setIsCategorySettingsOpen(false)}
+          />
+        </React.Suspense>
+      )}
+      {isApiBudgetOpen && (
+        <React.Suspense fallback={null}>
+          <ApiBudgetModal
+            isOpen={isApiBudgetOpen}
+            onClose={() => setIsApiBudgetOpen(false)}
+          />
+        </React.Suspense>
+      )}
     </header>
   );
 });

@@ -27,7 +27,8 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -38,9 +39,12 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { EditPlaceModal } from "./EditPlaceModal";
 import { PlaceHighlightBadge } from "../common/PlaceHighlightBadge";
 import { ReservationBadge } from "../common/ReservationBadge";
+
+const EditPlaceModal = React.lazy(() =>
+  import("./EditPlaceModal").then((m) => ({ default: m.EditPlaceModal }))
+);
 
 const formatTime = (totalMinutes: number) => {
   const { timeFormat } = useRouteStore.getState();
@@ -171,7 +175,7 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative group ${isDragging ? "cursor-grabbing" : ""}`}
+      className={`relative group content-auto ${isDragging ? "cursor-grabbing" : ""}`}
     >
       {/* Visual Drop Indicator */}
       {isDragging && (
@@ -521,9 +525,15 @@ export const DailySchedule: React.FC = () => {
   };
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
-        distance: 5,
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 6,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -933,10 +943,12 @@ export const DailySchedule: React.FC = () => {
       </div>
     </div>
       {editingPlaceId && (
-        <EditPlaceModal
-          placeId={editingPlaceId}
-          onClose={() => setEditingPlaceId(null)}
-        />
+        <React.Suspense fallback={null}>
+          <EditPlaceModal
+            placeId={editingPlaceId}
+            onClose={() => setEditingPlaceId(null)}
+          />
+        </React.Suspense>
       )}
     </>
   );

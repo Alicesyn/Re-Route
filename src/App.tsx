@@ -1,9 +1,9 @@
+import React, { useState, useEffect, useRef } from "react";
 import { Header } from "./components/layout/Header";
 import { PlaceSearch } from "./components/trip-builder/PlaceSearch";
 import { PlaceList } from "./components/trip-builder/PlaceList";
 import { SuggestedPlaces } from "./components/trip-builder/SuggestedPlaces";
 import { TripSettings } from "./components/trip-builder/TripSettings";
-import { MapView } from "./components/map/MapView";
 import { DailySchedule } from "./components/schedule/DailySchedule";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { ToastContainer } from "./components/layout/ToastContainer";
@@ -12,7 +12,10 @@ import { useRouteStore } from "./store/useRouteStore";
 import { solveTSP } from "./services/tspSolver";
 import { clearMapsCache, fetchFreshPhoto } from "./services/mapsService";
 import { Wand2, Sparkles, ChevronDown, ChevronUp, RefreshCw, Loader2, MapPin } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+
+const MapView = React.lazy(() =>
+  import("./components/map/MapView").then((m) => ({ default: m.MapView }))
+);
 import { summarizePlacesBatch, romanizePlaceNames, generateHighlightsBatch } from "./services/aiService";
 import { hasNonLatinScript } from "./utils/textUtils";
 import type { DayRoute, Place } from "./types";
@@ -561,7 +564,7 @@ function App() {
       <ToastContainer />
 
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 w-full custom-scrollbar">
-        <div className="max-w-[1600px] mx-auto space-y-8 pb-12">
+        <div className="max-w-[1600px] mx-auto space-y-8 pb-16 safe-pb">
           {/* Top Row: Trip Settings & Map */}
           <div className="flex flex-col lg:flex-row gap-6 items-start">
             {/* Trip Settings Panel (takes full remaining width) */}
@@ -574,7 +577,15 @@ function App() {
             {/* Map: Fixed portion of screen on desktop, hidden when window is small */}
             <div className="hidden lg:flex lg:w-[400px] xl:w-[460px] 2xl:w-[500px] shrink-0 flex-col h-[500px] lg:h-[520px] rounded-xl overflow-hidden shadow-sm border border-surface-200 dark:border-surface-700 relative">
               <div className="absolute inset-0">
-                <MapView />
+                <React.Suspense
+                  fallback={
+                    <div className="w-full h-full bg-surface-100 dark:bg-surface-800 animate-pulse flex items-center justify-center text-xs text-surface-400 font-medium">
+                      Loading Map...
+                    </div>
+                  }
+                >
+                  <MapView />
+                </React.Suspense>
               </div>
             </div>
           </div>
@@ -591,7 +602,15 @@ function App() {
             {showMobileMap && (
               <div className="mt-3 w-full h-[360px] rounded-xl overflow-hidden shadow-sm border border-surface-200 dark:border-surface-700 relative">
                 <div className="absolute inset-0">
-                  <MapView />
+                  <React.Suspense
+                    fallback={
+                      <div className="w-full h-full bg-surface-100 dark:bg-surface-800 animate-pulse flex items-center justify-center text-xs text-surface-400 font-medium">
+                        Loading Map...
+                      </div>
+                    }
+                  >
+                    <MapView />
+                  </React.Suspense>
                 </div>
               </div>
             )}
@@ -613,7 +632,7 @@ function App() {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 {places.some(
                   (p) => !p.description || p.description.trim() === "",
                 ) && (

@@ -4,7 +4,8 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -35,9 +36,15 @@ export const PlaceList: React.FC<PlaceListProps> = React.memo(({ isExpanded }) =
   const [categoryFilter, setCategoryFilter] = useState<PlaceCategory | "all">("all");
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
-        distance: 5, // 5px movement required before drag starts, allows clicking inner elements
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 6,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -253,7 +260,7 @@ export const PlaceList: React.FC<PlaceListProps> = React.memo(({ isExpanded }) =
               className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-all duration-300 ${isExpanded ? "" : "max-h-[360px] overflow-y-auto pr-2 custom-scrollbar"} print:max-h-none print:overflow-visible print:grid-cols-1`}
             >
               {filteredPlaces.map((place) => (
-                <div key={place.id} className="h-full">
+                <div key={place.id} className="h-full content-auto">
                   <PlaceItem place={place} />
                 </div>
               ))}

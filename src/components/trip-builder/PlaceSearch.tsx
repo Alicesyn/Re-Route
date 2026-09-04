@@ -20,7 +20,9 @@ import {
   autoCategorize,
   getDefaultDuration,
 } from "../../utils/categoryUtils";
-import { ImportModal } from "./ImportModal";
+const ImportModal = React.lazy(() =>
+  import("./ImportModal").then((m) => ({ default: m.ImportModal }))
+);
 import { MissingPlacesList } from "./MissingPlacesList";
 
 export const PlaceSearch: React.FC = () => {
@@ -251,10 +253,14 @@ export const PlaceSearch: React.FC = () => {
         </div>
       </div>
 
-      <ImportModal
-        isOpen={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
-      />
+      {isImportOpen && (
+        <React.Suspense fallback={null}>
+          <ImportModal
+            isOpen={isImportOpen}
+            onClose={() => setIsImportOpen(false)}
+          />
+        </React.Suspense>
+      )}
       <MissingPlacesList />
 
       {error && (
