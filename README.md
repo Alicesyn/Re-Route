@@ -39,8 +39,8 @@ RE:ROUTE is a modern travel planning application designed to help travelers buil
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/Alicesyn/RE-Route.git
-   cd RE-Route
+   git clone https://github.com/Alicesyn/RE-ROUTE.git
+   cd RE-ROUTE
    ```
 
 2. **Install dependencies**
@@ -54,6 +54,8 @@ RE:ROUTE is a modern travel planning application designed to help travelers buil
 
    ```env
    VITE_GOOGLE_MAPS_API_KEY=your_api_key_here
+   VITE_GEMINI_API_KEY=your_gemini_api_key
+   VITE_EKISPERT_API_KEY=your_ekispert_api_key
    ```
 
 4. **Start the development server**

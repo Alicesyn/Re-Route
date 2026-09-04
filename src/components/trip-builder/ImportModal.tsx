@@ -122,7 +122,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
       }
 
       if (!trip || (!Array.isArray(trip.places) && typeof trip.days !== "number" && !trip.title)) {
-        setJsonError("Invalid file format. Please upload a valid RE-Route trip JSON file.");
+        setJsonError("Invalid file format. Please upload a valid RE-ROUTE trip JSON file.");
         setParsedTripPreview(null);
         return;
       }
@@ -473,7 +473,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                   ) : (
                     <>
                       <p className="text-sm text-surface-600 dark:text-surface-300">
-                        Upload or drop a trip JSON file exported from RE-Route on any computer.
+                        Upload or drop a trip JSON file exported from RE-ROUTE on any computer.
                         This will restore your complete itinerary, stays, and optimized routes.
                       </p>
 
@@ -506,7 +506,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                           Click to browse or drag & drop a .json trip file
                         </p>
                         <p className="text-xs text-surface-400 dark:text-surface-500 mt-1">
-                          Compatible with all RE-Route JSON export formats
+                          Compatible with all RE-ROUTE JSON export formats
                         </p>
                       </div>
 

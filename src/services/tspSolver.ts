@@ -2,6 +2,7 @@ import {
   Place,
   Hotel,
   DayRoute,
+  RouteSegment,
   TravelMode,
   OptimizationResult,
   CategoryConfig,
@@ -344,8 +345,7 @@ function buildDayRoute(
     ) as Place[];
   }
 
-  const segments: { distance: number; time: number; travelMode: TravelMode }[] =
-    [];
+  const segments: RouteSegment[] = [];
 
   for (let i = 0; i < points.length - 1; i++) {
     const segDist = getDistance(
@@ -359,6 +359,10 @@ function buildDayRoute(
       distance: segDist,
       time: estimateTime(segDist, travelMode),
       travelMode,
+      isHeuristic: true,
+      heuristicReason: travelMode === "transit"
+        ? "Transit time estimated geometrically (~18 km/h local / ~162 km/h express)."
+        : undefined,
     });
   }
 
@@ -428,10 +432,22 @@ export async function fetchAccurateRouteTimes(
         seg.travelMode,
         estimatedDeparture
       );
-      return { ...seg, distance: result.distanceM, time: result.durationS };
+      return {
+        ...seg,
+        distance: result.distanceM,
+        time: result.durationS,
+        isHeuristic: result.isHeuristic ?? false,
+        heuristicReason: result.heuristicReason,
+      };
     } catch (e) {
       console.warn("Failed to fetch accurate segment, using estimate", e);
-      return seg;
+      return {
+        ...seg,
+        isHeuristic: true,
+        heuristicReason: seg.travelMode === "transit"
+          ? "Live route unavailable; estimated geometrically."
+          : undefined,
+      };
     }
   });
 

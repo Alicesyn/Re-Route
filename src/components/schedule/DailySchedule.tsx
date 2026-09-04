@@ -436,12 +436,14 @@ const SegmentPill: React.FC<{
     );
   };
 
+  const isHeuristicTransit = segment.travelMode === "transit" && segment.isHeuristic !== false;
+
   const getModeIcon = () => {
     switch (segment.travelMode) {
       case "walking":
         return <Footprints className="w-3.5 h-3.5" />;
       case "transit":
-        return <Train className="w-3.5 h-3.5" />;
+        return <Train className="w-3.5 h-3.5 text-rose-500" />;
       case "driving":
       default:
         return <Car className="w-3.5 h-3.5" />;
@@ -452,9 +454,26 @@ const SegmentPill: React.FC<{
     <div className="pt-0 pb-3 pl-12 relative group">
       {/* Line connector segment - always full height for segments as they are intermediate */}
       <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-surface-200 dark:bg-surface-700/50" />
-      <div className="travel-pill inline-flex items-center gap-1.5 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 px-2 py-1 rounded-full text-xs font-medium text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors cursor-pointer relative overflow-hidden">
+      <div
+        className={`travel-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer relative overflow-hidden ${
+          isHeuristicTransit
+            ? "bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/60"
+            : "bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700"
+        }`}
+      >
         {getModeIcon()}
         <span>{Math.round(segment.time / 60)} min</span>
+
+        {isHeuristicTransit && (
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-200/90 dark:bg-amber-900/90 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700"
+            title={`Heuristic Transit Calculation: Live transit APIs return ZERO_RESULTS for Japan transit or are offline. Time is estimated geometrically (~${distanceUnit === "imperial" ? "11 mph local / ~101 mph express" : "18 km/h local / ~162 km/h express"}) without real-time train timetables or megastation transfer times.`}
+          >
+            <AlertTriangle className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>Heuristic</span>
+          </span>
+        )}
+
         <span className="text-surface-300 dark:text-surface-600 mx-0.5">•</span>
         <span>
           {(() => {
@@ -496,6 +515,7 @@ const SegmentPill: React.FC<{
 export const DailySchedule: React.FC = () => {
   const [editingPlaceId, setEditingPlaceId] = useState<string | null>(null);
   const [optimizingDayIndex, setOptimizingDayIndex] = useState<number | null>(null);
+  const [isBannerDismissed, setIsBannerDismissed] = useState(false);
   const {
     optimizedRoutes,
     optimizeDay,
@@ -508,8 +528,13 @@ export const DailySchedule: React.FC = () => {
     showFlights,
     arrivalFlight,
     departureFlight,
+    distanceUnit,
   } = useRouteStore();
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+  const hasHeuristicTransit = optimizedRoutes.some((r) =>
+    r.segments.some((s) => s.travelMode === "transit" && s.isHeuristic !== false)
+  );
 
   const handleOptimizeSingleDay = async (dayIndex: number) => {
     if (optimizingDayIndex !== null) return;
@@ -616,6 +641,45 @@ export const DailySchedule: React.FC = () => {
         </div>
       </div>
 
+      {/* Heuristic Transit Inaccurate Times Warning Banner */}
+      {hasHeuristicTransit && !isBannerDismissed && (
+        <div className="mx-4 sm:mx-6 mt-4 p-3.5 rounded-2xl border border-amber-300 dark:border-amber-700/80 bg-gradient-to-r from-amber-50 to-orange-50/60 dark:from-amber-950/50 dark:to-orange-950/30 text-amber-950 dark:text-amber-200 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-lg bg-amber-200/80 dark:bg-amber-900/60 shrink-0">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              </div>
+              <p className="text-xs sm:text-sm font-semibold text-amber-950 dark:text-amber-100">
+                ⚠ Transit times are estimated — actual durations may differ significantly.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsBannerDismissed(true)}
+              className="p-1.5 rounded-xl text-amber-700 dark:text-amber-400 hover:bg-amber-200/60 dark:hover:bg-amber-900/60 transition-colors shrink-0"
+              title="Dismiss notice"
+              aria-label="Dismiss heuristic transit notice"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <details className="mt-2">
+            <summary className="text-[11px] sm:text-xs font-bold text-amber-800 dark:text-amber-300 cursor-pointer hover:text-amber-950 dark:hover:text-amber-100 transition-colors select-none">
+              Why this happens
+            </summary>
+            <p className="mt-1.5 text-[11px] sm:text-xs text-amber-900/80 dark:text-amber-300/80 leading-relaxed pl-1">
+              Google Maps developer APIs return <code className="font-mono text-[10px] bg-amber-200/70 dark:bg-amber-900/70 px-1 py-0.5 rounded font-bold">ZERO_RESULTS</code> for Japan transit due to commercial licensing. Times are approximated geometrically (~{distanceUnit === "imperial" ? "11 mph local / ~101 mph express" : "18 km/h local / ~162 km/h express"}) without real timetables, departure intervals, or megastation transfer walks. Cross-check with local transit apps (NAVITIME, Jorudan) on your travel day.{" "}
+              <button
+                onClick={() => { window.location.hash = "#about-limitations"; }}
+                className="inline font-bold text-amber-950 dark:text-amber-100 underline underline-offset-2 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+              >
+                More details →
+              </button>
+            </p>
+          </details>
+        </div>
+      )}
+
+
       <div
         ref={scrollContainerRef}
         className="p-6 overflow-x-auto overflow-y-hidden custom-scrollbar flex gap-6 snap-x snap-mandatory"
@@ -662,6 +726,9 @@ export const DailySchedule: React.FC = () => {
             0,
           );
           const travelMin = Math.round(route.totalTime / 60);
+          const dayHasHeuristicTransit = route.segments.some(
+            (s) => s.travelMode === "transit" && s.isHeuristic !== false
+          );
           const totalDayMin = visitMin + travelMin;
           const remainingTime = Math.max(0, dayAvailableMinutes - totalDayMin);
           const isOverBudget = totalDayMin > dayAvailableMinutes;
@@ -726,6 +793,15 @@ export const DailySchedule: React.FC = () => {
                             ? `${Math.floor(travelMin / 60)}h ${travelMin % 60}m`
                             : `${travelMin}m`}
                         </span>
+                        {dayHasHeuristicTransit && (
+                          <span
+                            className="inline-flex items-center gap-0.5 text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 border border-amber-300 dark:border-amber-700/80 px-1 py-0.2 rounded"
+                            title="Day travel duration contains heuristic transit estimates"
+                          >
+                            <AlertTriangle className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                            <span>~Heuristic</span>
+                          </span>
+                        )}
                       </span>
                     </div>
                     <div

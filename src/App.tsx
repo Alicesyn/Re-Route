@@ -638,13 +638,13 @@ function App() {
                 ) && (
                   <button
                     onClick={handleGenerateDescriptions}
-                    className="flex items-center gap-1.5 text-sm font-semibold text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-all"
+                    className="flex items-center gap-1.5 text-sm font-semibold text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 bg-purple-50 hover:bg-purple-100/90 dark:bg-purple-900/30 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-700/60 px-3 py-1.5 rounded-lg transition-all shadow-2xs"
                     title={isGenerating ? "Stop generating descriptions" : "Auto-generate missing descriptions"}
                   >
                     {isGenerating ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+                      <Loader2 className="w-4 h-4 animate-spin text-purple-600 dark:text-purple-400" />
                     ) : (
-                      <Sparkles className="w-4 h-4" />
+                      <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                     )}
                     {isGenerating ? "Stop AI" : "AI Describe"}
                   </button>
@@ -653,11 +653,11 @@ function App() {
                   <button
                     onClick={handleGenerateMissingHighlights}
                     disabled={isGeneratingHighlights}
-                    className="flex items-center gap-1.5 text-sm font-semibold text-amber-700 dark:text-amber-300 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60 border border-amber-200/80 dark:border-amber-800/60 px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
+                    className="flex items-center gap-1.5 text-sm font-semibold text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 bg-amber-50 hover:bg-amber-100/90 dark:bg-amber-900/30 dark:hover:bg-amber-900/60 border border-amber-200/80 dark:border-amber-700/60 px-3 py-1.5 rounded-lg transition-all shadow-2xs disabled:opacity-50"
                     title="Generate Must-Try and highlights for places that don't have them yet"
                   >
                     {isGeneratingHighlights ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-600 dark:text-amber-400" />
                     ) : (
                       <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                     )}
@@ -668,7 +668,7 @@ function App() {
                   <button
                     onClick={handleRegenerateAllAiData}
                     disabled={isRegeneratingAll || isGenerating || isGeneratingHighlights}
-                    className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-indigo-700 dark:text-indigo-300 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-800/60 px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
+                    className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-indigo-100 bg-indigo-50 hover:bg-indigo-100/90 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/60 border border-indigo-200/80 dark:border-indigo-700/60 px-3 py-1.5 rounded-lg transition-all shadow-2xs disabled:opacity-50"
                     title="[Local Dev Only] Regenerate descriptions & specific highlights for all non-user-inputted places"
                   >
                     {isRegeneratingAll ? (
@@ -686,13 +686,13 @@ function App() {
                   <button
                     onClick={handleSyncPhotos}
                     disabled={isSyncingPhotos}
-                    className="flex items-center gap-1.5 text-sm font-semibold text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/10 dark:hover:bg-primary-950/20 px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
+                    className="flex items-center gap-1.5 text-sm font-semibold text-primary-700 dark:text-primary-300 hover:text-primary-900 dark:hover:text-primary-100 bg-primary-50 hover:bg-primary-100/90 dark:bg-primary-900/30 dark:hover:bg-primary-900/60 border border-primary-200 dark:border-primary-700/60 px-3 py-1.5 rounded-lg transition-all shadow-2xs disabled:opacity-50"
                     title="Refresh all place photos from Google Maps"
                   >
                     {isSyncingPhotos ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin text-primary-600 dark:text-primary-400" />
                     ) : (
-                      <RefreshCw className="w-4 h-4" />
+                      <RefreshCw className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                     )}
                     {isSyncingPhotos ? "Syncing..." : "Sync Photos"}
                   </button>
@@ -700,7 +700,7 @@ function App() {
                 {places.some((p) => p.dayIndex !== null) && (
                   <button
                     onClick={handleUnassignAll}
-                    className="text-sm font-semibold text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/10 dark:hover:bg-amber-900/20 px-3 py-1.5 rounded-lg transition-all"
+                    className="text-sm font-semibold text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 bg-amber-50 hover:bg-amber-100/90 dark:bg-amber-900/30 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-700/60 px-3 py-1.5 rounded-lg transition-all shadow-2xs"
                   >
                     Unassign All
                   </button>
@@ -708,7 +708,7 @@ function App() {
                 {places.length > 0 && (
                   <button
                     onClick={handleClearAll}
-                    className="text-sm font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 px-3 py-1.5 rounded-lg transition-all"
+                    className="text-sm font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 bg-red-50/70 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-900/50 border border-red-200/70 dark:border-red-800/60 px-3 py-1.5 rounded-lg transition-all shadow-2xs"
                   >
                     Clear All
                   </button>

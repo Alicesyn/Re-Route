@@ -15,6 +15,7 @@ import {
   Loader2,
   Activity,
   Key,
+  HelpCircle,
 } from "lucide-react";
 
 const ImportModal = React.lazy(() =>
@@ -28,6 +29,9 @@ const LoadTripModal = React.lazy(() =>
 );
 const ApiBudgetModal = React.lazy(() =>
   import("./ApiBudgetModal").then((m) => ({ default: m.ApiBudgetModal }))
+);
+const AboutModal = React.lazy(() =>
+  import("./AboutModal").then((m) => ({ default: m.AboutModal }))
 );
 import { toast } from "../../services/toastService";
 import { apiUsageService, ApiUsageStats, ApiBudgetLimits } from "../../services/apiUsageService";
@@ -45,8 +49,28 @@ export const Header: React.FC = React.memo(() => {
   const [isLoadOpen, setIsLoadOpen] = useState(false);
   const [isCategorySettingsOpen, setIsCategorySettingsOpen] = useState(false);
   const [isApiBudgetOpen, setIsApiBudgetOpen] = useState(false);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+
+  // Sync #about and #about-limitations URL hash
+  React.useEffect(() => {
+    const checkHash = () => {
+      if (window.location.hash === "#about" || window.location.hash.startsWith("#about")) {
+        setIsAboutOpen(true);
+      }
+    };
+    checkHash();
+    window.addEventListener("hashchange", checkHash);
+    return () => window.removeEventListener("hashchange", checkHash);
+  }, []);
+
+  const handleCloseAbout = () => {
+    setIsAboutOpen(false);
+    if (window.location.hash.startsWith("#about")) {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  };
 
   const [apiStats, setApiStats] = useState<ApiUsageStats>(apiUsageService.getStats());
   const [apiLimits, setApiLimits] = useState<ApiBudgetLimits>(apiUsageService.getLimits());
@@ -214,6 +238,18 @@ export const Header: React.FC = React.memo(() => {
         </button>
 
         <button
+          onClick={() => {
+            setIsAboutOpen(true);
+            window.location.hash = "about";
+          }}
+          className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-colors border outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-surface-800 text-surface-700 dark:text-surface-200 border-surface-200 dark:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-700"
+          title="About RE-ROUTE, Algorithms, Documentation & Open Source"
+        >
+          <HelpCircle className="w-4 h-4 text-surface-400 dark:text-surface-500" />
+          <span className="hidden sm:inline">About</span>
+        </button>
+
+        <button
           onClick={handleSave}
           disabled={isSaving}
           className={`flex items-center gap-1.5 font-medium text-xs sm:text-sm transition-all px-2 py-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 ${
@@ -264,13 +300,13 @@ export const Header: React.FC = React.memo(() => {
           <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden flex flex-col">
             <button
               onClick={handleExportTripJson}
-              className="w-full text-left px-4 py-3 text-sm text-surface-800 dark:text-surface-100 hover:bg-primary-50 dark:hover:bg-primary-950/40 hover:text-primary-600 dark:hover:text-primary-400 flex items-start gap-3 transition-colors border-b border-surface-100 dark:border-surface-700"
+              className="w-full text-left px-4 py-3 text-sm text-surface-800 dark:text-surface-100 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-primary-600 dark:hover:text-primary-400 flex items-start gap-3 transition-colors border-b border-surface-100 dark:border-surface-700"
             >
               <FileJson className="w-4 h-4 shrink-0 mt-0.5 text-primary-500" />
               <div>
                 <div className="font-semibold flex items-center gap-1.5">
                   Export Entire Trip (.json)
-                  <span className="text-[9px] font-bold bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 px-1.5 py-0.5 rounded">
+                  <span className="text-[9px] font-bold bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300 px-1.5 py-0.5 rounded border border-primary-200 dark:border-primary-700/60">
                     Full
                   </span>
                 </div>
@@ -282,7 +318,7 @@ export const Header: React.FC = React.memo(() => {
 
             <button
               onClick={() => window.print()}
-              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium"
+              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium"
             >
               <Download className="w-4 h-4 shrink-0 text-surface-400" />
               Export PDF / Print
@@ -290,7 +326,7 @@ export const Header: React.FC = React.memo(() => {
 
             <button
               onClick={handleExportTxt}
-              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium"
+              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium"
             >
               <FileText className="w-4 h-4 shrink-0 text-surface-400" />
               Export Text (Full Details)
@@ -298,7 +334,7 @@ export const Header: React.FC = React.memo(() => {
 
             <button
               onClick={handleExportNamesTxt}
-              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-3 transition-colors font-medium"
+              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors font-medium"
             >
               <List className="w-4 h-4 shrink-0 text-surface-400" />
               Export Place Names List
@@ -336,6 +372,14 @@ export const Header: React.FC = React.memo(() => {
           <ApiBudgetModal
             isOpen={isApiBudgetOpen}
             onClose={() => setIsApiBudgetOpen(false)}
+          />
+        </React.Suspense>
+      )}
+      {isAboutOpen && (
+        <React.Suspense fallback={null}>
+          <AboutModal
+            isOpen={isAboutOpen}
+            onClose={handleCloseAbout}
           />
         </React.Suspense>
       )}

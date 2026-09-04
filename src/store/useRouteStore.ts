@@ -701,6 +701,10 @@ export const useRouteStore = create<RouteState>()(
               const seg = { ...segments[segmentIndex] };
               seg.travelMode = mode;
               seg.time = estimateTime(seg.distance, mode);
+              seg.isHeuristic = true;
+              if (mode === "transit") {
+                seg.heuristicReason = "Transit time recalculated using geometric velocity heuristic.";
+              }
               segments[segmentIndex] = seg;
 
               // Recalculate total time
@@ -982,7 +986,7 @@ export const useRouteStore = create<RouteState>()(
 
         const exportPayload: TripExportFile = {
           version: 1,
-          app: "RE-Route",
+          app: "RE-ROUTE",
           exportedAt: new Date().toISOString(),
           trip: tripToExport,
         };
@@ -996,7 +1000,7 @@ export const useRouteStore = create<RouteState>()(
           .trim()
           .replace(/[^a-zA-Z0-9_-]/g, "_");
         const dateStr = format(new Date(), "yyyy-MM-dd");
-        a.download = `RE-Route_${sanitizedTitle}_${dateStr}.json`;
+        a.download = `RE-ROUTE_${sanitizedTitle}_${dateStr}.json`;
         a.click();
         URL.revokeObjectURL(url);
       },
@@ -1019,7 +1023,7 @@ export const useRouteStore = create<RouteState>()(
           if (!trip || (!Array.isArray(trip.places) && typeof trip.days !== "number" && !trip.title)) {
             return {
               success: false,
-              error: "Invalid file format. Please upload a valid RE-Route trip JSON file.",
+              error: "Invalid file format. Please upload a valid RE-ROUTE trip JSON file.",
             };
           }
 

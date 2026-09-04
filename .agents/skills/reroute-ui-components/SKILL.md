@@ -2,12 +2,12 @@
 name: reroute-ui-components
 description: >-
   Use this skill whenever developing, styling, or debugging UI components, Leaflet maps (MapView.tsx),
-  dnd-kit drag-and-drop sortables, tabs, modals, or theme styles (dark/light) in RE-Route.
+  dnd-kit drag-and-drop sortables, tabs, modals, or theme styles (dark/light) in RE-ROUTE.
 ---
 
-# RE-Route UI Components & Design System
+# RE-ROUTE UI Components & Design System
 
-This skill guides creating and styling user interfaces, interactive maps, and drag-and-drop elements across RE-Route.
+This skill guides creating and styling user interfaces, interactive maps, and drag-and-drop elements across RE-ROUTE.
 
 ## Design Philosophy & Tokens
 
@@ -23,6 +23,7 @@ This skill guides creating and styling user interfaces, interactive maps, and dr
 ## Component Guidelines
 
 ### 1. Place Cards & Lists (`src/components/trip-builder/`)
+
 - **`PlaceList.tsx`**:
   - Uses a 4-tab filter structure: **Active `(N)`**, **Unassigned `(N)`**, **Excluded `(N)`**, and **All `(N)`**.
   - Excluded tab includes an informational banner and a "Re-enable All" bulk action button.
@@ -38,6 +39,7 @@ This skill guides creating and styling user interfaces, interactive maps, and dr
   - Drag handle & Sensors: In `@dnd-kit`, **never** use a plain `PointerSensor` for mobile lists as it hijacks page scrolling. Always combine `MouseSensor` (`distance: 8`) with `TouchSensor` (`delay: 200, tolerance: 6`).
 
 ### 2. Leaflet Map (`src/components/map/MapView.tsx`)
+
 - Lazy-load `MapView` dynamically (`React.lazy`) with a fallback skeleton to avoid bloating the initial page bundle (Leaflet + CSS is ~170 kB).
 - Always render map within `<div className="h-full w-full relative z-0">`.
 - Desktop vs Mobile Layout: On desktop (`lg:`), display as a fixed side panel alongside Trip Settings. On mobile/tablet (`<lg`), provide an expandable "Show Route Map" toggle button to prevent excessive vertical scrolling.
@@ -45,6 +47,7 @@ This skill guides creating and styling user interfaces, interactive maps, and dr
 - Use `MapBounds` to dynamically re-fit the viewport when stops change.
 
 ### 3. Schedule Timeline (`src/components/schedule/DailySchedule.tsx`)
+
 - Displays chronologically sequenced day cards with travel segments, visit time, and arrival/departure buffers.
 - Manual stop reordering uses `@dnd-kit` vertical sorting with `MouseSensor` and `TouchSensor` (`delay: 200, tolerance: 6`).
 - Displays reservation warning badges and specific must-try highlights directly on stop cards.
@@ -52,6 +55,7 @@ This skill guides creating and styling user interfaces, interactive maps, and dr
 - Displays time conflict warnings (`AlertTriangle`) when visit durations exceed daylight hours or flight buffer limits.
 
 ### 4. Modals & Dialogs (`src/components/layout/`)
+
 - All heavy modals (`ApiBudgetModal`, `CategorySettingsModal`, `ImportModal`, `LoadTripModal`, `EditPlaceModal`) **must be lazy-loaded** using `React.lazy` and rendered conditionally inside `<React.Suspense fallback={null}>`.
 - Modals use `<AnimatePresence>` from `framer-motion` for backdrop blur and smooth scale-in.
 - Ensure all modal inputs have accessible labels, dark mode styles, and click-outside / Escape dismissal.

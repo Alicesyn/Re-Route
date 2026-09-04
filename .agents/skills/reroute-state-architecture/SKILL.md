@@ -2,12 +2,12 @@
 name: reroute-state-architecture
 description: >-
   Use this skill whenever modifying the Zustand store (useRouteStore.ts), data types (src/types/index.ts),
-  IndexedDB persistence, PTV (Places To Visit) lifecycle, trip saving/loading, or JSON export/import in RE-Route.
+  IndexedDB persistence, PTV (Places To Visit) lifecycle, trip saving/loading, or JSON export/import in RE-ROUTE.
 ---
 
-# RE-Route State & Data Architecture
+# RE-ROUTE State & Data Architecture
 
-This skill guides modifications to RE-Route's central state store, data types, and persistence layer.
+This skill guides modifications to RE-ROUTE's central state store, data types, and persistence layer.
 
 ## Core State Files
 
@@ -17,6 +17,7 @@ This skill guides modifications to RE-Route's central state store, data types, a
 ---
 
 ### 1. Place Interface Structure
+
 ```typescript
 export interface PlaceHighlight {
   text: string;
@@ -26,7 +27,7 @@ export interface PlaceHighlight {
 export interface ReservationInfo {
   required: boolean;
   recommended?: boolean;
-  bookingWindow?: string;    // e.g. "1 month in advance", "2 days before at 9 AM"
+  bookingWindow?: string; // e.g. "1 month in advance", "2 days before at 9 AM"
   reservationUrl?: string;
   notes?: string;
   source?: "ai" | "mock" | "user";
@@ -41,15 +42,15 @@ export interface Place {
   lng: number;
   description: string;
   descriptionSource: "user" | "ai" | "mock";
-  priceEstimate?: string;     // e.g. "Free", "$15 - $30 / ¥2,000 - ¥4,000"
+  priceEstimate?: string; // e.g. "Free", "$15 - $30 / ¥2,000 - ¥4,000"
   highlight?: PlaceHighlight; // ultra-specific must-try item/stall/photo spot
   reservation?: ReservationInfo;
   category: PlaceCategory;
   estimatedDuration: number; // in minutes
-  dayIndex: number | null;   // 0-indexed day, or null if unassigned
+  dayIndex: number | null; // 0-indexed day, or null if unassigned
   orderInDay: number | null; // sequence in the day
-  pinnedToDay: boolean;      // user manually locked to day; optimizer will not move
-  isDisabled?: boolean;      // excluded from routing/schedule but saved in list
+  pinnedToDay: boolean; // user manually locked to day; optimizer will not move
+  isDisabled?: boolean; // excluded from routing/schedule but saved in list
   notes?: string;
   openingHours?: string[];
   photoUrl?: string;
@@ -58,21 +59,25 @@ export interface Place {
 ```
 
 ### 2. Description & Highlight Preservation Invariants
+
 - **User-Authored Content Protection**: If `place.descriptionSource === "user"`, automated features (AI batch description, Regenerate All AI) **must not overwrite** the user's custom description.
-- **Specific Highlights Requirement**: Highlights must be hyper-specific (e.g. signature dish names like *"Tsukemen at Fuunji"*, not generic food advice; specific market stall names or building floor like *"Stall #14 for tamagoyaki"*, not just *"try street food"*).
+- **Specific Highlights Requirement**: Highlights must be hyper-specific (e.g. signature dish names like _"Tsukemen at Fuunji"_, not generic food advice; specific market stall names or building floor like _"Stall #14 for tamagoyaki"_, not just _"try street food"_).
 - **Bulk Updates**: Always use `updatePlacesBulk(updates)` when updating multiple places at once to prevent thrashing IndexedDB persistence.
 
 ### 3. Place Disabling / Excluding Invariants
+
 - When `togglePlaceDisabled(placeId)` is called:
   - If disabling: If the place was assigned to a day (`dayIndex !== null`), it is unassigned and the remaining route for that day is immediately re-solved. `dayIndex` and `orderInDay` become `null`, `pinnedToDay` becomes `false`.
   - If enabling: `isDisabled` is set to `false`, placing it back into the active unassigned pool.
 - If a user manually assigns an excluded place to a day (`assignPlaceToDay`), the store automatically clears `isDisabled` to `false`.
 
 ### 4. Dual-Mode Data Architecture
+
 - The store tracks both `mockData` and `realData`.
 - When user toggles `appMode` (`real` vs `mock`), the active itinerary swaps cleanly without data corruption.
 
 ### 5. Trip Snapshots & Export/Import
+
 - Saved trips are stored in `savedTrips: ItinerarySnapshot[]`.
 - JSON export files wrap the snapshot in `TripExportFile` (versioned format).
 - When applying a snapshot (`applyTripSnapshot`), ensure both `places` and `optimizedRoutes` are hydrated properly.

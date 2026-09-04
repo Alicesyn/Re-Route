@@ -172,10 +172,10 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 <div className="flex bg-surface-100 dark:bg-surface-900 p-1 rounded-lg">
                   <button
                     onClick={() => setTheme("light")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                    className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-bold py-1.5 px-3 rounded-md transition-all ${
                       theme === "light"
-                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm"
-                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm border border-surface-200/60 dark:border-surface-600"
+                        : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
                     }`}
                   >
                     <Sun className="w-4 h-4 text-amber-500" />
@@ -183,10 +183,10 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   </button>
                   <button
                     onClick={() => setTheme("dark")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                    className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-bold py-1.5 px-3 rounded-md transition-all ${
                       theme === "dark"
-                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm"
-                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm border border-surface-200/60 dark:border-surface-600"
+                        : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
                     }`}
                   >
                     <Moon className="w-4 h-4 text-surface-400" />
@@ -203,10 +203,10 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 <div className="flex bg-surface-100 dark:bg-surface-900 p-1 rounded-lg">
                   <button
                     onClick={() => setShowImages(true)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                    className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-bold py-1.5 px-3 rounded-md transition-all ${
                       showImages
-                        ? "bg-white dark:bg-surface-700 text-emerald-600 dark:text-emerald-400 shadow-sm"
-                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                        ? "bg-white dark:bg-surface-700 text-emerald-600 dark:text-emerald-400 shadow-sm border border-surface-200/60 dark:border-surface-600"
+                        : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
                     }`}
                   >
                     <Image className="w-4 h-4 text-emerald-500" />
@@ -214,10 +214,10 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   </button>
                   <button
                     onClick={() => setShowImages(false)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                    className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-bold py-1.5 px-3 rounded-md transition-all ${
                       !showImages
-                        ? "bg-white dark:bg-surface-700 text-surface-800 dark:text-white shadow-sm"
-                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                        ? "bg-white dark:bg-surface-700 text-surface-800 dark:text-white shadow-sm border border-surface-200/60 dark:border-surface-600"
+                        : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
                     }`}
                   >
                     <ImageOff className="w-4 h-4 text-surface-400" />
@@ -234,20 +234,20 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 <div className="flex bg-surface-100 dark:bg-surface-900 p-1 rounded-lg">
                   <button
                     onClick={() => setDistanceUnit("metric")}
-                    className={`flex-1 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                    className={`flex-1 text-sm font-bold py-1.5 px-3 rounded-md transition-all ${
                       distanceUnit === "metric"
-                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm"
-                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm border border-surface-200/60 dark:border-surface-600"
+                        : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
                     }`}
                   >
                     Metric (km, m)
                   </button>
                   <button
                     onClick={() => setDistanceUnit("imperial")}
-                    className={`flex-1 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                    className={`flex-1 text-sm font-bold py-1.5 px-3 rounded-md transition-all ${
                       distanceUnit === "imperial"
-                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm"
-                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm border border-surface-200/60 dark:border-surface-600"
+                        : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
                     }`}
                   >
                     Imperial (mi, ft)
@@ -263,20 +263,20 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 <div className="flex bg-surface-100 dark:bg-surface-900 p-1 rounded-lg">
                   <button
                     onClick={() => setTimeFormat("12h")}
-                    className={`flex-1 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                    className={`flex-1 text-sm font-bold py-1.5 px-3 rounded-md transition-all ${
                       timeFormat === "12h"
-                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm"
-                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm border border-surface-200/60 dark:border-surface-600"
+                        : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
                     }`}
                   >
                     12-hour (AM/PM)
                   </button>
                   <button
                     onClick={() => setTimeFormat("24h")}
-                    className={`flex-1 text-sm font-bold py-1.5 px-3 rounded-md transition-colors ${
+                    className={`flex-1 text-sm font-bold py-1.5 px-3 rounded-md transition-all ${
                       timeFormat === "24h"
-                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm"
-                        : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300"
+                        ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm border border-surface-200/60 dark:border-surface-600"
+                        : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
                     }`}
                   >
                     24-hour (Military)

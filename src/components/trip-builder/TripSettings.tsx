@@ -182,8 +182,8 @@ export const TripSettings: React.FC = React.memo(() => {
               onClick={() => setTravelMode(mode)}
               className={`flex-1 min-w-[80px] flex items-center justify-center gap-1 sm:gap-2 py-2 px-2 rounded-md text-xs sm:text-sm font-medium capitalize transition-all ${
                 travelMode === mode
-                  ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm"
-                  : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200"
+                  ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm border border-surface-200/60 dark:border-surface-600"
+                  : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
               }`}
             >
               {mode === "walking" && (
@@ -205,16 +205,24 @@ export const TripSettings: React.FC = React.memo(() => {
           <h3 className="text-sm font-semibold text-surface-900 dark:text-white uppercase tracking-wider">
             Dates & Duration
           </h3>
-          <div className="flex bg-surface-100 dark:bg-surface-900/50 p-0.5 rounded-md">
+          <div className="flex bg-surface-100 dark:bg-surface-900/80 p-0.5 rounded-md">
             <button
               onClick={() => setDateMode("duration")}
-              className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-all ${dateMode === "duration" ? "bg-white dark:bg-surface-700 text-primary-600 shadow-sm" : "text-surface-500 hover:text-surface-700"}`}
+              className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded transition-all ${
+                dateMode === "duration"
+                  ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm"
+                  : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
+              }`}
             >
               Duration
             </button>
             <button
               onClick={() => setDateMode("fixed")}
-              className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-all ${dateMode === "fixed" ? "bg-white dark:bg-surface-700 text-primary-600 shadow-sm" : "text-surface-500 hover:text-surface-700"}`}
+              className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded transition-all ${
+                dateMode === "fixed"
+                  ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm"
+                  : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
+              }`}
             >
               Exact Dates
             </button>

@@ -190,9 +190,20 @@ export const fetchRouteSegment = async (
   destination: { lat: number; lng: number },
   mode: "driving" | "transit" | "walking",
   departureTime?: Date
-): Promise<{ distanceM: number; durationS: number }> => {
+): Promise<{ distanceM: number; durationS: number; isHeuristic?: boolean; heuristicReason?: string }> => {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error("Google Maps API Key is missing");
+  if (!apiKey) {
+    const dist = getDistance(origin.lat, origin.lng, destination.lat, destination.lng);
+    const durationS = Math.round(estimateTime(dist, mode));
+    return {
+      distanceM: Math.round(dist),
+      durationS,
+      isHeuristic: true,
+      heuristicReason: mode === "transit"
+        ? "No Google Maps API key; transit calculated using geometric velocity heuristic."
+        : "Estimated geometrically without live API.",
+    };
+  }
 
   // Format mode for API
   let travelMode = "DRIVE";
@@ -252,7 +263,12 @@ export const fetchRouteSegment = async (
       if (mode === "transit") {
         const dist = getDistance(origin.lat, origin.lng, destination.lat, destination.lng);
         const durationS = Math.round(estimateTime(dist, "transit"));
-        const fallbackResult = { distanceM: Math.round(dist), durationS };
+        const fallbackResult = {
+          distanceM: Math.round(dist),
+          durationS,
+          isHeuristic: true,
+          heuristicReason: "Google Routes API returned ZERO_RESULTS (Japan transit developer blackout or regional gap); calculated using geometric velocity heuristic."
+        };
         saveToRoutesCache(cacheKey, fallbackResult);
         return fallbackResult;
       }
@@ -262,11 +278,21 @@ export const fetchRouteSegment = async (
     const distanceM = route.distanceMeters || 0;
     const durationS = route.duration ? parseInt(route.duration.replace("s", "")) : 0;
 
-    const result = { distanceM, durationS };
+    const result = { distanceM, durationS, isHeuristic: false };
     saveToRoutesCache(cacheKey, result);
     return result;
   } catch (error) {
     console.error("Maps Routes Error:", error);
+    if (mode === "transit") {
+      const dist = getDistance(origin.lat, origin.lng, destination.lat, destination.lng);
+      const durationS = Math.round(estimateTime(dist, "transit"));
+      return {
+        distanceM: Math.round(dist),
+        durationS,
+        isHeuristic: true,
+        heuristicReason: "Live transit routing unavailable; estimated using geometric velocity heuristic."
+      };
+    }
     throw error;
   }
 };

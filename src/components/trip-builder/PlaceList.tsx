@@ -129,8 +129,8 @@ export const PlaceList: React.FC<PlaceListProps> = React.memo(({ isExpanded }) =
           onClick={() => setActiveTab("active")}
           className={`flex-1 text-xs font-semibold py-1.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 ${
             activeTab === "active"
-              ? "bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm"
-              : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200"
+              ? "bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm border border-surface-200/60 dark:border-surface-600"
+              : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
           }`}
         >
           <span>Active</span>
@@ -140,8 +140,8 @@ export const PlaceList: React.FC<PlaceListProps> = React.memo(({ isExpanded }) =
           onClick={() => setActiveTab("unassigned")}
           className={`flex-1 text-xs font-semibold py-1.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 ${
             activeTab === "unassigned"
-              ? "bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm"
-              : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200"
+              ? "bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm border border-surface-200/60 dark:border-surface-600"
+              : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
           }`}
         >
           <span>Unassigned</span>
@@ -149,7 +149,7 @@ export const PlaceList: React.FC<PlaceListProps> = React.memo(({ isExpanded }) =
             <span
               className={`inline-flex items-center justify-center min-w-[18px] h-[18px] text-[10px] font-bold rounded-full px-1 ${
                 activeTab === "unassigned"
-                  ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                  ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
                   : "bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300"
               }`}
             >
@@ -161,8 +161,8 @@ export const PlaceList: React.FC<PlaceListProps> = React.memo(({ isExpanded }) =
           onClick={() => setActiveTab("disabled")}
           className={`flex-1 text-xs font-semibold py-1.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 ${
             activeTab === "disabled"
-              ? "bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm"
-              : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200"
+              ? "bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm border border-surface-200/60 dark:border-surface-600"
+              : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
           }`}
         >
           <span>Excluded</span>
@@ -170,8 +170,8 @@ export const PlaceList: React.FC<PlaceListProps> = React.memo(({ isExpanded }) =
             <span
               className={`inline-flex items-center justify-center min-w-[18px] h-[18px] text-[10px] font-bold rounded-full px-1 ${
                 activeTab === "disabled"
-                  ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
-                  : "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/50"
+                  ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+                  : "bg-amber-50 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/50"
               }`}
             >
               {disabledCount}
@@ -182,8 +182,8 @@ export const PlaceList: React.FC<PlaceListProps> = React.memo(({ isExpanded }) =
           onClick={() => setActiveTab("all")}
           className={`flex-1 text-xs font-semibold py-1.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 ${
             activeTab === "all"
-              ? "bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm"
-              : "text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200"
+              ? "bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm border border-surface-200/60 dark:border-surface-600"
+              : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
           }`}
         >
           <span>All</span>

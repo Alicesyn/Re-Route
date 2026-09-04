@@ -80,6 +80,8 @@ export interface RouteSegment {
   distance: number;
   time: number;
   travelMode: TravelMode;
+  isHeuristic?: boolean;
+  heuristicReason?: string;
 }
 
 export interface DayRoute {
@@ -136,7 +138,7 @@ export interface ItinerarySnapshot {
 
 export interface TripExportFile {
   version: 1;
-  app: "RE-Route";
+  app: "RE-ROUTE";
   exportedAt: string;
   trip: ItinerarySnapshot;
 }
