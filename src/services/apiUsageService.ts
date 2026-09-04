@@ -1,7 +1,10 @@
 /**
  * Service to track real-time API usage, calculate daily budget consumption,
- * track cache savings, and manage Bring Your Own Key (BYOK) custom keys.
+ * track cache savings, manage Bring Your Own Key (BYOK) custom keys,
+ * and synchronize with a shared global cloud counter (Upstash Redis / Vercel KV).
  */
+
+import { isLocalDev } from "../utils/envUtils";
 
 export interface ApiUsageStats {
   date: string; // YYYY-MM-DD
@@ -11,6 +14,7 @@ export interface ApiUsageStats {
   geminiCalls: number;
   cacheHits: number;
   lastResetTime: number;
+  isCloudSynced?: boolean;
 }
 
 export interface ApiBudgetLimits {
@@ -37,7 +41,7 @@ const getInitialStats = (): ApiUsageStats => {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed.date === today) {
-        return parsed;
+        return { ...parsed, isCloudSynced: false };
       }
     }
   } catch (e) {
@@ -51,6 +55,7 @@ const getInitialStats = (): ApiUsageStats => {
     geminiCalls: 0,
     cacheHits: 0,
     lastResetTime: Date.now(),
+    isCloudSynced: false,
   };
 };
 
@@ -79,10 +84,48 @@ const checkDayRollover = () => {
       geminiCalls: 0,
       cacheHits: 0,
       lastResetTime: Date.now(),
+      isCloudSynced: currentStats.isCloudSynced,
     };
     persistAndNotify();
   }
 };
+
+// Sync with global cloud counter endpoint
+const fetchCloudStats = async () => {
+  if (isLocalDev()) {
+    // In local development, do not call Vercel serverless /api/usage
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/usage", {
+      method: "GET",
+      headers: { "Cache-Control": "no-cache" },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && data.isConfigured) {
+      currentStats = {
+        date: data.date || getTodayDateString(),
+        mapsSearchCalls: Math.max(currentStats.mapsSearchCalls, data.mapsSearchCalls || 0),
+        mapsPhotoCalls: Math.max(currentStats.mapsPhotoCalls, data.mapsPhotoCalls || 0),
+        mapsRouteCalls: Math.max(currentStats.mapsRouteCalls, data.mapsRouteCalls || 0),
+        geminiCalls: Math.max(currentStats.geminiCalls, data.geminiCalls || 0),
+        cacheHits: Math.max(currentStats.cacheHits, data.cacheHits || 0),
+        lastResetTime: currentStats.lastResetTime,
+        isCloudSynced: true,
+      };
+      persistAndNotify();
+    }
+  } catch (err) {
+    // Graceful fallback to local counter
+  }
+};
+
+// Initiate background cloud sync
+if (typeof window !== "undefined" && !isLocalDev()) {
+  setTimeout(() => fetchCloudStats(), 300);
+}
 
 export const apiUsageService = {
   getStats: (): ApiUsageStats => {
@@ -104,19 +147,56 @@ export const apiUsageService = {
     persistAndNotify();
   },
 
+  syncWithCloud: async (): Promise<{ success: boolean; message?: string }> => {
+    if (isLocalDev()) {
+      return {
+        success: false,
+        message: "Cloud sync is disabled during local dev (activates when deployed on Vercel).",
+      };
+    }
+    await fetchCloudStats();
+    return { success: true };
+  },
+
   recordCall: (type: "maps_search" | "maps_photo" | "maps_route" | "gemini") => {
     checkDayRollover();
+    const isByok =
+      type.startsWith("maps")
+        ? apiUsageService.isUsingCustomMapsKey()
+        : apiUsageService.isUsingCustomGeminiKey();
+
     if (type === "maps_search") currentStats.mapsSearchCalls++;
     else if (type === "maps_photo") currentStats.mapsPhotoCalls++;
     else if (type === "maps_route") currentStats.mapsRouteCalls++;
     else if (type === "gemini") currentStats.geminiCalls++;
     persistAndNotify();
+
+    // Asynchronously report to cloud counter (only when deployed on Vercel)
+    if (!isLocalDev()) {
+      try {
+        fetch("/api/usage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type, isByok }),
+        }).catch(() => {});
+      } catch (e) {}
+    }
   },
 
   recordCacheHit: (count = 1) => {
     checkDayRollover();
     currentStats.cacheHits += count;
     persistAndNotify();
+
+    if (!isLocalDev()) {
+      try {
+        fetch("/api/usage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "cache_hit", count, isByok: false }),
+        }).catch(() => {});
+      } catch (e) {}
+    }
   },
 
   resetStats: () => {
@@ -128,6 +208,7 @@ export const apiUsageService = {
       geminiCalls: 0,
       cacheHits: 0,
       lastResetTime: Date.now(),
+      isCloudSynced: currentStats.isCloudSynced,
     };
     persistAndNotify();
   },

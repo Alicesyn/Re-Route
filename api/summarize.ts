@@ -2,10 +2,10 @@ export const config = {
   runtime: "edge",
 };
 
-const MODEL = "gemini-flash-lite-latest";
+const MODEL = "gemini-3.5-flash-lite";
 
 const callGeminiWithRetry = async (apiKey: string, body: any, retries = 2): Promise<Response> => {
-  const models = [MODEL, "gemini-3.6-flash", "gemini-2.5-flash-lite"];
+  const models = [MODEL, "gemini-3.7-flash", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.6-flash"];
   let lastRes: Response | null = null;
   
   for (let i = 0; i <= retries; i++) {

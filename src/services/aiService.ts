@@ -1,18 +1,16 @@
 import { PlaceCategory } from "../types";
+import { isLocalDev } from "../utils/envUtils";
 import { emitApiError } from "./apiErrorBus";
 import { apiUsageService } from "./apiUsageService";
 
 const FALLBACK_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-  "gemini-flash-lite-latest",
+  "gemini-3.5-flash-lite",
+  "gemini-3.7-flash",
+  "gemini-3.5-flash",
+  "gemini-3.8-flash",
   "gemini-3.6-flash",
+  "gemini-flash-lite-latest",
 ];
-
-const isLocalhost =
-  typeof window !== "undefined" &&
-  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
 export interface AISummary {
   description: string;
@@ -65,9 +63,15 @@ const callGeminiDirectWithFallback = async (
         if (errorMessage.includes("Quota exceeded")) isQuota = true;
       } catch (e) {}
 
-      // If 503 (high demand) or 429 (rate limit) and we have more models, try the next model immediately
-      if ((response.status === 503 || response.status === 429) && i < FALLBACK_MODELS.length - 1) {
-        console.warn(`[Gemini] Model ${model} returned ${response.status}. Trying fallback model ${FALLBACK_MODELS[i + 1]}...`);
+      // If we have more fallback models available, log warning and try next
+      if (i < FALLBACK_MODELS.length - 1) {
+        console.warn(
+          `[Gemini] Model ${model} returned ${response.status} (${errorMessage}). Trying fallback model ${FALLBACK_MODELS[i + 1]}...`
+        );
+        // Delay briefly if rate-limited or experiencing server demand spike
+        if (response.status === 503 || response.status === 429) {
+          await new Promise((resolve) => setTimeout(resolve, 800));
+        }
         continue;
       }
 
@@ -83,6 +87,9 @@ const callGeminiDirectWithFallback = async (
     }
   }
 
+  if (lastError) {
+    emitApiError({ source: "gemini", message: lastError.message, isQuota: false });
+  }
   throw lastError || new Error("All Gemini model attempts failed");
 };
 
@@ -96,8 +103,8 @@ export const summarizePlace = async (
   const customKey = apiUsageService.getCustomGeminiKey();
   const activeKey = apiUsageService.getActiveGeminiKey();
 
-  // 1. If no custom key and not on localhost, try secure serverless proxy first
-  if (!customKey && !isLocalhost) {
+  // 1. If no custom key and running on Vercel deployment, try secure serverless proxy first
+  if (!customKey && !isLocalDev()) {
     try {
       apiUsageService.recordCall("gemini");
       const proxyRes = await fetch("/api/summarize", {
@@ -165,8 +172,8 @@ export const summarizePlacesBatch = async (
   const customKey = apiUsageService.getCustomGeminiKey();
   const activeKey = apiUsageService.getActiveGeminiKey();
 
-  // 1. If no custom key and not on localhost, try secure serverless proxy first
-  if (!customKey && !isLocalhost) {
+  // 1. If no custom key and running on Vercel deployment, try secure serverless proxy first
+  if (!customKey && !isLocalDev()) {
     try {
       apiUsageService.recordCall("gemini");
       const proxyRes = await fetch("/api/summarize", {
@@ -238,8 +245,8 @@ export const suggestSights = async (
   const customKey = apiUsageService.getCustomGeminiKey();
   const activeKey = apiUsageService.getActiveGeminiKey();
 
-  // 1. If no custom key and not on localhost, try secure serverless proxy first
-  if (!customKey && !isLocalhost) {
+  // 1. If no custom key and running on Vercel deployment, try secure serverless proxy first
+  if (!customKey && !isLocalDev()) {
     try {
       apiUsageService.recordCall("gemini");
       const proxyRes = await fetch("/api/suggest", {

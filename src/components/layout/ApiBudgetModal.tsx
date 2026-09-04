@@ -13,10 +13,13 @@ import {
   HelpCircle,
   Activity,
   Shield,
+  Cloud,
+  CloudOff,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiUsageService, ApiUsageStats, ApiBudgetLimits } from "../../services/apiUsageService";
 import { toast } from "../../services/toastService";
+import { isLocalDev } from "../../utils/envUtils";
 
 interface ApiBudgetModalProps {
   isOpen: boolean;
@@ -211,6 +214,58 @@ export const ApiBudgetModal: React.FC<ApiBudgetModalProps> = ({
             {/* TAB 1: USAGE & BUDGET */}
             {activeTab === "budget" && (
               <div className="space-y-6">
+                {/* Cloud Sync Status Banner */}
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-50 dark:bg-surface-900/40 border border-surface-200 dark:border-surface-700">
+                  <div className="flex items-center gap-2.5">
+                    {stats.isCloudSynced ? (
+                      <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                        <Cloud className="w-4 h-4" />
+                      </div>
+                    ) : (
+                      <div className="w-7 h-7 rounded-lg bg-surface-200 dark:bg-surface-700 text-surface-500 dark:text-surface-400 flex items-center justify-center">
+                        <CloudOff className="w-4 h-4" />
+                      </div>
+                    )}
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-surface-900 dark:text-white">
+                          {stats.isCloudSynced
+                            ? "Global Cloud Sync Active"
+                            : isLocalDev()
+                            ? "Local Dev (Browser Storage)"
+                            : "Local Browser Storage Active"}
+                        </span>
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            stats.isCloudSynced ? "bg-emerald-500 animate-pulse" : "bg-surface-400"
+                          }`}
+                        />
+                      </div>
+                      <p className="text-[11px] text-surface-500 dark:text-surface-400 mt-0.5">
+                        {stats.isCloudSynced
+                          ? "Budget usage is live synced across all visitors via shared cloud database"
+                          : isLocalDev()
+                          ? "Running in local development. Cloud Upstash counter is active when deployed on Vercel."
+                          : "Connect free Upstash Redis / Vercel KV to sync total usage across all visitors"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const res = await apiUsageService.syncWithCloud();
+                      if (!res.success && res.message) {
+                        toast.info(res.message, "Local Dev Mode");
+                      } else {
+                        toast.info("Checked global cloud counter.", "Cloud Synced");
+                      }
+                    }}
+                    className="p-1.5 px-2.5 rounded-lg border border-surface-200 dark:border-surface-700 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-600 dark:text-surface-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Sync</span>
+                  </button>
+                </div>
+
                 {/* Summary Banner */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-surface-50 dark:bg-surface-900/40 border border-surface-200 dark:border-surface-700 rounded-xl p-4 flex flex-col justify-between">
@@ -557,6 +612,54 @@ export const ApiBudgetModal: React.FC<ApiBudgetModalProps> = ({
                   </ol>
                   <p className="text-[11px] text-primary-700 dark:text-primary-300 font-medium">
                     💳 Google Cloud provides a recurring <strong>$200 monthly free credit</strong> (~10,000 requests/month) for Maps APIs.
+                  </p>
+                </div>
+
+                {/* Cloud Counter Guide */}
+                <div className="bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-sm text-emerald-900 dark:text-emerald-300 flex items-center gap-2">
+                      <Cloud className="w-4 h-4 text-emerald-500" />
+                      3. How to Enable Global Shared Cloud Counter (Free Upstash Redis)
+                    </h3>
+                    <a
+                      href="https://console.upstash.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                    >
+                      Upstash Console <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-2 text-surface-600 dark:text-surface-300 pl-1">
+                    <li>
+                      Create a free account at{" "}
+                      <a
+                        href="https://console.upstash.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-600 dark:text-emerald-400 font-semibold hover:underline"
+                      >
+                        Upstash Redis
+                      </a>{" "}
+                      (Free tier: 10,000 requests/day).
+                    </li>
+                    <li>
+                      Click <span className="font-bold text-surface-900 dark:text-white">"Create Database"</span> and choose your preferred region.
+                    </li>
+                    <li>
+                      Scroll down to the <span className="font-bold text-surface-900 dark:text-white">"REST API"</span> section and copy:
+                      <ul className="list-disc list-inside pl-4 mt-1 space-y-0.5 font-mono text-[11px]">
+                        <li>UPSTASH_REDIS_REST_URL</li>
+                        <li>UPSTASH_REDIS_REST_TOKEN</li>
+                      </ul>
+                    </li>
+                    <li>
+                      Add them to your project's <span className="font-mono font-bold">.env</span> file or your Vercel Environment Variables. The app automatically activates global real-time synchronization across all visitors!
+                    </li>
+                  </ol>
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">
+                    ⚡ Zero database server to maintain — atomic counters sync instantaneously across all users globally.
                   </p>
                 </div>
               </div>
