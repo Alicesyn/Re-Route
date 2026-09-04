@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, MapPin, Pin, Clock, Timer, AlertCircle, Sparkles, Loader2, ExternalLink } from "lucide-react";
+import { GripVertical, Trash2, MapPin, Pin, Clock, Timer, AlertCircle, Sparkles, Loader2, ExternalLink, Eye, EyeOff } from "lucide-react";
 import { Place, PlaceCategory } from "../../types";
 import { useRouteStore } from "../../store/useRouteStore";
 import {
@@ -22,6 +22,7 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
   const removePlace = useRouteStore((s) => s.removePlace);
   const assignPlaceToDay = useRouteStore((s) => s.assignPlaceToDay);
   const unassignPlace = useRouteStore((s) => s.unassignPlace);
+  const togglePlaceDisabled = useRouteStore((s) => s.togglePlaceDisabled);
   const days = useRouteStore((s) => s.days);
   const appMode = useRouteStore((s) => s.appMode);
   const showImages = useRouteStore((s) => s.showImages);
@@ -181,7 +182,11 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
     <div
       ref={setNodeRef}
       style={style}
-      className={`group card-place ${isDragging ? "opacity-50 border-primary-500 shadow-md scale-[1.02]" : ""}`}
+      className={`group card-place transition-all ${
+        place.isDisabled
+          ? "opacity-80 bg-surface-50/80 dark:bg-surface-850/60 border-dashed border-amber-200 dark:border-amber-900/40"
+          : ""
+      } ${isDragging ? "opacity-50 border-primary-500 shadow-md scale-[1.02]" : ""}`}
     >
       <div className="flex items-start p-4 gap-3">
         {/* Drag Handle */}
@@ -210,9 +215,14 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
           )}
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-surface-900 dark:text-white flex items-center gap-2">
+              <h3 className="font-semibold text-surface-900 dark:text-white flex items-center gap-2 flex-wrap">
                 <MapPin className="w-4 h-4 text-primary-500 shrink-0" />
                 <span className="truncate">{place.name}</span>
+                {place.isDisabled && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-300/80 dark:border-amber-800/80 shrink-0">
+                    <EyeOff className="w-2.5 h-2.5" /> Excluded
+                  </span>
+                )}
               </h3>
               <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5">
                 {place.address}
@@ -296,30 +306,59 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
-              {/* Day assignment dropdown */}
-              <div className="relative">
-                <select
-                  value={place.dayIndex !== null ? place.dayIndex : ""}
-                  onChange={handleDayChange}
-                  className={`text-xs font-bold border rounded-md pl-1.5 pr-4 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary-500 appearance-none cursor-pointer text-center tracking-wide ${place.dayIndex === null ? "bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-surface-700" : getBadgeColor(place.dayIndex)}`}
-                  title="Assign to day"
-                >
-                  <option value="">-</option>
-                  {Array.from({ length: days }).map((_, i) => (
-                    <option key={i} value={i}>
-                      D
-                      {i + 1}
-                    </option>
-                  ))}
-                </select>
-                {place.pinnedToDay && (
-                  <Pin className="absolute right-1 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-current opacity-60 pointer-events-none" />
+              {/* Exclude / Include Toggle Button */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePlaceDisabled(place.id);
+                }}
+                className={`p-1.5 rounded-lg border transition-all flex items-center gap-1 text-xs font-semibold ${
+                  place.isDisabled
+                    ? "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-200 dark:hover:bg-amber-900/60 shadow-sm"
+                    : "bg-surface-50 dark:bg-surface-800 text-surface-400 dark:text-surface-500 border-surface-200 dark:border-surface-700 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                }`}
+                title={
+                  place.isDisabled
+                    ? "Excluded from routing. Click to re-enable in route."
+                    : "Exclude this place from route optimization (keep in list)."
+                }
+              >
+                {place.isDisabled ? (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span className="text-[10px]">Excluded</span>
+                  </>
+                ) : (
+                  <Eye className="w-3.5 h-3.5" />
                 )}
-              </div>
+              </button>
+
+              {/* Day assignment dropdown (only when active) */}
+              {!place.isDisabled && (
+                <div className="relative">
+                  <select
+                    value={place.dayIndex !== null ? place.dayIndex : ""}
+                    onChange={handleDayChange}
+                    className={`text-xs font-bold border rounded-md pl-1.5 pr-4 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary-500 appearance-none cursor-pointer text-center tracking-wide ${place.dayIndex === null ? "bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-surface-700" : getBadgeColor(place.dayIndex)}`}
+                    title="Assign to day"
+                  >
+                    <option value="">-</option>
+                    {Array.from({ length: days }).map((_, i) => (
+                      <option key={i} value={i}>
+                        D{i + 1}
+                      </option>
+                    ))}
+                  </select>
+                  {place.pinnedToDay && (
+                    <Pin className="absolute right-1 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-current opacity-60 pointer-events-none" />
+                  )}
+                </div>
+              )}
 
               <button
                 onClick={() => removePlace(place.id)}
-                className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all"
                 aria-label="Remove place"
               >
                 <Trash2 className="w-4 h-4" />

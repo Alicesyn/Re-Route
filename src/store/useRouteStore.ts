@@ -97,6 +97,8 @@ interface RouteState extends ModeData {
     updates: { id: string; updates: Partial<Place> }[],
   ) => void;
   removePlace: (id: string) => void;
+  togglePlaceDisabled: (id: string) => Promise<void>;
+  setAllPlacesDisabled: (disabled: boolean, ids?: string[]) => Promise<void>;
   reorderPlaces: (places: Place[]) => void;
   applyCategoryDurationsToPlaces: () => void;
   clearAll: () => void;
@@ -383,6 +385,133 @@ export const useRouteStore = create<RouteState>()(
           places: state.places.filter((p) => p.id !== id),
         })),
 
+      togglePlaceDisabled: async (placeId) => {
+        const state = get();
+        const target = state.places.find((p) => p.id === placeId);
+        if (!target) return;
+
+        const willBeDisabled = !target.isDisabled;
+
+        if (willBeDisabled) {
+          // If place is assigned to a day, unassign it and re-solve that day
+          const dayIndex = target.dayIndex;
+          const newPlaces = state.places.map((p) =>
+            p.id === placeId
+              ? { ...p, isDisabled: true, dayIndex: null, orderInDay: null, pinnedToDay: false }
+              : p,
+          );
+
+          if (dayIndex !== null && dayIndex !== undefined) {
+            set({ isCalculating: true, calculatingText: "Updating routes..." });
+            try {
+              let newRoutes = [...state.optimizedRoutes];
+              const dayPlaces = newPlaces.filter((p) => p.dayIndex === dayIndex && !p.isDisabled);
+              const idx = newRoutes.findIndex((r) => r.day === dayIndex);
+              let manualSequence: string[] | undefined = undefined;
+              if (idx >= 0 && newRoutes[idx].manualSequence) {
+                manualSequence = newRoutes[idx].manualSequence.filter((id) => id !== placeId);
+              }
+
+              const result = await solveSingleDay(
+                dayPlaces,
+                state.hotels,
+                dayIndex,
+                state.travelMode,
+                dayIndex === 0 && state.showFlights ? state.arrivalFlight?.location : null,
+                dayIndex === state.days - 1 && state.showFlights ? state.departureFlight?.location : null,
+                !!manualSequence,
+                manualSequence,
+                state.startDate,
+                state.dayStartTime
+              );
+              if (idx >= 0) newRoutes[idx] = result;
+              set({ places: newPlaces, optimizedRoutes: newRoutes, isCalculating: false });
+            } catch (e) {
+              console.error(e);
+              set({ places: newPlaces, isCalculating: false });
+            }
+          } else {
+            set({ places: newPlaces });
+          }
+        } else {
+          // Re-enabling place: restore it to active unassigned pool
+          const newPlaces = state.places.map((p) =>
+            p.id === placeId ? { ...p, isDisabled: false } : p,
+          );
+          set({ places: newPlaces });
+        }
+      },
+
+      setAllPlacesDisabled: async (disabled, ids) => {
+        const state = get();
+        const idSet = ids ? new Set(ids) : null;
+        const affectedPlaces = state.places.filter(
+          (p) => (!idSet || idSet.has(p.id)) && p.isDisabled !== disabled
+        );
+
+        if (affectedPlaces.length === 0) return;
+
+        if (disabled) {
+          const affectedDays = new Set(
+            affectedPlaces
+              .map((p) => p.dayIndex)
+              .filter((d): d is number => d !== null && d !== undefined)
+          );
+
+          const newPlaces = state.places.map((p) => {
+            if (!idSet || idSet.has(p.id)) {
+              return { ...p, isDisabled: true, dayIndex: null, orderInDay: null, pinnedToDay: false };
+            }
+            return p;
+          });
+
+          if (affectedDays.size > 0) {
+            set({ isCalculating: true, calculatingText: "Updating routes..." });
+            try {
+              let newRoutes = [...state.optimizedRoutes];
+              for (const dayIndex of affectedDays) {
+                const dayPlaces = newPlaces.filter((p) => p.dayIndex === dayIndex && !p.isDisabled);
+                const idx = newRoutes.findIndex((r) => r.day === dayIndex);
+                let manualSequence: string[] | undefined = undefined;
+                if (idx >= 0 && newRoutes[idx].manualSequence) {
+                  manualSequence = newRoutes[idx].manualSequence.filter(
+                    (id) => !affectedPlaces.some((ap) => ap.id === id)
+                  );
+                }
+
+                const result = await solveSingleDay(
+                  dayPlaces,
+                  state.hotels,
+                  dayIndex,
+                  state.travelMode,
+                  dayIndex === 0 && state.showFlights ? state.arrivalFlight?.location : null,
+                  dayIndex === state.days - 1 && state.showFlights ? state.departureFlight?.location : null,
+                  !!manualSequence,
+                  manualSequence,
+                  state.startDate,
+                  state.dayStartTime
+                );
+                if (idx >= 0) newRoutes[idx] = result;
+              }
+              set({ places: newPlaces, optimizedRoutes: newRoutes, isCalculating: false });
+            } catch (e) {
+              console.error(e);
+              set({ places: newPlaces, isCalculating: false });
+            }
+          } else {
+            set({ places: newPlaces });
+          }
+        } else {
+          const newPlaces = state.places.map((p) => {
+            if (!idSet || idSet.has(p.id)) {
+              return { ...p, isDisabled: false };
+            }
+            return p;
+          });
+          set({ places: newPlaces });
+        }
+      },
+
       reorderPlaces: (places) => set({ places }),
 
       applyCategoryDurationsToPlaces: () =>
@@ -431,9 +560,10 @@ export const useRouteStore = create<RouteState>()(
             p.id === placeId
               ? {
                   ...p,
+                  isDisabled: false, // Auto-enable if explicitly assigned to a day
                   dayIndex,
                   orderInDay: state.places.filter(
-                    (pl) => pl.dayIndex === dayIndex,
+                    (pl) => pl.dayIndex === dayIndex && !pl.isDisabled,
                   ).length,
                   pinnedToDay: true,
                 }
@@ -441,7 +571,7 @@ export const useRouteStore = create<RouteState>()(
           );
 
           let newRoutes = [...state.optimizedRoutes];
-          const dayPlaces = newPlaces.filter((p) => p.dayIndex === dayIndex);
+          const dayPlaces = newPlaces.filter((p) => p.dayIndex === dayIndex && !p.isDisabled);
           
           const idx = newRoutes.findIndex((r) => r.day === dayIndex);
           let manualSequence: string[] | undefined = undefined;
@@ -492,7 +622,7 @@ export const useRouteStore = create<RouteState>()(
 
           let newRoutes = [...state.optimizedRoutes];
           if (dayIndex !== null && dayIndex !== undefined) {
-            const dayPlaces = newPlaces.filter((p) => p.dayIndex === dayIndex);
+            const dayPlaces = newPlaces.filter((p) => p.dayIndex === dayIndex && !p.isDisabled);
             
             const idx = newRoutes.findIndex((r) => r.day === dayIndex);
             let manualSequence: string[] | undefined = undefined;
@@ -587,7 +717,7 @@ export const useRouteStore = create<RouteState>()(
         set({ isCalculating: true, calculatingText: "Optimizing day..." });
         try {
           const state = get();
-          const dayPlaces = state.places.filter((p) => p.dayIndex === dayIndex);
+          const dayPlaces = state.places.filter((p) => p.dayIndex === dayIndex && !p.isDisabled);
           if (dayPlaces.length === 0) {
             set({ isCalculating: false });
             return;
@@ -674,7 +804,7 @@ export const useRouteStore = create<RouteState>()(
           const [movedItem] = newSequence.splice(oldIndex, 1);
           newSequence.splice(newIndex, 0, movedItem);
 
-          const dayPlaces = state.places.filter((p) => p.dayIndex === dayIndex);
+          const dayPlaces = state.places.filter((p) => p.dayIndex === dayIndex && !p.isDisabled);
           const result = await solveSingleDay(
             dayPlaces,
             state.hotels,

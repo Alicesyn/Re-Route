@@ -90,7 +90,8 @@ function App() {
 
 
   const handleOptimize = async () => {
-    if (places.length === 0 || isOptimizing) return;
+    const activePlaces = places.filter((p) => !p.isDisabled);
+    if (activePlaces.length === 0 || isOptimizing) return;
     setIsOptimizing(true);
     try {
       const [startH, startM] = dayStartTime.split(":").map(Number);
@@ -130,7 +131,7 @@ function App() {
       });
 
       const result = await solveTSP(
-        places,
+        activePlaces,
         hotels,
         days,
         travelMode,
@@ -184,12 +185,12 @@ function App() {
 
         if (result.unassignedPlaces && result.unassignedPlaces.length > 0) {
           toast.warning(
-            `${result.unassignedPlaces.length} of ${places.length} places could not fit within the daily time budget.`,
+            `${result.unassignedPlaces.length} of ${activePlaces.length} places could not fit within the daily time budget.`,
             "Schedule Over Capacity",
           );
         } else {
           toast.success(
-            `Optimized ${places.length} places across ${days} days!`,
+            `Optimized ${activePlaces.length} places across ${days} days!`,
             "Route Optimized",
           );
         }
@@ -406,8 +407,13 @@ function App() {
                   Places to Visit
                 </h2>
                 <span className="bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 text-sm font-semibold px-2.5 py-0.5 rounded-full">
-                  {places.length}
+                  {places.filter((p) => !p.isDisabled).length}
                 </span>
+                {places.some((p) => p.isDisabled) && (
+                  <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-semibold px-2 py-0.5 rounded-full" title="Places kept in reserve without routing">
+                    {places.filter((p) => p.isDisabled).length} excluded
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 {places.some(
@@ -490,18 +496,25 @@ function App() {
           {/* Optimize Button */}
           <button
             onClick={handleOptimize}
-            disabled={places.length === 0 || isOptimizing}
+            disabled={places.filter((p) => !p.isDisabled).length === 0 || isOptimizing}
             className="btn-primary w-full flex items-center justify-center gap-2 group py-4 text-lg rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isOptimizing ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Optimizing Route ({places.length} places)...</span>
+                <span>
+                  Optimizing Route ({places.filter((p) => !p.isDisabled).length} places)...
+                </span>
               </>
             ) : (
               <>
                 <Wand2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                <span>Optimize Route</span>
+                <span>
+                  Optimize Route
+                  {places.some((p) => p.isDisabled)
+                    ? ` (${places.filter((p) => !p.isDisabled).length} active)`
+                    : ""}
+                </span>
               </>
             )}
           </button>

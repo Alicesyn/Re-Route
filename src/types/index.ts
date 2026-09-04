@@ -41,6 +41,7 @@ export interface Place {
   unfeasibleReason?: string;
   editorialSummary?: string; // Fallback description from Google Maps
   photoUrl?: string;
+  isDisabled?: boolean; // If true, excluded from routing/schedule but kept in reserve
 }
 
 export interface Hotel {

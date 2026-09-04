@@ -90,12 +90,15 @@ export const MapView: React.FC = React.memo(() => {
   const hotels = useRouteStore((s) => s.hotels);
   const optimizedRoutes = useRouteStore((s) => s.optimizedRoutes);
 
+  const activePlaces = useMemo(() => places.filter((p) => !p.isDisabled), [places]);
+
   // If no places, show NYC by default
   const defaultCenter: [number, number] = useMemo(() => {
-    return places.length > 0
-      ? [places[0].lat, places[0].lng]
+    const targetPlaces = activePlaces.length > 0 ? activePlaces : places;
+    return targetPlaces.length > 0
+      ? [targetPlaces[0].lat, targetPlaces[0].lng]
       : [40.758, -73.9855];
-  }, [places]);
+  }, [places, activePlaces]);
 
   return (
     <div className="h-full w-full relative z-0">
@@ -110,11 +113,11 @@ export const MapView: React.FC = React.memo(() => {
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
         />
 
-        <MapBounds places={places} hotels={hotels} />
+        <MapBounds places={activePlaces.length > 0 ? activePlaces : places} hotels={hotels} />
 
-        {/* Draw Markers for Unoptimized Places */}
+        {/* Draw Markers for Unoptimized Places (Active only) */}
         {optimizedRoutes.length === 0 &&
-          places.map((place) => (
+          activePlaces.map((place) => (
             <Marker key={place.id} position={[place.lat, place.lng]}>
               <Popup>
                 <div className="font-sans">
