@@ -42,6 +42,7 @@ export interface Place {
   editorialSummary?: string; // Fallback description from Google Maps
   photoUrl?: string;
   isDisabled?: boolean; // If true, excluded from routing/schedule but kept in reserve
+  romanizedName?: string; // English/romanized transliteration for foreign script names
 }
 
 export interface Hotel {

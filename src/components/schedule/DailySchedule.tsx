@@ -208,6 +208,11 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
               title="Edit Place Details"
             >
               {stop.name}
+              {stop.romanizedName && stop.romanizedName.toLowerCase() !== stop.name.toLowerCase() && (
+                <span className="ml-1.5 text-xs font-normal text-surface-500 dark:text-surface-400 italic">
+                  ({stop.romanizedName})
+                </span>
+              )}
             </button>
             <div className="flex items-center gap-1.5 shrink-0">
               {timeConflict.hasConflict && (

@@ -103,6 +103,7 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
         category: aiData.category,
         estimatedDuration: aiData.estimatedDuration,
         descriptionSource: "ai",
+        ...(aiData.romanizedName ? { romanizedName: aiData.romanizedName } : {}),
       });
       setDesc(aiData.description);
     } catch (err) {
@@ -218,6 +219,11 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
               <h3 className="font-semibold text-surface-900 dark:text-white flex items-center gap-2 flex-wrap">
                 <MapPin className="w-4 h-4 text-primary-500 shrink-0" />
                 <span className="truncate">{place.name}</span>
+                {place.romanizedName && place.romanizedName.toLowerCase() !== place.name.toLowerCase() && (
+                  <span className="text-xs font-normal text-surface-500 dark:text-surface-400 italic">
+                    ({place.romanizedName})
+                  </span>
+                )}
                 {place.isDisabled && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-300/80 dark:border-amber-800/80 shrink-0">
                     <EyeOff className="w-2.5 h-2.5" /> Excluded

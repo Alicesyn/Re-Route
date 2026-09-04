@@ -72,7 +72,8 @@ export default async function handler(req: Request) {
         Analyze the following list of places. For each place, provide 3-7 comma-separated, punchy phrases highlighting the core vibe and what it's famous for. 
         IMPORTANT: Make it sound natural, casual, and straight to the point. NO fluff, NO typical AI marketing speak (avoid words like "bustling", "vibrant", "unforgettable").
         Also, categorize each into one of these: museum, restaurant, coffee_shop, park, landmark, shopping, entertainment, beach, religious_site, nightlife, other.
-        Finally, suggest a typical visit duration in minutes.
+        Suggest a typical visit duration in minutes.
+        If the place name contains foreign or non-Latin scripts (Japanese Kanji/Kana, Chinese Hanzi, Thai, Korean Hangul, etc.), provide its clean English/romanized transliteration in "romanizedName" (e.g. "Senso-ji" for "浅草寺", "Wat Phra Kaew" for "วัดพระแก้ว"). If already English/Latin, return null.
 
         Places:
         ${places
@@ -88,7 +89,8 @@ export default async function handler(req: Request) {
             "id": "Exact ID provided above",
             "description": "string",
             "category": "string",
-            "estimatedDuration": number
+            "estimatedDuration": number,
+            "romanizedName": "string or null"
           }
         ]
       `;
@@ -100,13 +102,15 @@ export default async function handler(req: Request) {
         Provide 3-7 comma-separated, punchy phrases highlighting the core vibe and what it's famous for (e.g. "Best matcha in Kyoto, quiet atmosphere, historic architecture"). 
         IMPORTANT: Make it sound natural, casual, and straight to the point. NO fluff, NO typical AI marketing speak (avoid words like "bustling", "vibrant", "unforgettable").
         Also, categorize it into one of these: museum, restaurant, coffee_shop, park, landmark, shopping, entertainment, beach, religious_site, nightlife, other.
-        Finally, suggest a typical visit duration in minutes.
+        Suggest a typical visit duration in minutes.
+        If the place name contains foreign or non-Latin scripts (Japanese Kanji/Kana, Chinese Hanzi, Thai, Korean Hangul, etc.), provide its clean English/romanized transliteration in "romanizedName" (e.g. "Senso-ji" for "浅草寺", "Wat Phra Kaew" for "วัดพระแก้ว"). If already English/Latin, return null.
 
         Return ONLY a JSON object in this format:
         {
           "description": "string",
           "category": "string",
-          "estimatedDuration": number
+          "estimatedDuration": number,
+          "romanizedName": "string or null"
         }
       `;
     } else {

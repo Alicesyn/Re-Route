@@ -13,7 +13,8 @@ import { solveTSP } from "./services/tspSolver";
 import { clearMapsCache, fetchFreshPhoto } from "./services/mapsService";
 import { Wand2, Sparkles, ChevronDown, ChevronUp, RefreshCw, Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { summarizePlacesBatch } from "./services/aiService";
+import { summarizePlacesBatch, romanizePlaceNames } from "./services/aiService";
+import { hasNonLatinScript } from "./utils/textUtils";
 import type { DayRoute, Place } from "./types";
 
 function App() {
@@ -88,6 +89,34 @@ function App() {
     upgradeLegacyPhotos();
   }, [places.length, appMode]);
 
+  // Auto-romanize foreign place names that contain non-Latin characters (Japanese, Chinese, Thai, etc.)
+  useEffect(() => {
+    if (appMode !== "real" || places.length === 0) return;
+    const foreignUnromanized = places.filter(
+      (p) => hasNonLatinScript(p.name) && !p.romanizedName
+    );
+    if (foreignUnromanized.length === 0) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const results = await romanizePlaceNames(
+          foreignUnromanized.map((p) => ({ id: p.id, name: p.name, address: p.address }))
+        );
+        if (results && results.length > 0) {
+          const updates = results
+            .filter((r) => r.romanizedName)
+            .map((r) => ({ id: r.id, updates: { romanizedName: r.romanizedName! } }));
+          if (updates.length > 0) {
+            updatePlacesBulk(updates);
+          }
+        }
+      } catch (e) {
+        console.warn("[Auto-Romanize] Failed to romanize place names:", e);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [places, appMode, updatePlacesBulk]);
 
   const handleOptimize = async () => {
     const activePlaces = places.filter((p) => !p.isDisabled);
@@ -267,6 +296,7 @@ function App() {
                   category: aiData.category,
                   estimatedDuration: aiData.estimatedDuration,
                   descriptionSource: "ai" as const,
+                  ...(aiData.romanizedName ? { romanizedName: aiData.romanizedName } : {}),
                 },
               });
             } else if (p.editorialSummary) {

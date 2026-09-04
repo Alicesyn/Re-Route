@@ -121,7 +121,14 @@ export const MapView: React.FC = React.memo(() => {
             <Marker key={place.id} position={[place.lat, place.lng]}>
               <Popup>
                 <div className="font-sans">
-                  <h3 className="font-bold text-sm">{place.name}</h3>
+                  <h3 className="font-bold text-sm">
+                    {place.name}
+                    {place.romanizedName && place.romanizedName.toLowerCase() !== place.name.toLowerCase() && (
+                      <span className="text-xs font-normal text-gray-500 italic block">
+                        ({place.romanizedName})
+                      </span>
+                    )}
+                  </h3>
                   <p className="text-xs text-gray-500">{place.address}</p>
                 </div>
               </Popup>
@@ -190,7 +197,14 @@ export const MapView: React.FC = React.memo(() => {
                       <h3 className="font-bold text-sm">
                         Day {i + 1} - Stop {stopIdx + 1}
                       </h3>
-                      <p className="font-semibold text-gray-800">{stop.name}</p>
+                      <p className="font-semibold text-gray-800">
+                        {stop.name}
+                        {stop.romanizedName && stop.romanizedName.toLowerCase() !== stop.name.toLowerCase() && (
+                          <span className="text-xs font-normal text-gray-500 italic block">
+                            ({stop.romanizedName})
+                          </span>
+                        )}
+                      </p>
                     </Popup>
                   </Marker>
                 );

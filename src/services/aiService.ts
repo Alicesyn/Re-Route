@@ -1,5 +1,6 @@
 import { PlaceCategory } from "../types";
 import { isLocalDev } from "../utils/envUtils";
+import { hasNonLatinScript } from "../utils/textUtils";
 import { emitApiError } from "./apiErrorBus";
 import { apiUsageService } from "./apiUsageService";
 
@@ -16,6 +17,7 @@ export interface AISummary {
   description: string;
   category: PlaceCategory;
   estimatedDuration: number;
+  romanizedName?: string | null;
 }
 
 const parseJsonResponse = <T>(rawText: string): T => {
@@ -144,13 +146,15 @@ export const summarizePlace = async (
     Provide 3-7 comma-separated, punchy phrases highlighting the core vibe and what it's famous for (e.g. "Best matcha in Kyoto, quiet atmosphere, historic architecture"). 
     IMPORTANT: Make it sound natural, casual, and straight to the point. NO fluff, NO typical AI marketing speak (avoid words like "bustling", "vibrant", "unforgettable").
     Also, categorize it into one of these: museum, restaurant, coffee_shop, park, landmark, shopping, entertainment, beach, religious_site, nightlife, other.
-    Finally, suggest a typical visit duration in minutes.
+    Suggest a typical visit duration in minutes.
+    If the place name contains foreign or non-Latin scripts (Japanese Kanji/Kana, Chinese Hanzi, Thai, Korean Hangul, etc.), provide its common English/romanized transliteration in "romanizedName" (e.g. "Senso-ji" for "浅草寺", "Wat Phra Kaew" for "วัดพระแก้ว"). If already English/Latin, return null.
 
     Return ONLY a JSON object in this format:
     {
       "description": "string",
       "category": "string",
-      "estimatedDuration": number
+      "estimatedDuration": number,
+      "romanizedName": "string or null"
     }
   `;
 
@@ -210,7 +214,8 @@ export const summarizePlacesBatch = async (
     Analyze the following list of places. For each place, provide 3-7 comma-separated, punchy phrases highlighting the core vibe and what it's famous for. 
     IMPORTANT: Make it sound natural, casual, and straight to the point. NO fluff, NO typical AI marketing speak (avoid words like "bustling", "vibrant", "unforgettable").
     Also, categorize each into one of these: museum, restaurant, coffee_shop, park, landmark, shopping, entertainment, beach, religious_site, nightlife, other.
-    Finally, suggest a typical visit duration in minutes.
+    Suggest a typical visit duration in minutes.
+    If the place name contains foreign or non-Latin scripts (Japanese Kanji/Kana, Chinese Hanzi, Thai, Korean Hangul, etc.), provide its clean English/romanized transliteration in "romanizedName" (e.g. "Senso-ji" for "浅草寺", "Wat Phra Kaew" for "วัดพระแก้ว"). If already in English/Latin, return null.
 
     Places:
     ${places.map(p => `ID: "${p.id}", Name: "${p.name}", Address: "${p.address}", Types: ${p.types.join(", ")}`).join("\n\n")}
@@ -221,7 +226,8 @@ export const summarizePlacesBatch = async (
         "id": "Exact ID provided above",
         "description": "string",
         "category": "string",
-        "estimatedDuration": number
+        "estimatedDuration": number,
+        "romanizedName": "string or null"
       }
     ]
   `;
@@ -234,6 +240,46 @@ export const summarizePlacesBatch = async (
     },
     signal
   );
+};
+
+export const romanizePlaceNames = async (
+  places: { id: string; name: string; address?: string }[],
+  signal?: AbortSignal
+): Promise<{ id: string; romanizedName: string | null }[]> => {
+  const activeKey = apiUsageService.getActiveGeminiKey();
+  if (!activeKey) return [];
+
+  const foreignPlaces = places.filter((p) => hasNonLatinScript(p.name));
+  if (foreignPlaces.length === 0) return [];
+
+  const prompt = `
+    For the following place names that contain foreign or non-Latin scripts (Japanese Kanji/Kana, Chinese Hanzi, Thai, Korean Hangul, Arabic, Cyrillic, etc.), provide their standard English/romanized transliteration (e.g. Hepburn for Japanese, Pinyin for Chinese, RTGS for Thai). If already Latin or untranslatable, return null.
+
+    Places:
+    ${foreignPlaces.map((p) => `ID: "${p.id}", Name: "${p.name}", Address: "${p.address || ""}"`).join("\n")}
+
+    Return ONLY a JSON array of objects:
+    [
+      {
+        "id": "Exact ID provided above",
+        "romanizedName": "English/romanized name or null"
+      }
+    ]
+  `;
+
+  try {
+    return await callGeminiDirectWithFallback(
+      activeKey,
+      {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" },
+      },
+      signal
+    );
+  } catch (err) {
+    console.warn("Failed to romanize place names:", err);
+    return [];
+  }
 };
 
 export const suggestSights = async (
