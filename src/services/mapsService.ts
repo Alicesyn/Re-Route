@@ -49,6 +49,8 @@ export interface MapsPlace {
   openingHours?: string[];
   editorialSummary?: string;
   photoUrl?: string;
+  priceLevel?: string;
+  priceEstimate?: string;
 }
 
 export const searchPlaces = async (
@@ -85,7 +87,7 @@ export const searchPlaces = async (
           "Content-Type": "application/json",
           "X-Goog-Api-Key": apiKey,
           "X-Goog-FieldMask":
-            "places.id,places.displayName,places.formattedAddress,places.location,places.types,places.regularOpeningHours,places.editorialSummary,places.photos",
+            "places.id,places.displayName,places.formattedAddress,places.location,places.types,places.regularOpeningHours,places.editorialSummary,places.photos,places.priceLevel",
         },
         body: JSON.stringify({
           textQuery: query,
@@ -138,6 +140,27 @@ export const searchPlaces = async (
           }
         }
 
+        let priceEstimate: string | undefined = undefined;
+        if (p.priceLevel) {
+          switch (p.priceLevel) {
+            case "PRICE_LEVEL_FREE":
+              priceEstimate = "Free";
+              break;
+            case "PRICE_LEVEL_INEXPENSIVE":
+              priceEstimate = "$";
+              break;
+            case "PRICE_LEVEL_MODERATE":
+              priceEstimate = "$$";
+              break;
+            case "PRICE_LEVEL_EXPENSIVE":
+              priceEstimate = "$$$";
+              break;
+            case "PRICE_LEVEL_VERY_EXPENSIVE":
+              priceEstimate = "$$$$";
+              break;
+          }
+        }
+
         return {
           id: p.id,
           name: p.displayName?.text || "",
@@ -148,6 +171,8 @@ export const searchPlaces = async (
           openingHours: p.regularOpeningHours?.weekdayDescriptions || [],
           editorialSummary: p.editorialSummary?.text,
           photoUrl,
+          priceLevel: p.priceLevel,
+          priceEstimate,
         };
       }),
     );

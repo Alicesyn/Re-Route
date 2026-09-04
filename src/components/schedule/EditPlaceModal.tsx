@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { X, MapPin, Timer, Sparkles, Loader2, ExternalLink } from "lucide-react";
+import { X, MapPin, Timer, Sparkles, Loader2, ExternalLink, Coins, CalendarClock } from "lucide-react";
 import { useRouteStore } from "../../store/useRouteStore";
 import { ALL_CATEGORIES, getCategoryEmoji, getCategoryLabel, getDefaultDuration } from "../../utils/categoryUtils";
-import { PlaceCategory } from "../../types";
+import { PlaceCategory, ReservationInfo, ReservationRequirement } from "../../types";
 import { summarizePlace } from "../../services/aiService";
+import {
+  getSpecificMockHighlight,
+  getSpecificMockPrice,
+  getSpecificMockDescription,
+  getSpecificMockReservation,
+} from "../../utils/mockAiUtils";
 
 interface Props {
   placeId: string;
@@ -20,6 +26,10 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
   const [romanizedName, setRomanizedName] = useState("");
   const [highlightLabel, setHighlightLabel] = useState("");
   const [highlightText, setHighlightText] = useState("");
+  const [priceEstimate, setPriceEstimate] = useState("");
+  const [reservationReq, setReservationReq] = useState<ReservationRequirement | "">("");
+  const [reservationAdvance, setReservationAdvance] = useState("");
+  const [reservationNotes, setReservationNotes] = useState("");
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   useEffect(() => {
@@ -30,6 +40,10 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
       setRomanizedName(place.romanizedName || "");
       setHighlightLabel(place.highlight?.label || "");
       setHighlightText(place.highlight?.text || "");
+      setPriceEstimate(place.priceEstimate || "");
+      setReservationReq(place.reservation?.requirement || "");
+      setReservationAdvance(place.reservation?.advanceTime || "");
+      setReservationNotes(place.reservation?.notes || "");
     }
   }, [place]);
 
@@ -47,6 +61,14 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
         }
       : undefined;
 
+    const finalReservation: ReservationInfo | undefined = reservationReq
+      ? {
+          requirement: reservationReq as ReservationRequirement,
+          advanceTime: reservationAdvance.trim() || undefined,
+          notes: reservationNotes.trim() || undefined,
+        }
+      : undefined;
+
     updatePlace(place.id, {
       description: desc,
       descriptionSource: desc !== place.description ? "user" : place.descriptionSource,
@@ -54,6 +76,8 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
       category,
       romanizedName: romanizedName.trim() || undefined,
       highlight: finalHighlight,
+      priceEstimate: priceEstimate.trim() || undefined,
+      reservation: finalReservation,
     });
     onClose();
   };
@@ -75,21 +99,17 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
           (place as any).types || []
         );
       } else {
-        const mockHighlight = category === "restaurant"
-          ? { label: "Must-Try", text: "Chef's signature dish and seasonal house specialty" }
-          : category === "coffee_shop"
-          ? { label: "Must-Order", text: "Signature pour-over brew and artisan pastry" }
-          : category === "landmark" || category === "museum"
-          ? { label: "Best Photo Spot", text: "Panoramic vantage point from the upper observation deck" }
-          : category === "park" || category === "beach"
-          ? { label: "Best Time to Visit", text: "Early morning or golden hour before sunset" }
-          : { label: "Pro Tip", text: "Visit during shoulder hours to avoid peak waiting lines" };
+        const mockHighlight = getSpecificMockHighlight({ name: place.name, category, address: place.address });
+        const mockPrice = getSpecificMockPrice({ name: place.name, category });
+        const mockReservation = getSpecificMockReservation({ name: place.name, category, address: place.address });
 
         aiData = {
-          description: `[MOCK AI] Comma separated mock summary of ${place.name}.`,
+          description: getSpecificMockDescription({ name: place.name, category, address: place.address }),
           category: place.category,
           estimatedDuration: place.estimatedDuration,
           highlight: mockHighlight,
+          priceEstimate: mockPrice,
+          reservation: mockReservation,
         };
       }
       setDesc(aiData.description);
@@ -101,6 +121,14 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
       if (aiData.highlight) {
         setHighlightLabel(aiData.highlight.label);
         setHighlightText(aiData.highlight.text);
+      }
+      if (aiData.priceEstimate) {
+        setPriceEstimate(aiData.priceEstimate);
+      }
+      if (aiData.reservation) {
+        setReservationReq(aiData.reservation.requirement);
+        setReservationAdvance(aiData.reservation.advanceTime || "");
+        setReservationNotes(aiData.reservation.notes || "");
       }
     } catch (err) {
       console.error(err);
@@ -156,7 +184,7 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
                 Category
@@ -182,6 +210,18 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
                 min="5"
                 value={durationVal}
                 onChange={(e) => setDurationVal(e.target.value)}
+                className="w-full text-sm font-medium bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider flex items-center gap-1">
+                <Coins className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Price Estimate
+              </label>
+              <input
+                type="text"
+                value={priceEstimate}
+                onChange={(e) => setPriceEstimate(e.target.value)}
+                placeholder="e.g. Free, ¥1,000, $15 - $25"
                 className="w-full text-sm font-medium bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
@@ -235,6 +275,41 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
                 onChange={(e) => setHighlightText(e.target.value)}
                 placeholder={category === "restaurant" ? "e.g. Truffle ramen & pan-fried gyoza" : "e.g. Sunset view from east garden"}
                 className="col-span-2 text-xs font-medium bg-white dark:bg-surface-900 border border-amber-200 dark:border-amber-800/80 text-surface-900 dark:text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+          </div>
+
+          {/* Reservation & Booking Guidance Section */}
+          <div className="space-y-1.5 p-3 rounded-xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-900/40">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                <CalendarClock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Reservation & Booking Timing</span>
+              </label>
+              <span className="text-[10px] text-indigo-700 dark:text-indigo-400 font-medium">
+                Shown in cards & schedule
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <select
+                value={reservationReq}
+                onChange={(e) => setReservationReq(e.target.value as ReservationRequirement | "")}
+                className="text-xs font-semibold bg-white dark:bg-surface-900 border border-indigo-200 dark:border-indigo-800/80 text-surface-900 dark:text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                title="Reservation Requirement Status"
+              >
+                <option value="">None / Unspecified</option>
+                <option value="required">🔴 Required</option>
+                <option value="recommended">🟡 Recommended</option>
+                <option value="walk_ins_only">🔵 Walk-in Only</option>
+                <option value="not_needed">🟢 Not Needed</option>
+              </select>
+              <input
+                type="text"
+                value={reservationAdvance}
+                onChange={(e) => setReservationAdvance(e.target.value)}
+                placeholder="e.g. Reserve 1 month in advance, opens 30 days prior"
+                className="col-span-2 text-xs font-medium bg-white dark:bg-surface-900 border border-indigo-200 dark:border-indigo-800/80 text-surface-900 dark:text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                title="Advance booking timing guidance"
               />
             </div>
           </div>

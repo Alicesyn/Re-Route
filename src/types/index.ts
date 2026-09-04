@@ -28,6 +28,18 @@ export interface PlaceHighlight {
   text: string;  // e.g., "Signature tonkotsu ramen with seasoned egg", "View from east observation deck at sunset"
 }
 
+export type ReservationRequirement =
+  | "required"
+  | "recommended"
+  | "not_needed"
+  | "walk_ins_only";
+
+export interface ReservationInfo {
+  requirement: ReservationRequirement;
+  advanceTime?: string; // e.g. "Reserve 1 month in advance", "Opens 30 days prior at midnight", "Walk-ins only, peak wait 30m"
+  notes?: string;       // e.g. "Online ticket lottery", "Via TableCheck/Tabelog"
+}
+
 export interface Place {
   id: string;
   name: string;
@@ -50,6 +62,8 @@ export interface Place {
   romanizedName?: string; // English/romanized transliteration for foreign script names
   highlight?: PlaceHighlight; // Contextual highlight (Must-Try for restaurants, Photo Spot, Advice, etc.)
   googlePlaceId?: string; // Original Google Maps Place ID for deduplication and syncing
+  priceEstimate?: string; // Estimated cost per person or admission (e.g. "Free", "$15 - $25", "¥800")
+  reservation?: ReservationInfo; // Reservation requirements and advance booking timing
 }
 
 export interface Hotel {

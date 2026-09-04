@@ -8,6 +8,7 @@ import {
   FileText,
   Clock,
   Check,
+  Coins,
 } from "lucide-react";
 import { useRouteStore } from "../../store/useRouteStore";
 import { MOCK_PLACES } from "../../services/mockData";
@@ -137,8 +138,9 @@ export const PlaceSearch: React.FC = () => {
         category,
         estimatedDuration,
         description: place.description || "",
-        descriptionSource: appMode === "real" ? "user" : "mock",
+        descriptionSource: (place.description && place.description.trim()) ? "user" : (appMode === "real" ? "ai" : "mock"),
         openingHours: place.openingHours || [],
+        priceEstimate: place.priceEstimate || undefined,
       },
       selectedDay !== null ? selectedDay : undefined,
     );
@@ -316,16 +318,30 @@ export const PlaceSearch: React.FC = () => {
                       <p className="text-[11px] text-surface-500 dark:text-surface-400 truncate mt-0.5">
                         {place.address}
                       </p>
-                      {place.openingHours && place.openingHours.length > 0 && (
-                        <div 
-                          className="inline-flex items-center gap-1 mt-0.5 text-[10px] text-surface-400 dark:text-surface-500 cursor-help"
-                          title={place.openingHours.join("\n")}
-                          onClick={(e) => e.stopPropagation()} // Prevent adding if they just want to hover, though hover works regardless
-                        >
-                          <Clock className="w-3 h-3" />
-                          <span>View Hours</span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        {place.priceEstimate && (
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                              place.priceEstimate.toLowerCase().includes("free")
+                                ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                                : "bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-600"
+                            }`}
+                          >
+                            <Coins className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                            {place.priceEstimate}
+                          </span>
+                        )}
+                        {place.openingHours && place.openingHours.length > 0 && (
+                          <div 
+                            className="inline-flex items-center gap-1 text-[10px] text-surface-400 dark:text-surface-500 cursor-help"
+                            title={place.openingHours.join("\n")}
+                            onClick={(e) => e.stopPropagation()} // Prevent adding if they just want to hover, though hover works regardless
+                          >
+                            <Clock className="w-3 h-3" />
+                            <span>View Hours</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0 ml-3">

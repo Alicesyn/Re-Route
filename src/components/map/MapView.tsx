@@ -130,6 +130,13 @@ export const MapView: React.FC = React.memo(() => {
                     )}
                   </h3>
                   <p className="text-xs text-gray-500">{place.address}</p>
+                  {place.priceEstimate && (
+                    <div className="mt-1">
+                      <span className="inline-block text-[11px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        {place.priceEstimate}
+                      </span>
+                    </div>
+                  )}
                   {place.highlight?.text && (
                     <div className="mt-1 pt-1 border-t border-gray-100 text-[11px] text-amber-800 font-medium">
                       <span className="font-bold text-amber-700 uppercase tracking-tight mr-1">
@@ -213,6 +220,13 @@ export const MapView: React.FC = React.memo(() => {
                           </span>
                         )}
                       </p>
+                      {stop.priceEstimate && (
+                        <div className="mt-1">
+                          <span className="inline-block text-[11px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {stop.priceEstimate}
+                          </span>
+                        </div>
+                      )}
                       {stop.highlight?.text && (
                         <div className="mt-1 pt-1 border-t border-gray-100 text-[11px] text-amber-800 font-medium">
                           <span className="font-bold text-amber-700 uppercase tracking-tight mr-1">

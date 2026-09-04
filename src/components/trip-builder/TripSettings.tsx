@@ -11,6 +11,7 @@ import {
   Car,
   Footprints,
   Train,
+  ChevronDown,
 } from "lucide-react";
 import { PlaceSearchInput } from "./PlaceSearchInput";
 import { useRouteStore } from "../../store/useRouteStore";
@@ -166,8 +167,10 @@ export const TripSettings: React.FC = React.memo(() => {
   );
 
   return (
-    <div className="space-y-6 transition-colors">
-      {/* Travel Mode */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 transition-colors">
+      {/* Left Column: Itinerary Basics & Routine */}
+      <div className="space-y-6">
+        {/* Travel Mode */}
       <div>
         <h3 className="text-sm font-semibold text-surface-900 dark:text-white uppercase tracking-wider mb-3">
           Global Travel Mode
@@ -360,240 +363,279 @@ export const TripSettings: React.FC = React.memo(() => {
         </div>
       </div>
 
-      <hr className="border-surface-100 dark:border-surface-700" />
-
-      {/* Flight & Travel Section */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-surface-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-            <Plane className="w-4 h-4" />
-            Flight & Travel
-          </h3>
-          <button
-            onClick={() => setShowFlights(!showFlights)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 focus:outline-none ring-2 ring-offset-2 ring-offset-white dark:ring-offset-surface-800 ring-transparent focus:ring-primary-500/50 ${showFlights ? "bg-primary-500 shadow-[0_0_12px_rgba(var(--primary-500-rgb),0.4)]" : "bg-surface-300 dark:bg-surface-600"}`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-300 ${showFlights ? "translate-x-6" : "translate-x-1"}`}
-            />
-          </button>
-        </div>
-
-        {showFlights && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
-            <div className="bg-primary-50/50 dark:bg-primary-900/10 rounded-2xl p-4 border border-primary-100/50 dark:border-primary-900/20">
-              <h4 className="text-xs font-bold text-primary-700 dark:text-primary-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <PlaneTakeoff className="w-3.5 h-3.5" />
-                Arrival Journey (Day 1)
-              </h4>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1.5 ml-1">
-                    Arrival Airport/Station{" "}
-                    <span className="text-[9px] lowercase font-medium opacity-60">
-                      (optional)
-                    </span>
-                  </label>
-                  <PlaceSearchInput
-                    icon="airport"
-                    placeholder="Search for airport or station..."
-                    currentValue={arrivalFlight?.location?.name}
-                    onSelect={(loc) => handleArrivalChange({ location: loc })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1.5 ml-1">
-                      Land Time
-                    </label>
-                    <div className="relative">
-                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
-                      <input
-                        type="time"
-                        value={arrivalFlight?.time || "12:00"}
-                        onChange={(e) =>
-                          handleArrivalChange({ time: e.target.value })
-                        }
-                        className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl py-2.5 pl-10 pr-4 text-sm font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1.5 ml-1">
-                      Buffer (Min)
-                    </label>
-                    <div className="relative">
-                      <Timer className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
-                      <input
-                        type="number"
-                        value={arrivalFlight?.buffer || 60}
-                        onChange={(e) =>
-                          handleArrivalChange({
-                            buffer: parseInt(e.target.value) || 0,
-                          })
-                        }
-                        className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl py-2.5 pl-10 pr-4 text-sm font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-red-50/50 dark:bg-red-900/10 rounded-2xl p-4 border border-red-100/50 dark:border-red-900/20">
-              <h4 className="text-xs font-bold text-red-700 dark:text-red-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <PlaneLanding className="w-3.5 h-3.5" />
-                Departure Journey (Day {days})
-              </h4>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1.5 ml-1">
-                    Departure Airport/Station{" "}
-                    <span className="text-[9px] lowercase font-medium opacity-60">
-                      (optional)
-                    </span>
-                  </label>
-                  <PlaceSearchInput
-                    icon="airport"
-                    placeholder="Search for airport or station..."
-                    currentValue={departureFlight?.location?.name}
-                    onSelect={(loc) => handleDepartureChange({ location: loc })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1.5 ml-1">
-                      Takeoff Time
-                    </label>
-                    <div className="relative">
-                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
-                      <input
-                        type="time"
-                        value={departureFlight?.time || "12:00"}
-                        onChange={(e) =>
-                          handleDepartureChange({ time: e.target.value })
-                        }
-                        className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl py-2.5 pl-10 pr-4 text-sm font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1.5 ml-1">
-                      Buffer (Min)
-                    </label>
-                    <div className="relative">
-                      <Timer className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
-                      <input
-                        type="number"
-                        value={departureFlight?.buffer || 60}
-                        onChange={(e) =>
-                          handleDepartureChange({
-                            buffer: parseInt(e.target.value) || 0,
-                          })
-                        }
-                        className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl py-2.5 pl-10 pr-4 text-sm font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
-      <hr className="border-surface-100 dark:border-surface-700" />
+      {/* Right Column: Accommodations & Logistics */}
+      <div className="space-y-6">
+        {/* Lodging */}
+        <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-bold text-surface-900 dark:text-white uppercase tracking-wider">
+                Stay & Lodging
+              </h3>
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 border border-surface-200 dark:border-surface-700">
+                {stays.length} {stays.length === 1 ? "stay" : "stays"}
+              </span>
+            </div>
+          </div>
 
-      {/* Lodging */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-surface-900 dark:text-white uppercase tracking-wider">
-            Stay & Lodging
-          </h3>
-        </div>
+          <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
+            {stays.map((stay, idx) => (
+              <div
+                key={stay.id}
+                className="relative flex flex-col gap-2 bg-surface-50 dark:bg-surface-800/40 p-2.5 rounded-lg border border-surface-200 dark:border-surface-700 hover:border-surface-300 dark:hover:border-surface-600 transition-colors"
+              >
+                {/* Compact horizontal distribution: Stay badge, Day range, Nights count, and Merge button */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-surface-200/80 dark:bg-surface-700 text-surface-700 dark:text-surface-300 shrink-0">
+                      Stay {idx + 1}
+                    </span>
 
-        <div className="space-y-4">
-          {stays.map((stay, idx) => (
-            <div key={stay.id} className="relative flex flex-col gap-2 bg-surface-50 dark:bg-surface-800/50 p-3 rounded-xl border border-surface-200 dark:border-surface-700">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-surface-500 uppercase tracking-widest">Stay {idx + 1}</span>
-                {idx > 0 && (
-                  <button 
-                    onClick={() => {
-                      setHotelRange(stay.startDay, stay.endDay, stays[idx-1].hotel);
-                      setStayBoundaries(b => b.filter(x => x !== stay.startDay - 1));
-                    }}
-                    className="text-[10px] text-primary-600 hover:text-primary-700 font-bold uppercase transition-colors"
-                  >
-                    Merge with previous
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-bold text-surface-900 dark:text-white">
-                  {dateMode === "fixed" && startDate
-                    ? format(
-                        addDays(new Date(startDate + "T12:00:00"), stay.startDay),
-                        "MMM d",
-                      )
-                    : `Day ${stay.startDay + 1}`}
-                </span>
-                <span className="text-xs text-surface-400">to</span>
-                <select
-                  value={stay.endDay}
-                  onChange={(e) => {
-                    const newEndDay = parseInt(e.target.value);
-                    if (newEndDay > stay.endDay) {
-                      setHotelRange(stay.startDay, newEndDay, stay.hotel);
-                      setStayBoundaries((b) => [
-                        ...b.filter((x) => x < stay.startDay || x >= newEndDay),
-                        newEndDay,
-                      ]);
-                    } else if (newEndDay < stay.endDay) {
-                      setHotelRange(newEndDay + 1, stay.endDay, null);
-                      setStayBoundaries((b) => [...b, newEndDay]);
-                    }
-                  }}
-                  className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white text-xs font-bold rounded-lg focus:ring-primary-500 focus:border-primary-500 py-1 pl-2 pr-6 appearance-none cursor-pointer"
-                >
-                  {Array.from({ length: days - stay.startDay }).map((_, i) => {
-                    const val = stay.startDay + i;
-                    return (
-                      <option key={val} value={val}>
+                    {/* Horizontal Day selection pill */}
+                    <div className="inline-flex items-center gap-1 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-md px-2 py-0.5 text-xs shadow-2xs">
+                      <span className="font-semibold text-surface-800 dark:text-surface-200 whitespace-nowrap">
                         {dateMode === "fixed" && startDate
                           ? format(
-                              addDays(new Date(startDate + "T12:00:00"), val),
+                              addDays(new Date(startDate + "T12:00:00"), stay.startDay),
                               "MMM d",
                             )
-                          : `Day ${val + 1}`}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-              <div className="relative flex items-center">
-                {appMode === "dropdown-mock" ? (
-                  <>
-                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 dark:text-surface-500" />
-                    <select
-                      value={stay.hotel ? MOCK_HOTELS.findIndex(h => h.name === stay.hotel.name) : ""}
-                      onChange={(e) => handleHotelRangeChange(stay.startDay, stay.endDay, e.target.value)}
-                      className="w-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block pl-10 p-2.5 appearance-none cursor-pointer"
+                          : `Day ${stay.startDay + 1}`}
+                      </span>
+                      <span className="text-surface-400 font-normal">→</span>
+                      <div className="relative inline-flex items-center">
+                        <select
+                          value={stay.endDay}
+                          onChange={(e) => {
+                            const newEndDay = parseInt(e.target.value);
+                            if (newEndDay > stay.endDay) {
+                              setHotelRange(stay.startDay, newEndDay, stay.hotel);
+                              setStayBoundaries((b) => [
+                                ...b.filter((x) => x < stay.startDay || x >= newEndDay),
+                                newEndDay,
+                              ]);
+                            } else if (newEndDay < stay.endDay) {
+                              setHotelRange(newEndDay + 1, stay.endDay, null);
+                              setStayBoundaries((b) => [...b, newEndDay]);
+                            }
+                          }}
+                          className="font-semibold text-primary-600 dark:text-primary-400 bg-transparent pr-3.5 focus:outline-none cursor-pointer appearance-none text-xs"
+                          title="Change stay end day"
+                        >
+                          {Array.from({ length: days - stay.startDay }).map((_, i) => {
+                            const val = stay.startDay + i;
+                            return (
+                              <option
+                                key={val}
+                                value={val}
+                                className="text-surface-900 dark:text-white bg-white dark:bg-surface-900"
+                              >
+                                {dateMode === "fixed" && startDate
+                                  ? format(
+                                      addDays(new Date(startDate + "T12:00:00"), val),
+                                      "MMM d",
+                                    )
+                                  : `Day ${val + 1}`}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <ChevronDown className="w-3 h-3 text-surface-400 dark:text-surface-500 absolute right-0 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    <span className="text-[11px] font-medium text-surface-500 dark:text-surface-400 whitespace-nowrap">
+                      ({stay.endDay - stay.startDay + 1} {(stay.endDay - stay.startDay + 1) === 1 ? "night" : "nights"})
+                    </span>
+                  </div>
+
+                  {idx > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHotelRange(stay.startDay, stay.endDay, stays[idx - 1].hotel);
+                        setStayBoundaries((b) => b.filter((x) => x !== stay.startDay - 1));
+                      }}
+                      className="text-[11px] text-primary-600 hover:text-primary-700 dark:text-primary-400 hover:underline font-semibold shrink-0 transition-colors"
+                      title="Merge with previous stay"
                     >
-                      <option value="" disabled>Select hotel...</option>
-                      {MOCK_HOTELS.map((h, i) => <option key={i} value={i}>{h.name}</option>)}
-                    </select>
-                  </>
-                ) : (
-                  <HotelSearchInput
-                    onSelect={(h) => handleHotelRangeChange(stay.startDay, stay.endDay, h)}
-                    placeholder={`Search hotel for Days ${stay.startDay + 1}-${stay.endDay + 1}...`}
-                    currentValue={stay.hotel?.name || ""}
-                  />
-                )}
+                      Merge
+                    </button>
+                  )}
+                </div>
+
+                {/* Hotel Input */}
+                <div className="relative flex items-center">
+                  {appMode === "dropdown-mock" ? (
+                    <>
+                      <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 dark:text-surface-500" />
+                      <select
+                        value={stay.hotel ? MOCK_HOTELS.findIndex((h) => h.name === stay.hotel.name) : ""}
+                        onChange={(e) => handleHotelRangeChange(stay.startDay, stay.endDay, e.target.value)}
+                        className="w-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white text-xs rounded-md focus:ring-primary-500 focus:border-primary-500 block pl-8 pr-3 py-1.5 appearance-none cursor-pointer"
+                      >
+                        <option value="" disabled>Select hotel...</option>
+                        {MOCK_HOTELS.map((h, i) => (
+                          <option key={i} value={i}>
+                            {h.name}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  ) : (
+                    <HotelSearchInput
+                      onSelect={(h) => handleHotelRangeChange(stay.startDay, stay.endDay, h)}
+                      placeholder={`Search hotel for Days ${stay.startDay + 1}–${stay.endDay + 1}...`}
+                      currentValue={stay.hotel?.name || ""}
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <hr className="border-surface-100 dark:border-surface-700" />
+
+        {/* Flight & Travel Section */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-bold text-surface-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+              <Plane className="w-3.5 h-3.5" />
+              Flight & Travel
+            </h3>
+            <button
+              onClick={() => setShowFlights(!showFlights)}
+              className={`relative inline-flex h-5 w-10 items-center rounded-full transition-all duration-300 focus:outline-none ring-2 ring-offset-2 ring-offset-white dark:ring-offset-surface-800 ring-transparent focus:ring-primary-500/50 ${showFlights ? "bg-primary-500 shadow-[0_0_10px_rgba(var(--primary-500-rgb),0.4)]" : "bg-surface-300 dark:bg-surface-600"}`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300 ${showFlights ? "translate-x-5" : "translate-x-1"}`}
+              />
+            </button>
+          </div>
+
+          {showFlights && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
+              <div className="bg-primary-50/50 dark:bg-primary-900/10 rounded-xl p-3 border border-primary-100/50 dark:border-primary-900/20">
+                <h4 className="text-[10px] font-bold text-primary-700 dark:text-primary-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <PlaneTakeoff className="w-3 h-3" />
+                  Arrival Journey (Day 1)
+                </h4>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1 ml-0.5">
+                      Arrival Airport/Station{" "}
+                      <span className="text-[9px] lowercase font-medium opacity-60">
+                        (optional)
+                      </span>
+                    </label>
+                    <PlaceSearchInput
+                      icon="airport"
+                      placeholder="Search for airport or station..."
+                      currentValue={arrivalFlight?.location?.name}
+                      onSelect={(loc) => handleArrivalChange({ location: loc })}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1 ml-0.5">
+                        Land Time
+                      </label>
+                      <div className="relative">
+                        <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
+                        <input
+                          type="time"
+                          value={arrivalFlight?.time || "12:00"}
+                          onChange={(e) =>
+                            handleArrivalChange({ time: e.target.value })
+                          }
+                          className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg py-2 pl-8 pr-3 text-xs font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1 ml-0.5">
+                        Buffer (Min)
+                      </label>
+                      <div className="relative">
+                        <Timer className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
+                        <input
+                          type="number"
+                          value={arrivalFlight?.buffer || 60}
+                          onChange={(e) =>
+                            handleArrivalChange({
+                              buffer: parseInt(e.target.value) || 0,
+                            })
+                          }
+                          className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg py-2 pl-8 pr-3 text-xs font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-red-50/50 dark:bg-red-900/10 rounded-xl p-3 border border-red-100/50 dark:border-red-900/20">
+                <h4 className="text-[10px] font-bold text-red-700 dark:text-red-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <PlaneLanding className="w-3 h-3" />
+                  Departure Journey (Day {days})
+                </h4>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1 ml-0.5">
+                      Departure Airport/Station{" "}
+                      <span className="text-[9px] lowercase font-medium opacity-60">
+                        (optional)
+                      </span>
+                    </label>
+                    <PlaceSearchInput
+                      icon="airport"
+                      placeholder="Search for airport or station..."
+                      currentValue={departureFlight?.location?.name}
+                      onSelect={(loc) => handleDepartureChange({ location: loc })}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1 ml-0.5">
+                        Takeoff Time
+                      </label>
+                      <div className="relative">
+                        <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
+                        <input
+                          type="time"
+                          value={departureFlight?.time || "12:00"}
+                          onChange={(e) =>
+                            handleDepartureChange({ time: e.target.value })
+                          }
+                          className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg py-2 pl-8 pr-3 text-xs font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1 ml-0.5">
+                        Buffer (Min)
+                      </label>
+                      <div className="relative">
+                        <Timer className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
+                        <input
+                          type="number"
+                          value={departureFlight?.buffer || 60}
+                          onChange={(e) =>
+                            handleDepartureChange({
+                              buffer: parseInt(e.target.value) || 0,
+                            })
+                          }
+                          className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg py-2 pl-8 pr-3 text-xs font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>

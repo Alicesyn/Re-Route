@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, MapPin, Pin, Clock, Timer, AlertCircle, Sparkles, Loader2, ExternalLink, Eye, EyeOff } from "lucide-react";
+import { GripVertical, Trash2, MapPin, Pin, Clock, Timer, AlertCircle, Sparkles, Loader2, ExternalLink, Eye, EyeOff, Coins } from "lucide-react";
 import { Place, PlaceCategory } from "../../types";
 import { useRouteStore } from "../../store/useRouteStore";
 import {
@@ -13,6 +13,13 @@ import {
 } from "../../utils/categoryUtils";
 import { summarizePlace } from "../../services/aiService";
 import { PlaceHighlightBadge } from "../common/PlaceHighlightBadge";
+import { ReservationBadge } from "../common/ReservationBadge";
+import {
+  getSpecificMockHighlight,
+  getSpecificMockPrice,
+  getSpecificMockDescription,
+  getSpecificMockReservation,
+} from "../../utils/mockAiUtils";
 
 interface PlaceItemProps {
   place: Place;
@@ -93,21 +100,17 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
           (place as any).types || [],
         );
       } else {
-        const mockHighlight = place.category === "restaurant"
-          ? { label: "Must-Try", text: "Chef's signature dish and seasonal house specialty" }
-          : place.category === "coffee_shop"
-          ? { label: "Must-Order", text: "Signature pour-over brew and artisan pastry" }
-          : place.category === "landmark" || place.category === "museum"
-          ? { label: "Best Photo Spot", text: "Panoramic vantage point from the upper observation deck" }
-          : place.category === "park" || place.category === "beach"
-          ? { label: "Best Time to Visit", text: "Early morning or golden hour before sunset" }
-          : { label: "Pro Tip", text: "Visit during shoulder hours to avoid peak waiting lines" };
+        const mockHighlight = getSpecificMockHighlight(place);
+        const mockPrice = getSpecificMockPrice(place);
+        const mockReservation = getSpecificMockReservation(place);
 
         aiData = {
-          description: `[MOCK AI] Comma separated mock summary of ${place.name}.`,
+          description: getSpecificMockDescription(place),
           category: place.category,
           estimatedDuration: place.estimatedDuration,
           highlight: mockHighlight,
+          priceEstimate: mockPrice,
+          reservation: mockReservation,
         };
       }
       updatePlace(place.id, {
@@ -117,6 +120,8 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
         descriptionSource: "ai",
         ...(aiData.romanizedName ? { romanizedName: aiData.romanizedName } : {}),
         ...(aiData.highlight ? { highlight: aiData.highlight } : {}),
+        ...(aiData.priceEstimate ? { priceEstimate: aiData.priceEstimate } : {}),
+        ...(aiData.reservation ? { reservation: aiData.reservation } : {}),
       });
       setDesc(aiData.description);
     } catch (err) {
@@ -227,104 +232,32 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
               <div className="absolute inset-0 bg-black/10" />
             </div>
           )}
+          {/* Header Row: Title & Address on Left, Actions on Right */}
           <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-surface-900 dark:text-white flex items-center gap-2 flex-wrap">
-                <MapPin className="w-4 h-4 text-primary-500 shrink-0" />
-                <span className="truncate">{place.name}</span>
-                {place.romanizedName && place.romanizedName.toLowerCase() !== place.name.toLowerCase() && (
-                  <span className="text-xs font-normal text-surface-500 dark:text-surface-400 italic">
-                    ({place.romanizedName})
-                  </span>
-                )}
-                {place.isDisabled && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-300/80 dark:border-amber-800/80 shrink-0">
-                    <EyeOff className="w-2.5 h-2.5" /> Excluded
-                  </span>
-                )}
-              </h3>
-              <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5">
-                {place.address}
-              </p>
-
-              {/* Category & Duration row */}
-              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                {/* Category selector */}
-                <select
-                  value={place.category}
-                  onChange={handleCategoryChange}
-                  className="text-xs font-medium bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300 rounded-md px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary-500 appearance-none cursor-pointer"
-                  title="Change category"
-                >
-                  {ALL_CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {getCategoryEmoji(cat)} {getCategoryLabel(cat)}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Duration badge (click to edit) */}
-                {isEditingDuration ? (
-                  <div className="flex items-center gap-1">
-                    <Timer className="w-3 h-3 text-surface-400 dark:text-surface-500" />
-                    <input
-                      ref={durationRef}
-                      type="number"
-                      min="5"
-                      max="480"
-                      value={durationVal}
-                      onChange={(e) => setDurationVal(e.target.value)}
-                      onBlur={handleDurationSave}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleDurationSave();
-                        if (e.key === "Escape") {
-                          setIsEditingDuration(false);
-                          setDurationVal(
-                            (place.estimatedDuration ?? 60).toString(),
-                          );
-                        }
-                      }}
-                      className="w-14 text-xs font-medium bg-white dark:bg-surface-800 border border-primary-300 dark:border-primary-700 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary-500 text-center text-surface-900 dark:text-white"
-                    />
-                    <span className="text-xs text-surface-500">min</span>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setIsEditingDuration(true)}
-                    className="flex items-center gap-1 text-xs font-medium text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md px-1.5 py-0.5 hover:border-surface-300 dark:hover:border-surface-600 transition-colors"
-                    title="Click to edit duration"
-                  >
-                    <Timer className="w-3 h-3" />
-                    {place.estimatedDuration ?? 60} min
-                  </button>
-                )}
-
-                {/* Opening Hours badge */}
-                {place.openingHours && place.openingHours.length > 0 && (
-                  <div
-                    className="flex items-center gap-1 text-[10px] font-medium text-surface-500 dark:text-surface-400 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md px-1.5 py-0.5 cursor-help"
-                    title={place.openingHours.join("\n")}
-                  >
-                    <Clock className="w-3 h-3" />
-                    Hours
-                  </div>
-                )}
-
-                {/* View on Google link */}
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + " " + place.address)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-[10px] font-semibold text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600 border border-surface-200 dark:border-surface-600 rounded-md px-1.5 py-0.5 transition-all"
-                  title="View on Google Maps"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  View on Google
-                </a>
+            <div className="flex items-start gap-1.5 min-w-0 flex-1">
+              <MapPin className="w-4 h-4 text-primary-500 shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-surface-900 dark:text-white leading-snug">
+                  <span className="break-words">{place.name}</span>
+                  {place.romanizedName && place.romanizedName.toLowerCase() !== place.name.toLowerCase() && (
+                    <span className="text-xs font-normal text-surface-500 dark:text-surface-400 italic ml-1.5">
+                      ({place.romanizedName})
+                    </span>
+                  )}
+                  {place.isDisabled && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-300/80 dark:border-amber-800/80 ml-1.5 align-middle shrink-0">
+                      <EyeOff className="w-2.5 h-2.5" /> Excluded
+                    </span>
+                  )}
+                </h3>
+                <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5 truncate">
+                  {place.address}
+                </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
+            {/* Top Right Actions */}
+            <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
               {/* Exclude / Include Toggle Button */}
               <button
                 type="button"
@@ -383,6 +316,110 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
+          </div>
+
+          {/* Full-width Info Badges Row: Category, Duration, Hours, Price, View on Google */}
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+            {/* Category selector (dynamically fits selected category text length) */}
+            <div className="relative inline-grid items-center">
+              <span
+                aria-hidden="true"
+                className="invisible col-start-1 row-start-1 text-xs font-medium pl-1.5 pr-2 py-0.5 whitespace-pre pointer-events-none border border-transparent select-none"
+              >
+                {getCategoryEmoji(place.category)} {getCategoryLabel(place.category)}
+              </span>
+              <select
+                value={place.category}
+                onChange={handleCategoryChange}
+                className="col-start-1 row-start-1 w-full text-xs font-medium bg-surface-50 dark:bg-surface-800 hover:bg-surface-100 dark:hover:bg-surface-700/60 border border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300 rounded-md pl-1.5 pr-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary-500 appearance-none cursor-pointer text-left transition-colors"
+                title="Change category"
+              >
+                {ALL_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {getCategoryEmoji(cat)} {getCategoryLabel(cat)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Duration badge (click to edit) */}
+            {isEditingDuration ? (
+              <div className="flex items-center gap-1">
+                <Timer className="w-3 h-3 text-surface-400 dark:text-surface-500" />
+                <input
+                  ref={durationRef}
+                  type="number"
+                  min="5"
+                  max="480"
+                  value={durationVal}
+                  onChange={(e) => setDurationVal(e.target.value)}
+                  onBlur={handleDurationSave}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleDurationSave();
+                    if (e.key === "Escape") {
+                      setIsEditingDuration(false);
+                      setDurationVal(
+                        (place.estimatedDuration ?? 60).toString(),
+                      );
+                    }
+                  }}
+                  className="w-14 text-xs font-medium bg-white dark:bg-surface-800 border border-primary-300 dark:border-primary-700 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary-500 text-center text-surface-900 dark:text-white"
+                />
+                <span className="text-xs text-surface-500">min</span>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsEditingDuration(true)}
+                className="flex items-center gap-1 text-xs font-medium text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md px-1.5 py-0.5 hover:border-surface-300 dark:hover:border-surface-600 transition-colors whitespace-nowrap"
+                title="Click to edit duration"
+              >
+                <Timer className="w-3 h-3" />
+                {place.estimatedDuration ?? 60} min
+              </button>
+            )}
+
+            {/* Opening Hours badge */}
+            {place.openingHours && place.openingHours.length > 0 && (
+              <div
+                className="flex items-center gap-1 text-xs font-medium text-surface-500 dark:text-surface-400 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md px-1.5 py-0.5 cursor-help whitespace-nowrap"
+                title={place.openingHours.join("\n")}
+              >
+                <Clock className="w-3 h-3" />
+                Hours
+              </div>
+            )}
+
+            {/* Price Estimate badge */}
+            {place.priceEstimate && (
+              <div
+                className={`flex items-center gap-1 text-xs font-medium rounded-md px-1.5 py-0.5 border whitespace-nowrap ${
+                  place.priceEstimate.toLowerCase().includes("free")
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 font-semibold"
+                    : "bg-surface-50 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700"
+                }`}
+                title={`Estimated price: ${place.priceEstimate}`}
+              >
+                <Coins className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>{place.priceEstimate}</span>
+              </div>
+            )}
+
+            {/* Reservation Requirement badge */}
+            {place.reservation && (
+              <ReservationBadge reservation={place.reservation} compact />
+            )}
+
+            {/* View on Google link */}
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + " " + place.address)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs font-medium text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white bg-surface-50 dark:bg-surface-800 hover:bg-surface-100 dark:hover:bg-surface-700 border border-surface-200 dark:border-surface-700 rounded-md px-1.5 py-0.5 transition-all whitespace-nowrap"
+              title="View on Google Maps"
+            >
+              <ExternalLink className="w-3 h-3" />
+              View on Google
+            </a>
           </div>
 
           {/* Inline Editable Description */}

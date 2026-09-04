@@ -33,6 +33,9 @@ export const MOCK_PLACES: Omit<
     category: "park",
     estimatedDuration: 75,
     photoUrl: "https://loremflickr.com/800/600/newyork,centralpark",
+    priceEstimate: "Free",
+    highlight: { label: "Best Spot", text: "Bow Bridge & Bethesda Terrace in morning light" },
+    reservation: { requirement: "not_needed", advanceTime: "No reservation needed" },
   },
   {
     id: "m2",
@@ -46,6 +49,9 @@ export const MOCK_PLACES: Omit<
     category: "landmark",
     estimatedDuration: 45,
     photoUrl: "https://loremflickr.com/800/600/newyork,timessquare",
+    priceEstimate: "Free",
+    highlight: { label: "Best Vantage", text: "Red TKTS bleacher steps for 360-degree billboard views" },
+    reservation: { requirement: "not_needed", advanceTime: "No reservation needed" },
   },
   {
     id: "m3",
@@ -68,6 +74,13 @@ export const MOCK_PLACES: Omit<
       "Sunday: 9:00 AM – 11:00 PM"
     ],
     photoUrl: "https://loremflickr.com/800/600/newyork,empirestate",
+    priceEstimate: "$44 - $79",
+    highlight: { label: "Best Photo Spot", text: "86th floor open-air observation deck facing South" },
+    reservation: {
+      requirement: "recommended",
+      advanceTime: "Book 1-2 days ahead for sunset observation time slots",
+      notes: "Skip-the-line express pass available online",
+    },
   },
   {
     id: "m4",
@@ -81,6 +94,13 @@ export const MOCK_PLACES: Omit<
     category: "landmark",
     estimatedDuration: 120,
     photoUrl: "https://loremflickr.com/800/600/newyork,statueofliberty",
+    priceEstimate: "$24 - $31",
+    highlight: { label: "Pro Tip", text: "Reserve pedestal access in advance; catch 8:30 AM first ferry" },
+    reservation: {
+      requirement: "required",
+      advanceTime: "Reserve 1-3 months in advance for pedestal or crown access",
+      notes: "Official booking via City Experiences",
+    },
   },
   {
     id: "m5",
@@ -102,6 +122,12 @@ export const MOCK_PLACES: Omit<
       "Sunday: 10:00 AM – 5:00 PM"
     ],
     photoUrl: "https://loremflickr.com/800/600/newyork,museum",
+    priceEstimate: "$30",
+    highlight: { label: "Must-See", text: "The Temple of Dendur in Sackler Wing and European Paintings" },
+    reservation: {
+      requirement: "recommended",
+      advanceTime: "Book timed entry ticket online in advance to skip lines",
+    },
   },
   {
     id: "m6",
@@ -115,6 +141,9 @@ export const MOCK_PLACES: Omit<
     category: "landmark",
     estimatedDuration: 45,
     photoUrl: "https://loremflickr.com/800/600/newyork,brooklynbridge",
+    priceEstimate: "Free",
+    highlight: { label: "Best Walk", text: "Manhattan-bound pedestrian walkway at golden hour from DUMBO" },
+    reservation: { requirement: "not_needed", advanceTime: "No reservation needed" },
   },
   {
     id: "m7",
@@ -128,5 +157,8 @@ export const MOCK_PLACES: Omit<
     category: "park",
     estimatedDuration: 60,
     photoUrl: "https://loremflickr.com/800/600/newyork,highline",
+    priceEstimate: "Free",
+    highlight: { label: "Best Section", text: "Chelsea Thicket and 10th Avenue Square sunken overlook" },
+    reservation: { requirement: "not_needed", advanceTime: "No reservation needed" },
   },
 ];

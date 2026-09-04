@@ -11,11 +11,18 @@ import { toast } from "./services/toastService";
 import { useRouteStore } from "./store/useRouteStore";
 import { solveTSP } from "./services/tspSolver";
 import { clearMapsCache, fetchFreshPhoto } from "./services/mapsService";
-import { Wand2, Sparkles, ChevronDown, ChevronUp, RefreshCw, Loader2 } from "lucide-react";
+import { Wand2, Sparkles, ChevronDown, ChevronUp, RefreshCw, Loader2, MapPin } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { summarizePlacesBatch, romanizePlaceNames, generateHighlightsBatch } from "./services/aiService";
 import { hasNonLatinScript } from "./utils/textUtils";
 import type { DayRoute, Place } from "./types";
+import { isLocalDev } from "./utils/envUtils";
+import {
+  getSpecificMockHighlight,
+  getSpecificMockPrice,
+  getSpecificMockDescription,
+  getSpecificMockReservation,
+} from "./utils/mockAiUtils";
 
 function App() {
   const {
@@ -41,6 +48,7 @@ function App() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [showMobileMap, setShowMobileMap] = useState(false);
 
   // Apply dark mode
   useEffect(() => {
@@ -298,6 +306,8 @@ function App() {
                   descriptionSource: "ai" as const,
                   ...(aiData.romanizedName ? { romanizedName: aiData.romanizedName } : {}),
                   ...(aiData.highlight ? { highlight: aiData.highlight } : {}),
+                  ...(aiData.priceEstimate ? { priceEstimate: aiData.priceEstimate } : {}),
+                  ...(aiData.reservation ? { reservation: aiData.reservation } : {}),
                 },
               });
             } else if (p.editorialSummary) {
@@ -332,24 +342,20 @@ function App() {
         }
       } else {
         for (const p of placesToUpdate) {
-          const mockHighlight = p.category === "restaurant"
-            ? { label: "Must-Try", text: "Chef's signature dish and seasonal house specialty" }
-            : p.category === "coffee_shop"
-            ? { label: "Must-Order", text: "Signature pour-over brew and artisan pastry" }
-            : p.category === "landmark" || p.category === "museum"
-            ? { label: "Best Photo Spot", text: "Panoramic vantage point from the upper observation deck" }
-            : p.category === "park" || p.category === "beach"
-            ? { label: "Best Time to Visit", text: "Early morning or golden hour before sunset" }
-            : { label: "Pro Tip", text: "Visit during shoulder hours to avoid peak waiting lines" };
+          const mockHighlight = getSpecificMockHighlight(p);
+          const mockPrice = getSpecificMockPrice(p);
+          const mockReservation = getSpecificMockReservation(p);
 
           updates.push({
             id: p.id,
             updates: {
-              description: `[MOCK AI] This is a simulated high-quality description of ${p.name}. It focuses on the legendary reputation and the vibrant, unique atmosphere of the location.`,
+              description: getSpecificMockDescription(p),
               category: p.category,
               estimatedDuration: p.estimatedDuration,
               descriptionSource: "ai" as const,
               highlight: mockHighlight,
+              priceEstimate: mockPrice,
+              reservation: mockReservation,
             },
           });
         }
@@ -401,18 +407,10 @@ function App() {
           }
         }
       } else {
-        const updates = placesMissingHighlights.map((p) => {
-          const mockHighlight = p.category === "restaurant"
-            ? { label: "Must-Try", text: "Chef's signature dish and seasonal house specialty" }
-            : p.category === "coffee_shop"
-            ? { label: "Must-Order", text: "Signature pour-over brew and artisan pastry" }
-            : p.category === "landmark" || p.category === "museum"
-            ? { label: "Best Photo Spot", text: "Panoramic vantage point from the upper observation deck" }
-            : p.category === "park" || p.category === "beach"
-            ? { label: "Best Time to Visit", text: "Early morning or golden hour before sunset" }
-            : { label: "Pro Tip", text: "Visit during shoulder hours to avoid peak waiting lines" };
-          return { id: p.id, updates: { highlight: mockHighlight } };
-        });
+        const updates = placesMissingHighlights.map((p) => ({
+          id: p.id,
+          updates: { highlight: getSpecificMockHighlight(p) },
+        }));
         updatePlacesBulk(updates);
         toast.success(`Generated simulated highlights for ${updates.length} places!`, "Highlights Ready");
       }
@@ -421,6 +419,90 @@ function App() {
       toast.error(err?.message || "Failed to generate highlights.", "Highlight Error");
     } finally {
       setIsGeneratingHighlights(false);
+    }
+  };
+
+  const [isRegeneratingAll, setIsRegeneratingAll] = useState(false);
+
+  const handleRegenerateAllAiData = async () => {
+    const targetPlaces = places.filter((p) => p.descriptionSource !== "user");
+    if (isRegeneratingAll || targetPlaces.length === 0) {
+      if (targetPlaces.length === 0) {
+        toast.info("All descriptions are user-written and protected from regeneration.", "Regenerate AI");
+      }
+      return;
+    }
+
+    setIsRegeneratingAll(true);
+    toast.info(`Regenerating descriptions & highlights for ${targetPlaces.length} places...`, "Regenerating All AI");
+
+    try {
+      const updates: { id: string; updates: Partial<Place> }[] = [];
+
+      if (appMode === "real") {
+        const batchPlaces = targetPlaces.map((p) => ({
+          id: p.id,
+          name: p.name,
+          address: p.address,
+          types: (p as any).types || [],
+        }));
+
+        const aiDataArray = await summarizePlacesBatch(batchPlaces, 3);
+
+        for (const p of targetPlaces) {
+          const aiData = aiDataArray.find((d) => d.id === p.id);
+          if (aiData) {
+            updates.push({
+              id: p.id,
+              updates: {
+                description: aiData.description,
+                category: aiData.category,
+                estimatedDuration: aiData.estimatedDuration,
+                descriptionSource: "ai",
+                ...(aiData.romanizedName ? { romanizedName: aiData.romanizedName } : {}),
+                ...(aiData.highlight ? { highlight: aiData.highlight } : {}),
+                ...(aiData.priceEstimate ? { priceEstimate: aiData.priceEstimate } : {}),
+                ...(aiData.reservation ? { reservation: aiData.reservation } : {}),
+              },
+            });
+          } else if (p.editorialSummary) {
+            updates.push({
+              id: p.id,
+              updates: {
+                description: p.editorialSummary,
+                descriptionSource: "ai",
+              },
+            });
+          }
+        }
+      } else {
+        for (const p of targetPlaces) {
+          updates.push({
+            id: p.id,
+            updates: {
+              description: getSpecificMockDescription(p),
+              category: p.category,
+              estimatedDuration: p.estimatedDuration,
+              descriptionSource: "mock",
+              highlight: getSpecificMockHighlight(p),
+              priceEstimate: getSpecificMockPrice(p),
+              reservation: getSpecificMockReservation(p),
+            },
+          });
+        }
+      }
+
+      if (updates.length > 0) {
+        updatePlacesBulk(updates);
+        toast.success(`Regenerated AI data & highlights for ${updates.length} places!`, "Regeneration Complete");
+      } else {
+        toast.info("No updates were made.", "Regenerate AI");
+      }
+    } catch (err: any) {
+      console.error("Failed to regenerate all AI data:", err);
+      toast.error(err?.message || "Failed to regenerate AI data.", "AI Error");
+    } finally {
+      setIsRegeneratingAll(false);
     }
   };
 
@@ -481,18 +563,38 @@ function App() {
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 w-full custom-scrollbar">
         <div className="max-w-[1600px] mx-auto space-y-8 pb-12">
           {/* Top Row: Trip Settings & Map */}
-          <div className="flex flex-col lg:flex-row gap-6 items-stretch">
-            <div className="w-full lg:w-1/3 flex flex-col bg-white dark:bg-surface-800 rounded-xl shadow-sm border border-surface-200 dark:border-surface-700 overflow-hidden">
-              <div className="p-5 flex-1">
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
+            {/* Trip Settings Panel (takes full remaining width) */}
+            <div className="w-full lg:flex-1 min-w-0 flex flex-col bg-white dark:bg-surface-800 rounded-xl shadow-sm border border-surface-200 dark:border-surface-700 overflow-hidden">
+              <div className="p-5 sm:p-6 flex-1">
                 <TripSettings />
               </div>
             </div>
 
-            <div className="w-full lg:w-2/3 flex flex-col min-h-[400px] rounded-xl overflow-hidden shadow-sm border border-surface-200 dark:border-surface-700 relative">
+            {/* Map: Fixed portion of screen on desktop, hidden when window is small */}
+            <div className="hidden lg:flex lg:w-[400px] xl:w-[460px] 2xl:w-[500px] shrink-0 flex-col h-[500px] lg:h-[520px] rounded-xl overflow-hidden shadow-sm border border-surface-200 dark:border-surface-700 relative">
               <div className="absolute inset-0">
                 <MapView />
               </div>
             </div>
+          </div>
+
+          {/* Mobile Map Toggle (only when window is too small for side-by-side map) */}
+          <div className="lg:hidden">
+            <button
+              onClick={() => setShowMobileMap((prev) => !prev)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-xs font-semibold text-surface-700 dark:text-surface-300 shadow-2xs hover:bg-surface-50 dark:hover:bg-surface-700/50 transition-colors"
+            >
+              <MapPin className="w-4 h-4 text-primary-500" />
+              <span>{showMobileMap ? "Hide Route Map" : "Show Route Map"}</span>
+            </button>
+            {showMobileMap && (
+              <div className="mt-3 w-full h-[360px] rounded-xl overflow-hidden shadow-sm border border-surface-200 dark:border-surface-700 relative">
+                <div className="absolute inset-0">
+                  <MapView />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Middle Row: Places to Visit */}
@@ -541,6 +643,24 @@ function App() {
                       <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                     )}
                     {isGeneratingHighlights ? "Adding..." : `Add Highlights (${places.filter((p) => !p.highlight).length})`}
+                  </button>
+                )}
+                {isLocalDev() && places.some((p) => p.descriptionSource !== "user") && (
+                  <button
+                    onClick={handleRegenerateAllAiData}
+                    disabled={isRegeneratingAll || isGenerating || isGeneratingHighlights}
+                    className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-indigo-700 dark:text-indigo-300 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-800/60 px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
+                    title="[Local Dev Only] Regenerate descriptions & specific highlights for all non-user-inputted places"
+                  >
+                    {isRegeneratingAll ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-indigo-600 dark:text-indigo-400" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    )}
+                    <span>{isRegeneratingAll ? "Regenerating..." : "Regenerate All AI"}</span>
+                    <span className="text-[10px] bg-indigo-200/80 dark:bg-indigo-900/80 text-indigo-800 dark:text-indigo-200 font-bold px-1.5 py-0.5 rounded tracking-wide uppercase">
+                      Dev
+                    </span>
                   </button>
                 )}
                  {places.length > 0 && (

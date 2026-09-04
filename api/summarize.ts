@@ -75,16 +75,29 @@ export default async function handler(req: Request) {
         Suggest a typical visit duration in minutes.
         If the place name contains foreign or non-Latin scripts (Japanese Kanji/Kana, Chinese Hanzi, Thai, Korean Hangul, etc.), provide its clean English/romanized transliteration in "romanizedName" (e.g. "Senso-ji" for "浅草寺", "Wat Phra Kaew" for "วัดพระแก้ว"). If already English/Latin, return null.
 
-        Also provide a specific, high-value highlight in "highlight" object with "label" and "text":
-        - For restaurant: label="Must-Try", text=<signature dish, must-eat item, or specialty food/drink>
-        - For coffee_shop: label="Must-Order", text=<signature brew, specialty drink, or pastry>
-        - For landmark/museum: label="Best Photo Spot" or "Must-See", text=<best vantage point, specific room, or view angle>
-        - For park/beach: label="Best Time to Visit" or "Scenic Spot", text=<ideal time of day, sunset spot, or quiet corner>
-        - For religious_site: label="Visitor Tip" or "Etiquette", text=<dress code, quiet garden, or inner shrine tip>
-        - For shopping: label="What to Buy" or "Bargaining Tip", text=<specialty item, unique souvenir, or floor to visit>
-        - For nightlife/entertainment: label="Best Time to Go" or "Highlight", text=<peak hours, reservation advice, or top experience>
-        - For other: label="Pro Tip" or "Advice", text=<actionable insider advice>
-        Keep the highlight text concise (1-2 sentences), punchy, and highly practical.
+        Also estimate the typical cost or admission fee per person in local currency (e.g. "Free", "¥600", "$15 - $25 / person").
+        If admission or access is completely free (such as public parks, temples/shrines with no admission fee, walking streets, beaches, viewpoints), explicitly set "priceEstimate" to "Free".
+        For restaurants and cafes, estimate average price per person (e.g. "¥1,000 - ¥2,000", "$15 - $25").
+
+        CRITICAL HIGHLIGHT GUIDELINES:
+        Highlights must NEVER be generic or vague (DO NOT say "try the signature dish", "explore various shops", "try their coffee", or "sample street food"). Provide ultra-specific, concrete recommendations:
+        - For restaurant: label="Must-Try", text=<Name the EXACT dish name(s) or signature menu item this venue is famous for, e.g. "Tsukemen with rich pork-seafood dipping broth", "A5 Miyazaki Wagyu Sukiyaki set", "Truffle Xiao Long Bao", "Crispy Berkshire pork katsu">
+        - For coffee_shop: label="Must-Order", text=<Name the EXACT specialty brew, signature drink, or pastry, e.g. "Single-origin Geisha pour-over and pistachio croissant", "Kyoto Uji Matcha Latte with warabimochi">
+        - For landmark/museum: label="Best Photo Spot" or "Must-See", text=<Name the EXACT vantage point, angle, specific room, or exhibit, e.g. "8th floor observation deck across the street at the Culture Center for unobstructed aerial views", "Room 204 Impressionist gallery">
+        - For park/beach: label="Best Time to Visit" or "Scenic Spot", text=<Name the EXACT spot or optimal timing, e.g. "North pond garden early in the morning", "West rock viewpoint 30 mins before sunset">
+        - For religious_site: label="Visitor Tip" or "Must-See", text=<Specific inner garden, tranquil courtyard, or etiquette, e.g. "Walk past the crowded main hall to the quiet back garden and pagoda">
+        - For shopping (malls, markets, street markets): label="Where to Go" or "What to Buy", text=<Name the EXACT store, stall number, famous vendor, or floor, e.g. "Stall #24 for freshly grilled scallops on skewers", "B1 Depachika food hall for fresh seasonal mochi", "6th floor character & anime specialty shops">
+        - For nightlife/entertainment: label="Best Time to Go" or "Top Experience", text=<Specific peak time, signature cocktail, or booking tip>
+        - For other: label="Pro Tip" or "Advice", text=<Actionable, concrete insider advice with specific names/details>
+        Keep the highlight text concise (1-2 sentences), punchy, and naming concrete things.
+
+        RESERVATION GUIDELINES:
+        Determine if reservations or advance tickets are needed/recommended, and provide actionable booking window guidance:
+        - "reservation": {
+            "requirement": "required" | "recommended" | "not_needed" | "walk_ins_only",
+            "advanceTime": <string with concrete timing, e.g. "Reserve 1 month in advance", "Book 2-4 weeks ahead via official website", "Opens 30 days prior at midnight", "Walk-ins only; line forms 15m before opening", "No reservation needed">,
+            "notes": <string or null, e.g. "Online timed-entry ticket required", "Book via TableCheck/Tabelog", or null>
+          }
 
         Places:
         ${places
@@ -102,9 +115,15 @@ export default async function handler(req: Request) {
             "category": "string",
             "estimatedDuration": number,
             "romanizedName": "string or null",
+            "priceEstimate": "string",
             "highlight": {
               "label": "string",
               "text": "string"
+            },
+            "reservation": {
+              "requirement": "required" | "recommended" | "not_needed" | "walk_ins_only",
+              "advanceTime": "string",
+              "notes": "string or null"
             }
           }
         ]
@@ -120,16 +139,29 @@ export default async function handler(req: Request) {
         Suggest a typical visit duration in minutes.
         If the place name contains foreign or non-Latin scripts (Japanese Kanji/Kana, Chinese Hanzi, Thai, Korean Hangul, etc.), provide its clean English/romanized transliteration in "romanizedName" (e.g. "Senso-ji" for "浅草寺", "Wat Phra Kaew" for "วัดพระแก้ว"). If already English/Latin, return null.
 
-        Also provide a specific, high-value highlight in "highlight" object with "label" and "text":
-        - For restaurant: label="Must-Try", text=<signature dish, must-eat item, or specialty food/drink>
-        - For coffee_shop: label="Must-Order", text=<signature brew, specialty drink, or pastry>
-        - For landmark/museum: label="Best Photo Spot" or "Must-See", text=<best vantage point, specific room, or view angle>
-        - For park/beach: label="Best Time to Visit" or "Scenic Spot", text=<ideal time of day, sunset spot, or quiet corner>
-        - For religious_site: label="Visitor Tip" or "Etiquette", text=<dress code, quiet garden, or inner shrine tip>
-        - For shopping: label="What to Buy" or "Bargaining Tip", text=<specialty item, unique souvenir, or floor to visit>
-        - For nightlife/entertainment: label="Best Time to Go" or "Highlight", text=<peak hours, reservation advice, or top experience>
-        - For other: label="Pro Tip" or "Advice", text=<actionable insider advice>
-        Keep the highlight text concise (1-2 sentences), punchy, and highly practical.
+        Also estimate the typical cost or admission fee per person in local currency (e.g. "Free", "¥600", "$15 - $25 / person").
+        If admission or access is completely free (such as public parks, temples/shrines with no admission fee, walking streets, beaches, viewpoints), explicitly set "priceEstimate" to "Free".
+        For restaurants and cafes, estimate average price per person (e.g. "¥1,000 - ¥2,000", "$15 - $25").
+
+        CRITICAL HIGHLIGHT GUIDELINES:
+        Highlights must NEVER be generic or vague (DO NOT say "try the signature dish", "explore various shops", "try their coffee", or "sample street food"). Provide ultra-specific, concrete recommendations:
+        - For restaurant: label="Must-Try", text=<Name the EXACT dish name(s) or signature menu item this venue is famous for, e.g. "Tsukemen with rich pork-seafood dipping broth", "A5 Miyazaki Wagyu Sukiyaki set", "Truffle Xiao Long Bao", "Crispy Berkshire pork katsu">
+        - For coffee_shop: label="Must-Order", text=<Name the EXACT specialty brew, signature drink, or pastry, e.g. "Single-origin Geisha pour-over and pistachio croissant", "Kyoto Uji Matcha Latte with warabimochi">
+        - For landmark/museum: label="Best Photo Spot" or "Must-See", text=<Name the EXACT vantage point, angle, specific room, or exhibit, e.g. "8th floor observation deck across the street at the Culture Center for unobstructed aerial views", "Room 204 Impressionist gallery">
+        - For park/beach: label="Best Time to Visit" or "Scenic Spot", text=<Name the EXACT spot or optimal timing, e.g. "North pond garden early in the morning", "West rock viewpoint 30 mins before sunset">
+        - For religious_site: label="Visitor Tip" or "Must-See", text=<Specific inner garden, tranquil courtyard, or etiquette, e.g. "Walk past the crowded main hall to the quiet back garden and pagoda">
+        - For shopping (malls, markets, street markets): label="Where to Go" or "What to Buy", text=<Name the EXACT store, stall number, famous vendor, or floor, e.g. "Stall #24 for freshly grilled scallops on skewers", "B1 Depachika food hall for fresh seasonal mochi", "6th floor character & anime specialty shops">
+        - For nightlife/entertainment: label="Best Time to Go" or "Top Experience", text=<Specific peak time, signature cocktail, or booking tip>
+        - For other: label="Pro Tip" or "Advice", text=<Actionable, concrete insider advice with specific names/details>
+        Keep the highlight text concise (1-2 sentences), punchy, and naming concrete things.
+
+        RESERVATION GUIDELINES:
+        Determine if reservations or advance tickets are needed/recommended, and provide actionable booking window guidance:
+        - "reservation": {
+            "requirement": "required" | "recommended" | "not_needed" | "walk_ins_only",
+            "advanceTime": <string with concrete timing, e.g. "Reserve 1 month in advance", "Book 2-4 weeks ahead via official website", "Opens 30 days prior at midnight", "Walk-ins only; line forms 15m before opening", "No reservation needed">,
+            "notes": <string or null, e.g. "Online timed-entry ticket required", "Book via TableCheck/Tabelog", or null>
+          }
 
         Return ONLY a JSON object in this format:
         {
@@ -137,9 +169,15 @@ export default async function handler(req: Request) {
           "category": "string",
           "estimatedDuration": number,
           "romanizedName": "string or null",
+          "priceEstimate": "string",
           "highlight": {
             "label": "string",
             "text": "string"
+          },
+          "reservation": {
+            "requirement": "required" | "recommended" | "not_needed" | "walk_ins_only",
+            "advanceTime": "string",
+            "notes": "string or null"
           }
         }
       `;

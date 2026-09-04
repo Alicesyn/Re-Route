@@ -353,7 +353,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         category,
         estimatedDuration,
         description: "",
-        descriptionSource: appMode === "real" ? "user" : "mock",
+        descriptionSource: appMode === "real" ? "ai" : "mock",
       });
     });
 

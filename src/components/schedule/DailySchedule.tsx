@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Loader2,
   Pin,
+  Coins,
 } from "lucide-react";
 import { toast } from "../../services/toastService";
 import { TravelMode, RouteSegment } from "../../types";
@@ -39,6 +40,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { EditPlaceModal } from "./EditPlaceModal";
 import { PlaceHighlightBadge } from "../common/PlaceHighlightBadge";
+import { ReservationBadge } from "../common/ReservationBadge";
 
 const formatTime = (totalMinutes: number) => {
   const { timeFormat } = useRouteStore.getState();
@@ -243,7 +245,7 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
             </button>
           </div>
 
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span className="text-[10px] font-bold font-mono text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30 px-1.5 py-0.5 rounded">
               {formatTime(stopArrivalTime)}
             </span>
@@ -251,6 +253,22 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
               <Timer className="w-2.5 h-2.5" />
               {stop.estimatedDuration || 60}m visit
             </span>
+            {stop.priceEstimate && (
+              <span
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 border ${
+                  stop.priceEstimate.toLowerCase().includes("free")
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                    : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700"
+                }`}
+                title={`Estimated price: ${stop.priceEstimate}`}
+              >
+                <Coins className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                {stop.priceEstimate}
+              </span>
+            )}
+            {stop.reservation && (
+              <ReservationBadge reservation={stop.reservation} compact />
+            )}
           </div>
 
           {(stop.description || (Array.isArray(stop.openingHours) && stop.openingHours.length > 0)) && (
