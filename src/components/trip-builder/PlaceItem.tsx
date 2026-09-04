@@ -12,6 +12,7 @@ import {
   getActivePhotoUrl,
 } from "../../utils/categoryUtils";
 import { summarizePlace } from "../../services/aiService";
+import { PlaceHighlightBadge } from "../common/PlaceHighlightBadge";
 
 interface PlaceItemProps {
   place: Place;
@@ -92,10 +93,21 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
           (place as any).types || [],
         );
       } else {
+        const mockHighlight = place.category === "restaurant"
+          ? { label: "Must-Try", text: "Chef's signature dish and seasonal house specialty" }
+          : place.category === "coffee_shop"
+          ? { label: "Must-Order", text: "Signature pour-over brew and artisan pastry" }
+          : place.category === "landmark" || place.category === "museum"
+          ? { label: "Best Photo Spot", text: "Panoramic vantage point from the upper observation deck" }
+          : place.category === "park" || place.category === "beach"
+          ? { label: "Best Time to Visit", text: "Early morning or golden hour before sunset" }
+          : { label: "Pro Tip", text: "Visit during shoulder hours to avoid peak waiting lines" };
+
         aiData = {
           description: `[MOCK AI] Comma separated mock summary of ${place.name}.`,
           category: place.category,
           estimatedDuration: place.estimatedDuration,
+          highlight: mockHighlight,
         };
       }
       updatePlace(place.id, {
@@ -104,6 +116,7 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
         estimatedDuration: aiData.estimatedDuration,
         descriptionSource: "ai",
         ...(aiData.romanizedName ? { romanizedName: aiData.romanizedName } : {}),
+        ...(aiData.highlight ? { highlight: aiData.highlight } : {}),
       });
       setDesc(aiData.description);
     } catch (err) {
@@ -422,6 +435,13 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
               </div>
             )}
           </div>
+
+          {/* Contextual Highlight (Must-Try, Photo Spot, etc.) - Always visible, never cut off */}
+          {place.highlight && place.highlight.text && (
+            <div className="mt-2">
+              <PlaceHighlightBadge highlight={place.highlight} category={place.category} />
+            </div>
+          )}
         </div>
       </div>
 

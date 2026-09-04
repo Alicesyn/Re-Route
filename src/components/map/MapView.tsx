@@ -130,6 +130,14 @@ export const MapView: React.FC = React.memo(() => {
                     )}
                   </h3>
                   <p className="text-xs text-gray-500">{place.address}</p>
+                  {place.highlight?.text && (
+                    <div className="mt-1 pt-1 border-t border-gray-100 text-[11px] text-amber-800 font-medium">
+                      <span className="font-bold text-amber-700 uppercase tracking-tight mr-1">
+                        {place.highlight.label}:
+                      </span>
+                      {place.highlight.text}
+                    </div>
+                  )}
                 </div>
               </Popup>
             </Marker>
@@ -205,6 +213,14 @@ export const MapView: React.FC = React.memo(() => {
                           </span>
                         )}
                       </p>
+                      {stop.highlight?.text && (
+                        <div className="mt-1 pt-1 border-t border-gray-100 text-[11px] text-amber-800 font-medium">
+                          <span className="font-bold text-amber-700 uppercase tracking-tight mr-1">
+                            {stop.highlight.label}:
+                          </span>
+                          {stop.highlight.text}
+                        </div>
+                      )}
                     </Popup>
                   </Marker>
                 );

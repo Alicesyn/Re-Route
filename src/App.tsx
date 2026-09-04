@@ -13,7 +13,7 @@ import { solveTSP } from "./services/tspSolver";
 import { clearMapsCache, fetchFreshPhoto } from "./services/mapsService";
 import { Wand2, Sparkles, ChevronDown, ChevronUp, RefreshCw, Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { summarizePlacesBatch, romanizePlaceNames } from "./services/aiService";
+import { summarizePlacesBatch, romanizePlaceNames, generateHighlightsBatch } from "./services/aiService";
 import { hasNonLatinScript } from "./utils/textUtils";
 import type { DayRoute, Place } from "./types";
 
@@ -297,6 +297,7 @@ function App() {
                   estimatedDuration: aiData.estimatedDuration,
                   descriptionSource: "ai" as const,
                   ...(aiData.romanizedName ? { romanizedName: aiData.romanizedName } : {}),
+                  ...(aiData.highlight ? { highlight: aiData.highlight } : {}),
                 },
               });
             } else if (p.editorialSummary) {
@@ -331,6 +332,16 @@ function App() {
         }
       } else {
         for (const p of placesToUpdate) {
+          const mockHighlight = p.category === "restaurant"
+            ? { label: "Must-Try", text: "Chef's signature dish and seasonal house specialty" }
+            : p.category === "coffee_shop"
+            ? { label: "Must-Order", text: "Signature pour-over brew and artisan pastry" }
+            : p.category === "landmark" || p.category === "museum"
+            ? { label: "Best Photo Spot", text: "Panoramic vantage point from the upper observation deck" }
+            : p.category === "park" || p.category === "beach"
+            ? { label: "Best Time to Visit", text: "Early morning or golden hour before sunset" }
+            : { label: "Pro Tip", text: "Visit during shoulder hours to avoid peak waiting lines" };
+
           updates.push({
             id: p.id,
             updates: {
@@ -338,6 +349,7 @@ function App() {
               category: p.category,
               estimatedDuration: p.estimatedDuration,
               descriptionSource: "ai" as const,
+              highlight: mockHighlight,
             },
           });
         }
@@ -355,6 +367,60 @@ function App() {
       toast.error(err?.message || "Failed to generate AI descriptions.", "AI Error");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const [isGeneratingHighlights, setIsGeneratingHighlights] = useState(false);
+
+  const handleGenerateMissingHighlights = async () => {
+    const placesMissingHighlights = places.filter((p) => !p.highlight);
+    if (isGeneratingHighlights || placesMissingHighlights.length === 0) return;
+
+    setIsGeneratingHighlights(true);
+    try {
+      if (appMode === "real") {
+        toast.info(`Generating Must-Try & highlights for ${placesMissingHighlights.length} places...`, "Generating Highlights");
+        const results = await generateHighlightsBatch(
+          placesMissingHighlights.map((p) => ({
+            id: p.id,
+            name: p.name,
+            address: p.address,
+            category: p.category,
+            description: p.description,
+          }))
+        );
+        if (results && results.length > 0) {
+          const updates = results
+            .filter((r) => r.highlight)
+            .map((r) => ({ id: r.id, updates: { highlight: r.highlight } }));
+          if (updates.length > 0) {
+            updatePlacesBulk(updates);
+            toast.success(`Generated Must-Try & highlights for ${updates.length} places!`, "Highlights Ready");
+          } else {
+            toast.info("No new highlights were returned.", "Highlights");
+          }
+        }
+      } else {
+        const updates = placesMissingHighlights.map((p) => {
+          const mockHighlight = p.category === "restaurant"
+            ? { label: "Must-Try", text: "Chef's signature dish and seasonal house specialty" }
+            : p.category === "coffee_shop"
+            ? { label: "Must-Order", text: "Signature pour-over brew and artisan pastry" }
+            : p.category === "landmark" || p.category === "museum"
+            ? { label: "Best Photo Spot", text: "Panoramic vantage point from the upper observation deck" }
+            : p.category === "park" || p.category === "beach"
+            ? { label: "Best Time to Visit", text: "Early morning or golden hour before sunset" }
+            : { label: "Pro Tip", text: "Visit during shoulder hours to avoid peak waiting lines" };
+          return { id: p.id, updates: { highlight: mockHighlight } };
+        });
+        updatePlacesBulk(updates);
+        toast.success(`Generated simulated highlights for ${updates.length} places!`, "Highlights Ready");
+      }
+    } catch (err: any) {
+      console.error("Highlight Generation Error:", err);
+      toast.error(err?.message || "Failed to generate highlights.", "Highlight Error");
+    } finally {
+      setIsGeneratingHighlights(false);
     }
   };
 
@@ -460,6 +526,21 @@ function App() {
                       <Sparkles className="w-4 h-4" />
                     )}
                     {isGenerating ? "Stop AI" : "AI Describe"}
+                  </button>
+                )}
+                {places.some((p) => !p.highlight) && (
+                  <button
+                    onClick={handleGenerateMissingHighlights}
+                    disabled={isGeneratingHighlights}
+                    className="flex items-center gap-1.5 text-sm font-semibold text-amber-700 dark:text-amber-300 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60 border border-amber-200/80 dark:border-amber-800/60 px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
+                    title="Generate Must-Try and highlights for places that don't have them yet"
+                  >
+                    {isGeneratingHighlights ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                    ) : (
+                      <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    )}
+                    {isGeneratingHighlights ? "Adding..." : `Add Highlights (${places.filter((p) => !p.highlight).length})`}
                   </button>
                 )}
                  {places.length > 0 && (

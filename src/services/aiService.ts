@@ -18,6 +18,7 @@ export interface AISummary {
   category: PlaceCategory;
   estimatedDuration: number;
   romanizedName?: string | null;
+  highlight?: { label: string; text: string } | null;
 }
 
 const parseJsonResponse = <T>(rawText: string): T => {
@@ -149,12 +150,27 @@ export const summarizePlace = async (
     Suggest a typical visit duration in minutes.
     If the place name contains foreign or non-Latin scripts (Japanese Kanji/Kana, Chinese Hanzi, Thai, Korean Hangul, etc.), provide its common English/romanized transliteration in "romanizedName" (e.g. "Senso-ji" for "浅草寺", "Wat Phra Kaew" for "วัดพระแก้ว"). If already English/Latin, return null.
 
+    Also provide a specific, high-value highlight in "highlight" object with "label" and "text":
+    - For restaurant: label="Must-Try", text=<signature dish, must-eat item, or specialty food/drink>
+    - For coffee_shop: label="Must-Order", text=<signature brew, specialty drink, or pastry>
+    - For landmark/museum: label="Best Photo Spot" or "Must-See", text=<best vantage point, specific room, or view angle>
+    - For park/beach: label="Best Time to Visit" or "Scenic Spot", text=<ideal time of day, sunset spot, or quiet corner>
+    - For religious_site: label="Visitor Tip" or "Etiquette", text=<dress code, quiet garden, or inner shrine tip>
+    - For shopping: label="What to Buy" or "Bargaining Tip", text=<specialty item, unique souvenir, or floor to visit>
+    - For nightlife/entertainment: label="Best Time to Go" or "Highlight", text=<peak hours, reservation advice, or top experience>
+    - For other: label="Pro Tip" or "Advice", text=<actionable insider advice>
+    Keep the highlight text concise (1-2 sentences), punchy, and highly practical.
+
     Return ONLY a JSON object in this format:
     {
       "description": "string",
       "category": "string",
       "estimatedDuration": number,
-      "romanizedName": "string or null"
+      "romanizedName": "string or null",
+      "highlight": {
+        "label": "string",
+        "text": "string"
+      }
     }
   `;
 
@@ -217,6 +233,17 @@ export const summarizePlacesBatch = async (
     Suggest a typical visit duration in minutes.
     If the place name contains foreign or non-Latin scripts (Japanese Kanji/Kana, Chinese Hanzi, Thai, Korean Hangul, etc.), provide its clean English/romanized transliteration in "romanizedName" (e.g. "Senso-ji" for "浅草寺", "Wat Phra Kaew" for "วัดพระแก้ว"). If already in English/Latin, return null.
 
+    Also provide a specific, high-value highlight in "highlight" object with "label" and "text":
+    - For restaurant: label="Must-Try", text=<signature dish, must-eat item, or specialty food/drink>
+    - For coffee_shop: label="Must-Order", text=<signature brew, specialty drink, or pastry>
+    - For landmark/museum: label="Best Photo Spot" or "Must-See", text=<best vantage point, specific room, or view angle>
+    - For park/beach: label="Best Time to Visit" or "Scenic Spot", text=<ideal time of day, sunset spot, or quiet corner>
+    - For religious_site: label="Visitor Tip" or "Etiquette", text=<dress code, quiet garden, or inner shrine tip>
+    - For shopping: label="What to Buy" or "Bargaining Tip", text=<specialty item, unique souvenir, or floor to visit>
+    - For nightlife/entertainment: label="Best Time to Go" or "Highlight", text=<peak hours, reservation advice, or top experience>
+    - For other: label="Pro Tip" or "Advice", text=<actionable insider advice>
+    Keep the highlight text concise (1-2 sentences), punchy, and highly practical.
+
     Places:
     ${places.map(p => `ID: "${p.id}", Name: "${p.name}", Address: "${p.address}", Types: ${p.types.join(", ")}`).join("\n\n")}
 
@@ -227,7 +254,11 @@ export const summarizePlacesBatch = async (
         "description": "string",
         "category": "string",
         "estimatedDuration": number,
-        "romanizedName": "string or null"
+        "romanizedName": "string or null",
+        "highlight": {
+          "label": "string",
+          "text": "string"
+        }
       }
     ]
   `;
@@ -278,6 +309,55 @@ export const romanizePlaceNames = async (
     );
   } catch (err) {
     console.warn("Failed to romanize place names:", err);
+    return [];
+  }
+};
+
+export const generateHighlightsBatch = async (
+  places: { id: string; name: string; address?: string; category?: PlaceCategory; description?: string }[],
+  signal?: AbortSignal
+): Promise<{ id: string; highlight: { label: string; text: string } }[]> => {
+  const activeKey = apiUsageService.getActiveGeminiKey();
+  if (!activeKey || places.length === 0) return [];
+
+  const prompt = `
+    For each of the following places, generate a high-value highlight in "highlight" object with "label" and "text":
+    - For restaurant: label="Must-Try", text=<signature dish, must-eat item, or specialty food/drink>
+    - For coffee_shop: label="Must-Order", text=<signature brew, specialty drink, or pastry>
+    - For landmark/museum: label="Best Photo Spot" or "Must-See", text=<best vantage point, specific room, or view angle>
+    - For park/beach: label="Best Time to Visit" or "Scenic Spot", text=<ideal time of day, sunset spot, or quiet corner>
+    - For religious_site: label="Visitor Tip" or "Etiquette", text=<dress code, quiet garden, or inner shrine tip>
+    - For shopping: label="What to Buy" or "Bargaining Tip", text=<specialty item, unique souvenir, or floor to visit>
+    - For nightlife/entertainment: label="Best Time to Go" or "Highlight", text=<peak hours, reservation advice, or top experience>
+    - For other: label="Pro Tip" or "Advice", text=<actionable insider advice>
+    Keep the highlight text concise (1-2 sentences), punchy, and highly practical.
+
+    Places:
+    ${places.map((p) => `ID: "${p.id}", Name: "${p.name}", Category: "${p.category || "other"}", Address: "${p.address || ""}", Existing Description: "${p.description || ""}"`).join("\n\n")}
+
+    Return ONLY a JSON array of objects:
+    [
+      {
+        "id": "Exact ID provided above",
+        "highlight": {
+          "label": "string",
+          "text": "string"
+        }
+      }
+    ]
+  `;
+
+  try {
+    return await callGeminiDirectWithFallback(
+      activeKey,
+      {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" },
+      },
+      signal
+    );
+  } catch (err) {
+    console.warn("Failed to generate highlights:", err);
     return [];
   }
 };

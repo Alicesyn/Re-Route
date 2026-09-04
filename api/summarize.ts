@@ -75,6 +75,17 @@ export default async function handler(req: Request) {
         Suggest a typical visit duration in minutes.
         If the place name contains foreign or non-Latin scripts (Japanese Kanji/Kana, Chinese Hanzi, Thai, Korean Hangul, etc.), provide its clean English/romanized transliteration in "romanizedName" (e.g. "Senso-ji" for "浅草寺", "Wat Phra Kaew" for "วัดพระแก้ว"). If already English/Latin, return null.
 
+        Also provide a specific, high-value highlight in "highlight" object with "label" and "text":
+        - For restaurant: label="Must-Try", text=<signature dish, must-eat item, or specialty food/drink>
+        - For coffee_shop: label="Must-Order", text=<signature brew, specialty drink, or pastry>
+        - For landmark/museum: label="Best Photo Spot" or "Must-See", text=<best vantage point, specific room, or view angle>
+        - For park/beach: label="Best Time to Visit" or "Scenic Spot", text=<ideal time of day, sunset spot, or quiet corner>
+        - For religious_site: label="Visitor Tip" or "Etiquette", text=<dress code, quiet garden, or inner shrine tip>
+        - For shopping: label="What to Buy" or "Bargaining Tip", text=<specialty item, unique souvenir, or floor to visit>
+        - For nightlife/entertainment: label="Best Time to Go" or "Highlight", text=<peak hours, reservation advice, or top experience>
+        - For other: label="Pro Tip" or "Advice", text=<actionable insider advice>
+        Keep the highlight text concise (1-2 sentences), punchy, and highly practical.
+
         Places:
         ${places
           .map(
@@ -90,7 +101,11 @@ export default async function handler(req: Request) {
             "description": "string",
             "category": "string",
             "estimatedDuration": number,
-            "romanizedName": "string or null"
+            "romanizedName": "string or null",
+            "highlight": {
+              "label": "string",
+              "text": "string"
+            }
           }
         ]
       `;
@@ -105,12 +120,27 @@ export default async function handler(req: Request) {
         Suggest a typical visit duration in minutes.
         If the place name contains foreign or non-Latin scripts (Japanese Kanji/Kana, Chinese Hanzi, Thai, Korean Hangul, etc.), provide its clean English/romanized transliteration in "romanizedName" (e.g. "Senso-ji" for "浅草寺", "Wat Phra Kaew" for "วัดพระแก้ว"). If already English/Latin, return null.
 
+        Also provide a specific, high-value highlight in "highlight" object with "label" and "text":
+        - For restaurant: label="Must-Try", text=<signature dish, must-eat item, or specialty food/drink>
+        - For coffee_shop: label="Must-Order", text=<signature brew, specialty drink, or pastry>
+        - For landmark/museum: label="Best Photo Spot" or "Must-See", text=<best vantage point, specific room, or view angle>
+        - For park/beach: label="Best Time to Visit" or "Scenic Spot", text=<ideal time of day, sunset spot, or quiet corner>
+        - For religious_site: label="Visitor Tip" or "Etiquette", text=<dress code, quiet garden, or inner shrine tip>
+        - For shopping: label="What to Buy" or "Bargaining Tip", text=<specialty item, unique souvenir, or floor to visit>
+        - For nightlife/entertainment: label="Best Time to Go" or "Highlight", text=<peak hours, reservation advice, or top experience>
+        - For other: label="Pro Tip" or "Advice", text=<actionable insider advice>
+        Keep the highlight text concise (1-2 sentences), punchy, and highly practical.
+
         Return ONLY a JSON object in this format:
         {
           "description": "string",
           "category": "string",
           "estimatedDuration": number,
-          "romanizedName": "string or null"
+          "romanizedName": "string or null",
+          "highlight": {
+            "label": "string",
+            "text": "string"
+          }
         }
       `;
     } else {

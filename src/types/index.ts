@@ -23,6 +23,11 @@ export interface CategoryConfig {
   lastDayOverride?: CategoryDayOverride;
 }
 
+export interface PlaceHighlight {
+  label: string; // e.g., "Must-Try", "Best Photo Spot", "Best Time to Go", "Pro Tip"
+  text: string;  // e.g., "Signature tonkotsu ramen with seasoned egg", "View from east observation deck at sunset"
+}
+
 export interface Place {
   id: string;
   name: string;
@@ -43,6 +48,8 @@ export interface Place {
   photoUrl?: string;
   isDisabled?: boolean; // If true, excluded from routing/schedule but kept in reserve
   romanizedName?: string; // English/romanized transliteration for foreign script names
+  highlight?: PlaceHighlight; // Contextual highlight (Must-Try for restaurants, Photo Spot, Advice, etc.)
+  googlePlaceId?: string; // Original Google Maps Place ID for deduplication and syncing
 }
 
 export interface Hotel {

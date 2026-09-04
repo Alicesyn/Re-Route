@@ -18,6 +18,8 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
   const [durationVal, setDurationVal] = useState("");
   const [category, setCategory] = useState<PlaceCategory>("other");
   const [romanizedName, setRomanizedName] = useState("");
+  const [highlightLabel, setHighlightLabel] = useState("");
+  const [highlightText, setHighlightText] = useState("");
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   useEffect(() => {
@@ -26,6 +28,8 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
       setDurationVal((place.estimatedDuration ?? 60).toString());
       setCategory(place.category);
       setRomanizedName(place.romanizedName || "");
+      setHighlightLabel(place.highlight?.label || "");
+      setHighlightText(place.highlight?.text || "");
     }
   }, [place]);
 
@@ -35,12 +39,21 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
     const parsedDuration = parseInt(durationVal);
     const finalDuration = (!isNaN(parsedDuration) && parsedDuration > 0) ? parsedDuration : place.estimatedDuration;
     
+    const trimmedHighlightText = highlightText.trim();
+    const finalHighlight = trimmedHighlightText
+      ? {
+          label: highlightLabel.trim() || (category === "restaurant" ? "Must-Try" : "Pro Tip"),
+          text: trimmedHighlightText,
+        }
+      : undefined;
+
     updatePlace(place.id, {
       description: desc,
       descriptionSource: desc !== place.description ? "user" : place.descriptionSource,
       estimatedDuration: finalDuration,
       category,
       romanizedName: romanizedName.trim() || undefined,
+      highlight: finalHighlight,
     });
     onClose();
   };
@@ -62,10 +75,21 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
           (place as any).types || []
         );
       } else {
+        const mockHighlight = category === "restaurant"
+          ? { label: "Must-Try", text: "Chef's signature dish and seasonal house specialty" }
+          : category === "coffee_shop"
+          ? { label: "Must-Order", text: "Signature pour-over brew and artisan pastry" }
+          : category === "landmark" || category === "museum"
+          ? { label: "Best Photo Spot", text: "Panoramic vantage point from the upper observation deck" }
+          : category === "park" || category === "beach"
+          ? { label: "Best Time to Visit", text: "Early morning or golden hour before sunset" }
+          : { label: "Pro Tip", text: "Visit during shoulder hours to avoid peak waiting lines" };
+
         aiData = {
           description: `[MOCK AI] Comma separated mock summary of ${place.name}.`,
           category: place.category,
           estimatedDuration: place.estimatedDuration,
+          highlight: mockHighlight,
         };
       }
       setDesc(aiData.description);
@@ -73,6 +97,10 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
       setDurationVal(aiData.estimatedDuration.toString());
       if (aiData.romanizedName) {
         setRomanizedName(aiData.romanizedName);
+      }
+      if (aiData.highlight) {
+        setHighlightLabel(aiData.highlight.label);
+        setHighlightText(aiData.highlight.text);
       }
     } catch (err) {
       console.error(err);
@@ -179,6 +207,36 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
               className="w-full text-sm text-surface-700 dark:text-surface-300 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none h-24 custom-scrollbar"
               placeholder="Add a description..."
             />
+          </div>
+
+          {/* Highlight Section (Must-Try / Photo Spot / Advice) */}
+          <div className="space-y-1.5 p-3 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>Contextual Highlight (Must-Try, Photo Spot, Advice)</span>
+              </label>
+              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
+                Always shown on card
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <input
+                type="text"
+                value={highlightLabel}
+                onChange={(e) => setHighlightLabel(e.target.value)}
+                placeholder={category === "restaurant" ? "Must-Try" : "Pro Tip"}
+                className="text-xs font-semibold bg-white dark:bg-surface-900 border border-amber-200 dark:border-amber-800/80 text-surface-900 dark:text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                title="Highlight label (e.g. Must-Try, Best Photo Spot)"
+              />
+              <input
+                type="text"
+                value={highlightText}
+                onChange={(e) => setHighlightText(e.target.value)}
+                placeholder={category === "restaurant" ? "e.g. Truffle ramen & pan-fried gyoza" : "e.g. Sunset view from east garden"}
+                className="col-span-2 text-xs font-medium bg-white dark:bg-surface-900 border border-amber-200 dark:border-amber-800/80 text-surface-900 dark:text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
           </div>
         </div>
         

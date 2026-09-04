@@ -38,6 +38,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { EditPlaceModal } from "./EditPlaceModal";
+import { PlaceHighlightBadge } from "../common/PlaceHighlightBadge";
 
 const formatTime = (totalMinutes: number) => {
   const { timeFormat } = useRouteStore.getState();
@@ -264,6 +265,13 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
                   <span>View Hours</span>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Contextual Highlight (Must-Try, Photo Spot, etc.) - Always visible, never cut off */}
+          {stop.highlight && stop.highlight.text && (
+            <div className="mt-2">
+              <PlaceHighlightBadge highlight={stop.highlight} category={stop.category} compact />
             </div>
           )}
         </div>

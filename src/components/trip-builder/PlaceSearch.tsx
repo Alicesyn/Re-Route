@@ -7,6 +7,7 @@ import {
   AlertCircle,
   FileText,
   Clock,
+  Check,
 } from "lucide-react";
 import { useRouteStore } from "../../store/useRouteStore";
 import { MOCK_PLACES } from "../../services/mockData";
@@ -94,6 +95,33 @@ export const PlaceSearch: React.FC = () => {
     setQuery(e.target.value);
   };
 
+  const findExistingPlace = (candidate: any) => {
+    if (!candidate) return undefined;
+    return places.find((p) => {
+      if (p.googlePlaceId && candidate.id && p.googlePlaceId === candidate.id) return true;
+      if (p.id && candidate.id && p.id === candidate.id) return true;
+      const pName = (p.name || "").trim().toLowerCase();
+      const cName = (candidate.name || "").trim().toLowerCase();
+      if (pName && cName && pName === cName) {
+        if (p.address && candidate.address && p.address.trim().toLowerCase() === candidate.address.trim().toLowerCase()) {
+          return true;
+        }
+        if (
+          typeof p.lat === "number" &&
+          typeof candidate.lat === "number" &&
+          typeof p.lng === "number" &&
+          typeof candidate.lng === "number"
+        ) {
+          const dLat = Math.abs(p.lat - candidate.lat);
+          const dLng = Math.abs(p.lng - candidate.lng);
+          if (dLat < 0.001 && dLng < 0.001) return true;
+        }
+        if (!p.address || !candidate.address) return true;
+      }
+      return false;
+    });
+  };
+
   const handleAdd = (place: any) => {
     // For real places, we initialize them with limited data; Gemini will fill the rest
     const category =
@@ -105,6 +133,7 @@ export const PlaceSearch: React.FC = () => {
       {
         ...place,
         id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        googlePlaceId: place.id,
         category,
         estimatedDuration,
         description: place.description || "",
@@ -158,12 +187,22 @@ export const PlaceSearch: React.FC = () => {
               <option value="" disabled>
                 Select a place to add...
               </option>
-              {MOCK_PLACES.map((p, i) => (
-                <option key={i} value={i}>
-                  {getCategoryEmoji(p.category)} {p.name} ({p.estimatedDuration}{" "}
-                  min)
-                </option>
-              ))}
+              {MOCK_PLACES.map((p, i) => {
+                const existing = findExistingPlace(p);
+                const status = existing
+                  ? existing.isDisabled
+                    ? " [Added • Excluded]"
+                    : existing.dayIndex !== null
+                    ? ` [Added • Day ${existing.dayIndex + 1}]`
+                    : " [Added]"
+                  : "";
+                return (
+                  <option key={i} value={i}>
+                    {getCategoryEmoji(p.category)} {p.name} ({p.estimatedDuration}{" "}
+                    min){status}
+                  </option>
+                );
+              })}
             </select>
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
               <Plus className="w-5 h-5 text-surface-400" />
@@ -231,50 +270,87 @@ export const PlaceSearch: React.FC = () => {
             exit={{ opacity: 0, y: 10 }}
             className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-surface-800 rounded-xl shadow-lg border border-surface-100 dark:border-surface-700 overflow-hidden z-20 max-h-96 overflow-y-auto custom-scrollbar"
           >
-            {results.map((place) => (
-              <button
-                key={place.id}
-                onClick={() => handleAdd(place)}
-                className="w-full text-left px-4 py-3 hover:bg-surface-50 dark:hover:bg-surface-700 flex items-center justify-between group transition-colors border-b border-surface-50 dark:border-surface-700 last:border-0"
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className="text-lg"
-                    title={getCategoryLabel(place.category || "other")}
-                  >
-                    {getCategoryEmoji(place.category || "other")}
-                  </span>
-                  <div className="min-w-0">
-                    <h4 className="font-medium text-surface-900 dark:text-white truncate">
-                      {place.name}
-                    </h4>
-                    <p className="text-[11px] text-surface-500 dark:text-surface-400 truncate">
-                      {place.address}
-                    </p>
-                    {place.openingHours && place.openingHours.length > 0 && (
-                      <div 
-                        className="inline-flex items-center gap-1 mt-0.5 text-[10px] text-surface-400 dark:text-surface-500 cursor-help"
-                        title={place.openingHours.join("\n")}
-                        onClick={(e) => e.stopPropagation()} // Prevent adding if they just want to hover, though hover works regardless
+            {results.map((place) => {
+              const existing = findExistingPlace(place);
+              const isAdded = !!existing;
+
+              return (
+                <button
+                  key={place.id}
+                  onClick={() => handleAdd(place)}
+                  className={`w-full text-left px-4 py-3 hover:bg-surface-50 dark:hover:bg-surface-700 flex items-center justify-between group transition-colors border-b border-surface-50 dark:border-surface-700 last:border-0 ${
+                    isAdded ? "bg-emerald-50/30 dark:bg-emerald-950/15" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span
+                      className="text-lg shrink-0"
+                      title={getCategoryLabel(place.category || "other")}
+                    >
+                      {getCategoryEmoji(place.category || "other")}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-medium text-surface-900 dark:text-white truncate">
+                          {place.name}
+                        </h4>
+                        {isAdded && (
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                              existing.isDisabled
+                                ? "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800"
+                                : existing.dayIndex !== null
+                                ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-800"
+                                : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800"
+                            }`}
+                          >
+                            <Check className="w-2.5 h-2.5" />
+                            {existing.isDisabled
+                              ? "Added (Excluded)"
+                              : existing.dayIndex !== null
+                              ? `Added (Day ${existing.dayIndex + 1})`
+                              : "Added"}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-surface-500 dark:text-surface-400 truncate mt-0.5">
+                        {place.address}
+                      </p>
+                      {place.openingHours && place.openingHours.length > 0 && (
+                        <div 
+                          className="inline-flex items-center gap-1 mt-0.5 text-[10px] text-surface-400 dark:text-surface-500 cursor-help"
+                          title={place.openingHours.join("\n")}
+                          onClick={(e) => e.stopPropagation()} // Prevent adding if they just want to hover, though hover works regardless
+                        >
+                          <Clock className="w-3 h-3" />
+                          <span>View Hours</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-3">
+                    {selectedDay !== null && (
+                      <span className="text-[10px] font-bold text-primary-600 bg-primary-50 dark:bg-primary-900/30 px-2 py-0.5 rounded-full">
+                        D{selectedDay + 1}
+                      </span>
+                    )}
+                    {isAdded ? (
+                      <div
+                        className="bg-emerald-100/70 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 p-1.5 px-2 rounded-lg text-[11px] font-bold flex items-center gap-1"
+                        title="Already added to your list. Click to add again."
                       >
-                        <Clock className="w-3 h-3" />
-                        <span>View Hours</span>
+                        <Check className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">In List</span>
+                      </div>
+                    ) : (
+                      <div className="bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Plus className="w-4 h-4" />
                       </div>
                     )}
                   </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {selectedDay !== null && (
-                    <span className="text-[10px] font-bold text-primary-600 bg-primary-50 dark:bg-primary-900/30 px-2 py-0.5 rounded-full">
-                      D{selectedDay + 1}
-                    </span>
-                  )}
-                  <div className="bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Plus className="w-4 h-4" />
-                  </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>
