@@ -137,6 +137,7 @@ interface RouteState extends ModeData {
   applyTripSnapshot: (snapshot: ItinerarySnapshot) => void;
   exportTripAsJson: (tripId?: string) => void;
   importTripFromJson: (jsonString: string) => { success: boolean; error?: string; tripTitle?: string };
+  resetTrip: () => void;
 }
 
 let setTimer: any = null;
@@ -526,6 +527,43 @@ export const useRouteStore = create<RouteState>()(
       clearAll: () => {
         console.log("Zustand clearAll executed");
         set({ places: [], hotels: [], missingPlaces: [], optimizedRoutes: [] });
+      },
+
+      resetTrip: () => {
+        const today = new Date();
+        const startStr = format(today, "yyyy-MM-dd");
+        const endStr = format(addDays(today, 2), "yyyy-MM-dd");
+
+        set((state) => {
+          const emptyModeData: ModeData = {
+            places: [],
+            hotels: [],
+            missingPlaces: [],
+            optimizedRoutes: [],
+          };
+
+          return {
+            title: "RE:ROUTE",
+            days: 3,
+            startDate: startStr,
+            endDate: endStr,
+            dateMode: "duration",
+            dayStartTime: "09:00",
+            dayEndTime: "21:00",
+            showFlights: false,
+            arrivalFlight: null,
+            departureFlight: null,
+            travelMode: "driving",
+            isCalculating: false,
+            calculatingText: "",
+            places: [],
+            hotels: [],
+            missingPlaces: [],
+            optimizedRoutes: [],
+            mockData: state.appMode === "real" ? state.mockData : emptyModeData,
+            realData: state.appMode === "real" ? emptyModeData : state.realData,
+          };
+        });
       },
 
       unassignAll: () =>

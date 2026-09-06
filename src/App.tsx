@@ -11,10 +11,13 @@ import { toast } from "./services/toastService";
 import { useRouteStore } from "./store/useRouteStore";
 import { solveTSP } from "./services/tspSolver";
 import { clearMapsCache, fetchFreshPhoto } from "./services/mapsService";
-import { Wand2, Sparkles, ChevronDown, ChevronUp, RefreshCw, Loader2, MapPin } from "lucide-react";
+import { Wand2, Sparkles, ChevronDown, ChevronUp, RefreshCw, Loader2, MapPin, RotateCcw } from "lucide-react";
 
 const MapView = React.lazy(() =>
   import("./components/map/MapView").then((m) => ({ default: m.MapView }))
+);
+const ResetTripModal = React.lazy(() =>
+  import("./components/layout/ResetTripModal").then((m) => ({ default: m.ResetTripModal }))
 );
 import { summarizePlacesBatch, romanizePlaceNames, generateHighlightsBatch } from "./services/aiService";
 import { hasNonLatinScript } from "./utils/textUtils";
@@ -36,7 +39,6 @@ function App() {
     strictBudget,
     optimizedRoutes,
     setOptimizedRoutes,
-    clearAll,
     unassignAll,
     appMode,
     updatePlacesBulk,
@@ -52,6 +54,7 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [showMobileMap, setShowMobileMap] = useState(false);
+  const [isResetOpen, setIsResetOpen] = useState(false);
 
   // Apply dark mode
   useEffect(() => {
@@ -553,15 +556,18 @@ function App() {
     toast.info("All places unassigned from schedule.", "Schedule Cleared");
   };
 
-  const handleClearAll = () => {
-    clearAll();
-    toast.info("All places removed from trip.", "Places Cleared");
-  };
-
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-900 flex flex-col font-sans transition-colors overflow-hidden">
       <Header />
       <ToastContainer />
+      {isResetOpen && (
+        <React.Suspense fallback={null}>
+          <ResetTripModal
+            isOpen={isResetOpen}
+            onClose={() => setIsResetOpen(false)}
+          />
+        </React.Suspense>
+      )}
 
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 w-full custom-scrollbar">
         <div className="max-w-[1600px] mx-auto space-y-8 pb-16 safe-pb">
@@ -705,12 +711,14 @@ function App() {
                     Unassign All
                   </button>
                 )}
-                {places.length > 0 && (
+                {(places.length > 0 || hotels.length > 0) && (
                   <button
-                    onClick={handleClearAll}
-                    className="text-sm font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 bg-red-50/70 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-900/50 border border-red-200/70 dark:border-red-800/60 px-3 py-1.5 rounded-lg transition-all shadow-2xs"
+                    onClick={() => setIsResetOpen(true)}
+                    className="text-sm font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 bg-red-50/70 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-900/50 border border-red-200/70 dark:border-red-800/60 px-3 py-1.5 rounded-lg transition-all shadow-2xs flex items-center gap-1.5"
+                    title="Reset current trip itinerary"
                   >
-                    Clear All
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Reset Trip
                   </button>
                 )}
               </div>

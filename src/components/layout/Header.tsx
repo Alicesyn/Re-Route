@@ -16,6 +16,7 @@ import {
   Activity,
   Key,
   HelpCircle,
+  RotateCcw,
 } from "lucide-react";
 
 const ImportModal = React.lazy(() =>
@@ -32,6 +33,9 @@ const ApiBudgetModal = React.lazy(() =>
 );
 const AboutModal = React.lazy(() =>
   import("./AboutModal").then((m) => ({ default: m.AboutModal }))
+);
+const ResetTripModal = React.lazy(() =>
+  import("./ResetTripModal").then((m) => ({ default: m.ResetTripModal }))
 );
 import { toast } from "../../services/toastService";
 import { apiUsageService, ApiUsageStats, ApiBudgetLimits } from "../../services/apiUsageService";
@@ -50,6 +54,7 @@ export const Header: React.FC = React.memo(() => {
   const [isCategorySettingsOpen, setIsCategorySettingsOpen] = useState(false);
   const [isApiBudgetOpen, setIsApiBudgetOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [isResetOpen, setIsResetOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
 
@@ -280,6 +285,15 @@ export const Header: React.FC = React.memo(() => {
         </button>
 
         <button
+          onClick={() => setIsResetOpen(true)}
+          className="flex items-center gap-1.5 text-surface-600 dark:text-surface-300 hover:text-red-600 dark:hover:text-red-400 font-medium text-xs sm:text-sm transition-colors px-2 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30"
+          title="Reset current trip itinerary"
+        >
+          <RotateCcw className="w-4 h-4 text-surface-400 dark:text-surface-500 hover:text-red-500" />
+          <span className="hidden sm:inline">Reset</span>
+        </button>
+
+        <button
           onClick={() => setIsImportOpen(true)}
           className="flex items-center gap-1.5 text-surface-600 dark:text-surface-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium text-xs sm:text-sm transition-colors px-2 py-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700"
           title="Import trip from Wanderlog, Google Maps, or CSV"
@@ -380,6 +394,14 @@ export const Header: React.FC = React.memo(() => {
           <AboutModal
             isOpen={isAboutOpen}
             onClose={handleCloseAbout}
+          />
+        </React.Suspense>
+      )}
+      {isResetOpen && (
+        <React.Suspense fallback={null}>
+          <ResetTripModal
+            isOpen={isResetOpen}
+            onClose={() => setIsResetOpen(false)}
           />
         </React.Suspense>
       )}
