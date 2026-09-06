@@ -181,18 +181,30 @@ export const Header: React.FC = React.memo(() => {
             onChange={(e) =>
               setAppMode(e.target.value as "real" | "mock" | "dropdown-mock")
             }
-            className={`appearance-none flex items-center gap-1.5 pl-3 pr-8 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-colors border cursor-pointer outline-none focus:ring-2 focus:ring-primary-500 ${
+            className={`appearance-none flex items-center gap-1.5 pl-3 pr-8 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold transition-all border cursor-pointer outline-none focus:ring-2 focus:ring-primary-500 shadow-2xs ${
               appMode === "real"
-                ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800/60"
-                : "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border-amber-200 dark:border-amber-800/50"
+                ? "bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/70 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-600/70"
+                : "bg-amber-100 hover:bg-amber-200/80 dark:bg-amber-950/70 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-600/70"
             }`}
           >
-            <option value="real">🌐 Real Mode</option>
-            <option value="mock">⚡ Mock Mode</option>
-            <option value="dropdown-mock">📋 Dropdown Mock</option>
+            <option value="real" className="bg-white dark:bg-surface-800 text-surface-900 dark:text-white py-1">
+              🌐 Real Mode
+            </option>
+            <option value="mock" className="bg-white dark:bg-surface-800 text-surface-900 dark:text-white py-1">
+              ⚡ Mock Mode
+            </option>
+            <option value="dropdown-mock" className="bg-white dark:bg-surface-800 text-surface-900 dark:text-white py-1">
+              📋 Dropdown Mock
+            </option>
           </select>
           <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-            <ChevronDown className="w-3.5 h-3.5 text-surface-400 dark:text-surface-500" />
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-colors ${
+                appMode === "real"
+                  ? "text-emerald-600 dark:text-emerald-300"
+                  : "text-amber-700 dark:text-amber-300"
+              }`}
+            />
           </div>
         </div>
 

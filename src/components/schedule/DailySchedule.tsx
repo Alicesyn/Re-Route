@@ -441,12 +441,12 @@ const SegmentPill: React.FC<{
   const getModeIcon = () => {
     switch (segment.travelMode) {
       case "walking":
-        return <Footprints className="w-3.5 h-3.5" />;
+        return <Footprints className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />;
       case "transit":
-        return <Train className="w-3.5 h-3.5 text-rose-500" />;
+        return <Train className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />;
       case "driving":
       default:
-        return <Car className="w-3.5 h-3.5" />;
+        return <Car className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" />;
     }
   };
 
@@ -455,27 +455,22 @@ const SegmentPill: React.FC<{
       {/* Line connector segment - always full height for segments as they are intermediate */}
       <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-surface-200 dark:bg-surface-700/50" />
       <div
-        className={`travel-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer relative overflow-hidden ${
+        className={`travel-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer relative overflow-hidden shadow-2xs ${
           isHeuristicTransit
-            ? "bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/60"
-            : "bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700"
+            ? "bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-600/70 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/60"
+            : "bg-surface-50 hover:bg-surface-100 dark:bg-surface-700/90 dark:hover:bg-surface-600 border border-surface-200 dark:border-surface-600 text-surface-700 dark:text-surface-100"
         }`}
+        title={
+          isHeuristicTransit
+            ? `Estimated Transit: Live transit APIs return ZERO_RESULTS for Japan transit or are offline. Time is estimated geometrically (~${distanceUnit === "imperial" ? "11 mph local / ~101 mph express" : "18 km/h local / ~162 km/h express"}) without real-time train timetables or megastation transfer times.`
+            : "Click to change travel mode (Driving, Transit, Walking)"
+        }
       >
         {getModeIcon()}
-        <span>{Math.round(segment.time / 60)} min</span>
+        <span className="font-semibold text-surface-900 dark:text-surface-100">{Math.round(segment.time / 60)} min</span>
 
-        {isHeuristicTransit && (
-          <span
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-200/90 dark:bg-amber-900/90 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700"
-            title={`Heuristic Transit Calculation: Live transit APIs return ZERO_RESULTS for Japan transit or are offline. Time is estimated geometrically (~${distanceUnit === "imperial" ? "11 mph local / ~101 mph express" : "18 km/h local / ~162 km/h express"}) without real-time train timetables or megastation transfer times.`}
-          >
-            <AlertTriangle className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span>Heuristic</span>
-          </span>
-        )}
-
-        <span className="text-surface-300 dark:text-surface-600 mx-0.5">•</span>
-        <span>
+        <span className="text-surface-300 dark:text-surface-500 mx-0.5">•</span>
+        <span className="text-surface-600 dark:text-surface-300">
           {(() => {
             const dist = segment.distance;
             if (distanceUnit === "imperial") {
@@ -495,17 +490,24 @@ const SegmentPill: React.FC<{
           })()}
         </span>
 
+        <ChevronDown className="w-3.5 h-3.5 text-surface-400 dark:text-surface-300 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors ml-0.5 shrink-0" />
+
         <select
           value={segment.travelMode || "driving"}
           onChange={handleModeChange}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer bg-white dark:bg-surface-800 text-surface-900 dark:text-white"
           title="Change travel mode for this segment"
         >
-          <option value="driving">Driving</option>
-          <option value="transit">Transit</option>
-          <option value="walking">Walking</option>
+          <option value="driving" className="bg-white dark:bg-surface-800 text-surface-900 dark:text-white py-1">
+            🚗 Driving
+          </option>
+          <option value="transit" className="bg-white dark:bg-surface-800 text-surface-900 dark:text-white py-1">
+            🚆 Transit
+          </option>
+          <option value="walking" className="bg-white dark:bg-surface-800 text-surface-900 dark:text-white py-1">
+            🚶 Walking
+          </option>
         </select>
-        <ChevronDown className="w-3 h-3 text-surface-400 dark:text-surface-500 group-hover:text-surface-600 dark:group-hover:text-surface-300 ml-0.5" />
       </div>
     </div>
   );
