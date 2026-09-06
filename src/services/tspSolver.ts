@@ -27,9 +27,9 @@ function clusterPlaces(
   departureLocation?: Place | null,
   categoryConfigs?: Partial<Record<PlaceCategory, CategoryConfig>>,
 ): Place[] {
-  const pinned = places.filter((p) => p.dayIndex !== null && p.pinnedToDay);
+  const pinned = places.filter((p) => p.dayIndex !== null && (p.pinnedToDay || !!p.customTime));
   const unassigned = places.filter(
-    (p) => p.dayIndex === null || (p.dayIndex !== null && !p.pinnedToDay),
+    (p) => p.dayIndex === null || (p.dayIndex !== null && !p.pinnedToDay && !p.customTime),
   );
 
   if (unassigned.length === 0) return places;
@@ -112,15 +112,16 @@ function clusterPlaces(
     let maxScore = -Infinity;
 
     for (let d = 0; d < days; d++) {
-      // Resolve effective category config — merge day-specific overrides for first/last day
+      // Resolve effective category config — check custom day override first, then first/last day
       const isFirstDay = d === 0;
       const isLastDay = d === days - 1;
       const baseCatConfig = categoryConfigs?.[place.category];
-      const dayOverride = isFirstDay
+      const customDayOverride = baseCatConfig?.customDayOverrides?.[d];
+      const dayOverride = customDayOverride ?? (isFirstDay
         ? baseCatConfig?.firstDayOverride
         : isLastDay
           ? baseCatConfig?.lastDayOverride
-          : undefined;
+          : undefined);
       const catConfig = dayOverride
         ? { ...baseCatConfig, ...dayOverride }
         : baseCatConfig;
@@ -194,27 +195,30 @@ function clusterPlaces(
   return [...pinned, ...successfullyAssigned, ...rejectedUnassigned];
 }
 
-// 2-Opt Algorithm for a single day's route (Start -> Stops -> End)
-function optimizeDayRoute(
-  startHotel: Hotel | null,
-  endHotel: Hotel | null,
-  dayPlaces: Place[],
+function parseTimeToMinutes(timeStr: string): number {
+  const [h, m] = timeStr.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+// 2-Opt Algorithm for a sub-path (Start -> Stops -> End)
+function optimize2OptSub(
+  startAnchor: Hotel | Place | null,
+  endAnchor: Hotel | Place | null,
+  places: Place[],
 ): Place[] {
-  if (dayPlaces.length <= 1) return dayPlaces;
+  if (places.length <= 1) return places;
 
   const points: (Hotel | Place)[] = [];
-  if (startHotel) points.push(startHotel);
-  points.push(...dayPlaces);
-  if (endHotel) points.push(endHotel);
+  if (startAnchor) points.push(startAnchor);
+  points.push(...places);
+  if (endAnchor) points.push(endAnchor);
 
-  // Define the range of indices that are swappable (only the places, not hotels)
-  const swapStart = startHotel ? 1 : 0;
-  const swapEnd = endHotel ? points.length - 2 : points.length - 1;
+  const swapStart = startAnchor ? 1 : 0;
+  const swapEnd = endAnchor ? points.length - 2 : points.length - 1;
 
   let bestDistance = calculateTotalDistance(points);
   let improved = true;
 
-  // 2-Opt main loop — only swap within the place indices, never touch hotel anchors
   while (improved) {
     improved = false;
     for (let i = swapStart; i <= swapEnd; i++) {
@@ -233,12 +237,107 @@ function optimizeDayRoute(
     }
   }
 
-  // Extract places back from points (hotels are at fixed positions)
-  const placeStart = startHotel ? 1 : 0;
-  const placeEnd = endHotel ? points.length - 1 : points.length;
-  const optimizedPlaces = points.slice(placeStart, placeEnd) as Place[];
+  const placeStart = startAnchor ? 1 : 0;
+  const placeEnd = endAnchor ? points.length - 1 : points.length;
+  return points.slice(placeStart, placeEnd) as Place[];
+}
 
-  return optimizedPlaces.map((p, idx) => ({ ...p, orderInDay: idx }));
+// 2-Opt Algorithm for a single day's route, respecting locked custom reservation times
+function optimizeDayRoute(
+  startHotel: Hotel | null,
+  endHotel: Hotel | null,
+  dayPlaces: Place[],
+  dayStartTime: string = "09:00"
+): Place[] {
+  if (dayPlaces.length <= 1) return dayPlaces;
+
+  // Check if any places have a custom locked time (e.g. reservations)
+  const lockedPlaces = dayPlaces
+    .filter((p) => !!p.customTime)
+    .sort((a, b) => parseTimeToMinutes(a.customTime!) - parseTimeToMinutes(b.customTime!));
+
+  if (lockedPlaces.length === 0) {
+    const optimized = optimize2OptSub(startHotel, endHotel, dayPlaces);
+    return optimized.map((p, idx) => ({ ...p, orderInDay: idx }));
+  }
+
+  const unlockedPlaces = dayPlaces.filter((p) => !p.customTime);
+
+  if (unlockedPlaces.length === 0) {
+    return lockedPlaces.map((p, idx) => ({ ...p, orderInDay: idx }));
+  }
+
+  // Partition into windows defined by locked reservation anchors:
+  // Window 0: StartHotel -> Locked[0]
+  // Window i: Locked[i-1] -> Locked[i]
+  // Window N: Locked[last] -> EndHotel
+  const numWindows = lockedPlaces.length + 1;
+  const windowBuckets: Place[][] = Array.from({ length: numWindows }, () => []);
+
+  const windowStartTimes: number[] = [];
+  const windowEndTimes: number[] = [];
+
+  for (let w = 0; w < numWindows; w++) {
+    const wStart = w === 0
+      ? parseTimeToMinutes(dayStartTime)
+      : parseTimeToMinutes(lockedPlaces[w - 1].customTime!) + (lockedPlaces[w - 1].estimatedDuration || 60);
+    const wEnd = w === numWindows - 1
+      ? 24 * 60
+      : parseTimeToMinutes(lockedPlaces[w].customTime!);
+    windowStartTimes.push(wStart);
+    windowEndTimes.push(wEnd);
+  }
+
+  // Distribute unlocked places to the best-fitting window
+  for (const place of unlockedPlaces) {
+    let bestWindow = 0;
+    let minAdditionalDist = Infinity;
+
+    for (let w = 0; w < numWindows; w++) {
+      const wCapacity = windowEndTimes[w] - windowStartTimes[w];
+      const duration = place.estimatedDuration || 60;
+      const startAnchor = w === 0 ? startHotel : lockedPlaces[w - 1];
+      const endAnchor = w === numWindows - 1 ? endHotel : lockedPlaces[w];
+
+      let dist = 0;
+      if (startAnchor && endAnchor) {
+        dist = getDistance(startAnchor.lat, startAnchor.lng, place.lat, place.lng) +
+               getDistance(place.lat, place.lng, endAnchor.lat, endAnchor.lng);
+      } else if (startAnchor) {
+        dist = getDistance(startAnchor.lat, startAnchor.lng, place.lat, place.lng);
+      } else if (endAnchor) {
+        dist = getDistance(place.lat, place.lng, endAnchor.lat, endAnchor.lng);
+      }
+
+      // Penalize windows that would severely overflow their time window
+      const currentBucketDuration = windowBuckets[w].reduce((sum, p) => sum + (p.estimatedDuration || 60), 0);
+      const isTight = currentBucketDuration + duration > wCapacity && wCapacity > 0;
+      const score = dist * (isTight ? 2.5 : 1.0);
+
+      if (score < minAdditionalDist) {
+        minAdditionalDist = score;
+        bestWindow = w;
+      }
+    }
+
+    windowBuckets[bestWindow].push(place);
+  }
+
+  // Optimize each window bucket using 2-Opt and assemble finalized sequence
+  const finalizedPlaces: Place[] = [];
+
+  for (let w = 0; w < numWindows; w++) {
+    const startAnchor = w === 0 ? startHotel : lockedPlaces[w - 1];
+    const endAnchor = w === numWindows - 1 ? endHotel : lockedPlaces[w];
+    const optimizedSub = optimize2OptSub(startAnchor, endAnchor, windowBuckets[w]);
+    finalizedPlaces.push(...optimizedSub);
+
+    if (w < lockedPlaces.length) {
+      finalizedPlaces.push(lockedPlaces[w]);
+    }
+  }
+
+  return finalizedPlaces.map((p, idx) => ({ ...p, orderInDay: idx }));
 }
 
 function swap2Opt(route: any[], i: number, k: number): any[] {
@@ -273,6 +372,7 @@ function buildDayRoute(
   departureLocation?: Place | null,
   manualOrder: boolean = false,
   manualSequence?: string[],
+  dayStartTime: string = "09:00",
 ): DayRoute {
   const endHotelRaw = hotels.find((h) => h.dayIndex === dayIndex) || null;
   const startHotelRaw =
@@ -291,7 +391,7 @@ function buildDayRoute(
 
   let optimizedPlaces = manualOrder
     ? dayPlaces
-    : optimizeDayRoute(startHotel, endHotel, dayPlaces);
+    : optimizeDayRoute(startHotel, endHotel, dayPlaces, dayStartTime);
 
   let dayDist = 0;
   let points: (Place | Hotel)[] = [];
@@ -315,7 +415,7 @@ function buildDayRoute(
     else if (id === "start-hotel") loc = startHotel;
     else if (id === "end-hotel") loc = endHotel;
     else if (id === "departure") loc = departureLoc;
-    else loc = dayPlaces.find((p) => p.id === id);
+    else loc = dayPlaces.find((p) => String(p.id) === String(id)) || null;
     rawPoints.push(loc);
   });
 
@@ -341,7 +441,12 @@ function buildDayRoute(
 
   if (manualSequence && manualSequence.length > 0) {
     optimizedPlaces = points.filter(
-      (p) => (p as Place).id !== undefined,
+      (p) =>
+        (p as Place).id !== undefined &&
+        (p as Place).id !== "arrival" &&
+        (p as Place).id !== "departure" &&
+        (p as Place).id !== "start-hotel" &&
+        (p as Place).id !== "end-hotel",
     ) as Place[];
   }
 
@@ -397,9 +502,24 @@ export async function fetchAccurateRouteTimes(
 
   // Build points array for this route
   const points: { lat: number; lng: number }[] = [];
-  if (route.startHotel) points.push(route.startHotel);
-  route.stops.forEach((s) => points.push(s));
-  if (route.endHotel) points.push(route.endHotel);
+  if (route.manualSequence && route.manualSequence.length > 0) {
+    route.manualSequence.forEach((id) => {
+      if (id === "start-hotel" && route.startHotel) {
+        points.push(route.startHotel);
+      } else if (id === "end-hotel" && route.endHotel) {
+        points.push(route.endHotel);
+      } else {
+        const stop = route.stops.find((s) => String(s.id) === String(id));
+        if (stop) {
+          points.push(stop);
+        }
+      }
+    });
+  } else {
+    if (route.startHotel) points.push(route.startHotel);
+    route.stops.forEach((s) => points.push(s));
+    if (route.endHotel) points.push(route.endHotel);
+  }
 
   // Parse start time
   const [startH, startM] = dayStartTime.split(":").map(Number);
@@ -488,6 +608,7 @@ export async function solveSingleDay(
     departureLocation,
     manualOrder,
     manualSequence,
+    dayStartTime,
   );
   return await fetchAccurateRouteTimes(route, startDateISO, dayStartTime);
 }
@@ -502,10 +623,12 @@ export async function solveTSP(
   arrivalLocation?: Place | null,
   departureLocation?: Place | null,
   categoryConfigs?: Partial<Record<PlaceCategory, CategoryConfig>>,
+  startDateISO: string = new Date().toISOString(),
+  dayStartTime: string = "09:00",
 ): Promise<OptimizationResult> {
   const startTime = performance.now();
 
-  // 1. Cluster unassigned places (time-budget-aware, respects pinnedToDay)
+  // 1. Cluster unassigned places (time-budget-aware, respects pinnedToDay and customTime)
   const clusteredPlaces = clusterPlaces(
     places,
     hotels,
@@ -518,11 +641,11 @@ export async function solveTSP(
     categoryConfigs,
   );
 
+  // 2. Build initial routes for each day
+  const dayRoutes: DayRoute[] = [];
   let totalTripDistance = 0;
   let totalTripTime = 0;
-  const dayRoutes: DayRoute[] = [];
 
-  // 2. Optimize each day
   for (let d = 0; d < days; d++) {
     let dayPlaces = clusteredPlaces.filter((p) => p.dayIndex === d);
     let route = buildDayRoute(
@@ -532,6 +655,9 @@ export async function solveTSP(
       travelMode,
       d === 0 ? arrivalLocation : null,
       d === days - 1 ? departureLocation : null,
+      false,
+      undefined,
+      dayStartTime,
     );
 
     const limit = dailyBudgets[d];
@@ -547,13 +673,13 @@ export async function solveTSP(
         Math.round(route.totalTime / 60);
 
       // On flight-constrained days, flights are a hard physical deadline.
-      // Treat all places as evictable (even user-pinned ones).
+      // Treat all places as evictable except places with fixed reservation customTime unless strictly unavoidable.
       const flightConstrained = limit < baseBudget;
 
       while (dayPlaces.length > 0 && totalDayMin > limit) {
         const evictable = flightConstrained
-          ? dayPlaces
-          : dayPlaces.filter((p) => !p.pinnedToDay);
+          ? (dayPlaces.filter((p) => !p.customTime).length > 0 ? dayPlaces.filter((p) => !p.customTime) : dayPlaces)
+          : dayPlaces.filter((p) => !p.pinnedToDay && !p.customTime);
         if (evictable.length === 0) {
           break; // only pinned places left and not a flight day
         }
@@ -580,6 +706,9 @@ export async function solveTSP(
           travelMode,
           d === 0 ? arrivalLocation : null,
           d === days - 1 ? departureLocation : null,
+          false,
+          undefined,
+          dayStartTime,
         );
 
         // Recalculate totalDayMin
@@ -594,7 +723,7 @@ export async function solveTSP(
 
   // 3. Post-process routes to use accurate APIs
   const finalRoutes = await Promise.all(
-    dayRoutes.map(r => fetchAccurateRouteTimes(r, new Date().toISOString(), "09:00")) // Note: startDate and dayStartTime should ideally be passed in, but this is a fallback.
+    dayRoutes.map(r => fetchAccurateRouteTimes(r, startDateISO, dayStartTime))
   );
 
   totalTripDistance = finalRoutes.reduce((sum, r) => sum + r.totalDistance, 0);

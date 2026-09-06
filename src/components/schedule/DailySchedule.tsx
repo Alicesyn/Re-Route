@@ -17,6 +17,7 @@ import {
   Loader2,
   Pin,
   Coins,
+  Lock,
 } from "lucide-react";
 import { toast } from "../../services/toastService";
 import { TravelMode, RouteSegment } from "../../types";
@@ -46,6 +47,18 @@ const EditPlaceModal = React.lazy(() =>
   import("./EditPlaceModal").then((m) => ({ default: m.EditPlaceModal }))
 );
 
+const parseTimeToMinutes = (timeStr: string): number => {
+  if (!timeStr) return 0;
+  const [h, m] = timeStr.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+const formatMinutesTo24h = (totalMinutes: number): string => {
+  const hours = Math.floor(totalMinutes / 60) % 24;
+  const mins = Math.floor(totalMinutes % 60);
+  return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
+};
+
 const formatTime = (totalMinutes: number) => {
   const { timeFormat } = useRouteStore.getState();
   const hours = Math.floor(totalMinutes / 60) % 24;
@@ -66,19 +79,31 @@ const formatTimeString = (timeStr: string) => {
   return formatTime(h * 60 + m);
 };
 
-const BufferPill: React.FC<{ minutes: number; showLine?: boolean }> = ({
-  minutes,
-  showLine = true,
-}) => {
+const BufferPill: React.FC<{
+  minutes: number;
+  label?: string;
+  showLine?: boolean;
+  isReservation?: boolean;
+}> = ({ minutes, label, showLine = true, isReservation = false }) => {
   return (
     <div className="pt-0 pb-3 pl-12 relative group">
       {/* Line connector segment */}
       {showLine && (
         <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-surface-200 dark:bg-surface-700/50" />
       )}
-      <div className="travel-pill inline-flex items-center gap-1.5 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 px-2 py-1 rounded-full text-[10px] font-bold text-surface-400 uppercase tracking-tight">
-        <Clock className="w-3 h-3" />
-        <span>{minutes} min buffer</span>
+      <div
+        className={`travel-pill inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border ${
+          isReservation
+            ? "bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300"
+            : "bg-surface-50 dark:bg-surface-800 border-surface-200 dark:border-surface-700 text-surface-500 dark:text-surface-400"
+        }`}
+      >
+        {isReservation ? (
+          <Lock className="w-3 h-3 text-purple-500 shrink-0" />
+        ) : (
+          <Clock className="w-3 h-3 text-surface-400 shrink-0" />
+        )}
+        <span>{label || `${minutes} min buffer`}</span>
       </div>
     </div>
   );
@@ -129,6 +154,7 @@ interface SortableStopProps {
   isFirst: boolean;
   isLast: boolean;
   unassignPlace: (id: string) => void;
+  updatePlace: (id: string, updates: any) => void;
   leadingSegIdx: number;
   route: any;
   dayIndex: number;
@@ -144,6 +170,8 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
   isFirst,
   isLast,
   unassignPlace,
+  updatePlace,
+  dayIndex,
   dateMode,
   currentDate,
   onEdit,
@@ -162,10 +190,22 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
     isDragging,
   } = useSortable({ id: stop.id });
 
+  const [isTimeModalOpen, setIsTimeModalOpen] = useState(false);
+  const [tempTime, setTempTime] = useState(
+    stop.customTime || formatMinutesTo24h(stopArrivalTime)
+  );
+
+  const isCustomTime = !!stop.customTime;
+  const customTimeMinutes = isCustomTime ? parseTimeToMinutes(stop.customTime) : null;
+  const isLate = isCustomTime && stopArrivalTime > (customTimeMinutes ?? 0);
+  const lateMinutes = isLate ? stopArrivalTime - (customTimeMinutes ?? 0) : 0;
+
+  const openUpward = isLast && !isFirst;
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    zIndex: isDragging ? 50 : 1,
+    zIndex: isDragging ? 60 : isTimeModalOpen ? 50 : 1,
     position: "relative" as const,
     opacity: isDragging ? 0.3 : 1,
     scale: isDragging ? 1.02 : 1,
@@ -175,7 +215,7 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative group content-auto ${isDragging ? "cursor-grabbing" : ""}`}
+      className={`relative group ${isDragging ? "cursor-grabbing" : ""} ${isTimeModalOpen ? "z-50" : ""}`}
     >
       {/* Visual Drop Indicator */}
       {isDragging && (
@@ -201,7 +241,8 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
           <div
             {...attributes}
             {...listeners}
-            className="absolute -left-7 top-5 -translate-y-1/2 p-1 text-surface-300 dark:text-surface-600 hover:text-surface-600 dark:hover:text-surface-300 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+            className="absolute -left-6 top-5 -translate-y-1/2 p-1.5 text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:hover:text-surface-200 cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-100 hover:opacity-100 transition-opacity touch-none"
+            title="Drag to reorder"
           >
             <GripVertical className="w-4 h-4" />
           </div>
@@ -211,7 +252,7 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
           <div className="flex items-center justify-between gap-2 relative">
             <button
               onClick={onEdit}
-              className="text-sm font-bold text-surface-900 dark:text-white truncate hover:text-primary-600 group-hover:text-primary-600 transition-colors pr-8 text-left outline-none focus:ring-2 focus:ring-primary-500 rounded"
+              className="text-sm font-bold text-surface-900 dark:text-white truncate hover:text-primary-600 group-hover:text-primary-600 transition-colors text-left outline-none focus:ring-2 focus:ring-primary-500 rounded"
               title="Edit Place Details"
             >
               {stop.name}
@@ -221,7 +262,7 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
                 </span>
               )}
             </button>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               {timeConflict.hasConflict && (
                 <div 
                   className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-[10px] font-bold border border-red-200 dark:border-red-800"
@@ -231,28 +272,173 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
                   <span className="hidden sm:inline">Closed</span>
                 </div>
               )}
-              {stop.pinnedToDay && (
-                <span
-                  className="p-1 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
-                  title="Pinned to this day (optimizer won't move this stop)"
-                >
-                  <Pin className="w-3 h-3 fill-current" />
-                </span>
-              )}
+              {/* Pin Toggle Button */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updatePlace(stop.id, { pinnedToDay: !stop.pinnedToDay });
+                }}
+                className={`p-1 rounded transition-colors ${
+                  stop.pinnedToDay
+                    ? "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                    : "text-surface-300 dark:text-surface-600 hover:text-amber-600 dark:hover:text-amber-400 opacity-0 group-hover:opacity-100 hover:bg-surface-100 dark:hover:bg-surface-700"
+                }`}
+                title={stop.pinnedToDay ? "Pinned to this day (click to unpin)" : "Pin to this day (prevent optimizer from moving)"}
+                aria-label={stop.pinnedToDay ? "Unpin stop from this day" : "Pin stop to this day"}
+              >
+                <Pin className={`w-3.5 h-3.5 ${stop.pinnedToDay ? "fill-current" : ""}`} />
+              </button>
+              {/* Remove from day Button */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  unassignPlace(stop.id);
+                }}
+                className="p-1 text-surface-300 dark:text-surface-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors opacity-0 group-hover:opacity-100"
+                title="Remove from day"
+                aria-label="Remove stop from day"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
-            <button
-              onClick={() => unassignPlace(stop.id)}
-              className="absolute right-0 top-0.5 p-1 text-surface-300 dark:text-surface-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors opacity-0 group-hover:opacity-100"
-              title="Remove from day"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
           </div>
 
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <span className="text-[10px] font-bold font-mono text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30 px-1.5 py-0.5 rounded">
-              {formatTime(stopArrivalTime)}
-            </span>
+          <div className="flex items-center gap-2 mt-1 flex-wrap relative">
+            {/* Arrival Time Badge / Custom Time Lock Button */}
+            <div className="relative inline-block">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTempTime(stop.customTime || formatMinutesTo24h(stopArrivalTime));
+                  setIsTimeModalOpen((prev) => !prev);
+                }}
+                className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded flex items-center gap-1 transition-all border ${
+                  isCustomTime
+                    ? "bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700/80 shadow-2xs hover:bg-purple-200/80 dark:hover:bg-purple-900/60"
+                    : "bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 border-transparent hover:border-primary-300"
+                }`}
+                title={
+                  isCustomTime
+                    ? `Locked reservation time at ${formatTimeString(stop.customTime)}. Click to edit or unlock.`
+                    : "Calculated arrival time. Click to lock custom reservation time."
+                }
+              >
+                {isCustomTime && <Lock className="w-2.5 h-2.5 text-purple-600 dark:text-purple-400 shrink-0" />}
+                <span>{isCustomTime ? formatTimeString(stop.customTime) : formatTime(stopArrivalTime)}</span>
+                {isCustomTime && <span className="text-[9px] font-semibold opacity-75 uppercase">Reserved</span>}
+              </button>
+
+              {/* Time Lock Popover */}
+              {isTimeModalOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40 bg-transparent"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsTimeModalOpen(false);
+                    }}
+                  />
+                  <div
+                    className={`absolute left-0 ${
+                      openUpward ? "bottom-full mb-2" : "top-full mt-2"
+                    } z-50 w-72 bg-white dark:bg-surface-850 rounded-xl shadow-2xl border border-surface-200 dark:border-surface-700 p-3.5 text-surface-900 dark:text-white ring-1 ring-black/10 dark:ring-white/10`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between pb-2 border-b border-surface-100 dark:border-surface-700 mb-2.5">
+                      <span className="text-xs font-bold flex items-center gap-1.5 text-surface-900 dark:text-white">
+                        <Lock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                        Locked Reservation Time
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsTimeModalOpen(false)}
+                        className="p-1 rounded text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-surface-600 dark:text-surface-300 mb-3 leading-snug">
+                      Fix this place to an exact time. The optimizer will schedule other stops around it and will not move this place.
+                    </p>
+
+                    <div className="flex items-center gap-2 mb-3">
+                      <label className="text-xs font-bold text-surface-600 dark:text-surface-300 uppercase shrink-0">Time:</label>
+                      <input
+                        type="time"
+                        value={tempTime}
+                        onChange={(e) => setTempTime(e.target.value)}
+                        className="flex-1 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-surface-100 dark:border-surface-700">
+                      {isCustomTime ? (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            updatePlace(stop.id, { customTime: undefined });
+                            setIsTimeModalOpen(false);
+                            toast.info(`Removed locked time for ${stop.name}.`);
+                            try {
+                              await useRouteStore.getState().optimizeDay(dayIndex);
+                            } catch (e) {
+                              console.error("Failed to re-optimize day after unlocking time", e);
+                            }
+                          }}
+                          className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline"
+                        >
+                          Unlock
+                        </button>
+                      ) : <span />}
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsTimeModalOpen(false)}
+                          className="px-2.5 py-1 text-xs font-semibold text-surface-500 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700 rounded-md transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (tempTime) {
+                              updatePlace(stop.id, { customTime: tempTime, pinnedToDay: true });
+                              setIsTimeModalOpen(false);
+                              toast.success(`Locked ${stop.name} to ${formatTimeString(tempTime)}.`);
+                              try {
+                                await useRouteStore.getState().optimizeDay(dayIndex);
+                              } catch (e) {
+                                console.error("Failed to re-optimize day after setting custom time", e);
+                              }
+                            }
+                          }}
+                          className="px-3 py-1 text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white rounded-md shadow-2xs transition-colors"
+                        >
+                          Lock Time
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Late Arrival Warning */}
+            {isLate && (
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700/80"
+                title={`Reservation is locked at ${formatTimeString(stop.customTime)}, but estimated arrival from previous stops is ${formatTime(stopArrivalTime)}`}
+              >
+                <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>Late by {lateMinutes}m</span>
+              </span>
+            )}
+
             <span className="text-[10px] font-bold text-surface-400 uppercase tracking-tight flex items-center gap-1">
               <Timer className="w-2.5 h-2.5" />
               {stop.estimatedDuration || 60}m visit
@@ -380,7 +566,8 @@ const SortableAnchor: React.FC<{
           <div
             {...attributes}
             {...listeners}
-            className="absolute -left-7 top-5 -translate-y-1/2 p-1 text-surface-300 dark:text-surface-600 hover:text-surface-600 dark:hover:text-surface-300 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+            className="absolute -left-6 top-5 -translate-y-1/2 p-1.5 text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:hover:text-surface-200 cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-100 hover:opacity-100 transition-opacity touch-none"
+            title="Drag to reorder"
           >
             <GripVertical className="w-4 h-4" />
           </div>
@@ -522,6 +709,7 @@ export const DailySchedule: React.FC = () => {
     optimizedRoutes,
     optimizeDay,
     unassignPlace,
+    updatePlace,
     reorderDayStops,
     startDate,
     dateMode,
@@ -591,10 +779,33 @@ export const DailySchedule: React.FC = () => {
     <>
       <div className="schedule-container">
       <div className="px-6 py-3 border-b border-surface-100 dark:border-surface-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-50 dark:bg-surface-800 shrink-0">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 flex-wrap">
           <h2 className="text-lg font-bold text-surface-900 dark:text-white">
             Optimized Schedule
           </h2>
+
+          {hasHeuristicTransit && (
+            <button
+              onClick={() => setIsBannerDismissed((prev) => !prev)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
+                !isBannerDismissed
+                  ? "bg-amber-100/90 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700/80 shadow-2xs hover:bg-amber-200/80 dark:hover:bg-amber-900/70"
+                  : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700/80 hover:bg-amber-100/80 dark:hover:bg-amber-900/60 shadow-2xs"
+              }`}
+              title={
+                isBannerDismissed
+                  ? "Click to view notice: Why are transit times orange & estimated?"
+                  : "Click to hide transit notice"
+              }
+              aria-label="Toggle orange transit notice"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>Orange Transit = Estimated</span>
+              <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-200/70 dark:bg-amber-900/70 px-1.5 py-0.5 rounded-full">
+                {!isBannerDismissed ? "Hide Notice" : "Why?"}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Day Quick Navigation */}
@@ -826,7 +1037,7 @@ export const DailySchedule: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-4 space-y-0 relative">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pl-8 pr-4 py-4 space-y-0 relative">
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -879,6 +1090,7 @@ export const DailySchedule: React.FC = () => {
 
                             let element = null;
                             let itemDuration = 0;
+                            let preBufferPill = null;
 
                             if (itemId === "arrival" && arrivalFlight) {
                               element = (
@@ -954,15 +1166,34 @@ export const DailySchedule: React.FC = () => {
                                 (s) => s.id === itemId,
                               );
                               if (stop) {
+                                let stopArrivalTime = currentTime;
+                                if (stop.customTime) {
+                                  const customMin = parseTimeToMinutes(stop.customTime);
+                                  if (customMin > currentTime) {
+                                    const idleMin = customMin - currentTime;
+                                    preBufferPill = (
+                                      <BufferPill
+                                        key={`buffer-${stop.id}`}
+                                        minutes={idleMin}
+                                        label={`${idleMin} min free time before reservation`}
+                                        isReservation
+                                        showLine={!isFirst}
+                                      />
+                                    );
+                                    currentTime = customMin;
+                                  }
+                                }
+
                                 element = (
                                   <SortableStop
                                     key={stop.id}
                                     stop={stop}
                                     stopIdx={idx}
-                                    stopArrivalTime={currentTime}
+                                    stopArrivalTime={stopArrivalTime}
                                     isFirst={isFirst}
                                     isLast={isLast}
                                     unassignPlace={unassignPlace}
+                                    updatePlace={updatePlace}
                                     leadingSegIdx={-1}
                                     route={route}
                                     dayIndex={i}
@@ -1004,6 +1235,7 @@ export const DailySchedule: React.FC = () => {
 
                             return (
                               <React.Fragment key={`group-${itemId}`}>
+                                {preBufferPill}
                                 {element}
                                 {segmentElement}
                               </React.Fragment>

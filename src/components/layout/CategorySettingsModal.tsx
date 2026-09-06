@@ -12,7 +12,11 @@ import {
   Moon,
   Image,
   ImageOff,
+  Calendar,
+  Plus,
+  Trash2,
 } from "lucide-react";
+import { format, addDays, parseISO } from "date-fns";
 import { useRouteStore } from "../../store/useRouteStore";
 import { ALL_CATEGORIES } from "../../utils/categoryConstants";
 import { getCategoryEmoji, getCategoryLabel } from "../../utils/categoryUtils";
@@ -32,6 +36,9 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     timeFormat, setTimeFormat,
     theme, setTheme,
     showImages, setShowImages,
+    days,
+    startDate,
+    dateMode,
   } = useRouteStore();
 
   // Local state for inputs to allow empty strings while typing
@@ -42,6 +49,10 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [localFirstMax, setLocalFirstMax] = useState<Record<string, string>>({});
   const [localLastMin, setLocalLastMin] = useState<Record<string, string>>({});
   const [localLastMax, setLocalLastMax] = useState<Record<string, string>>({});
+  const [localCustomMin, setLocalCustomMin] = useState<Record<string, string>>({});
+  const [localCustomMax, setLocalCustomMax] = useState<Record<string, string>>({});
+  const [newDaySelect, setNewDaySelect] = useState<Record<string, string>>({});
+  const [customDayNumberInput, setCustomDayNumberInput] = useState<Record<string, string>>({});
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   // Sync with store on open
@@ -54,6 +65,10 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
       setLocalFirstMax({});
       setLocalLastMin({});
       setLocalLastMax({});
+      setLocalCustomMin({});
+      setLocalCustomMax({});
+      setNewDaySelect({});
+      setCustomDayNumberInput({});
     }
   }, [isOpen]);
 
@@ -113,6 +128,61 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
         setCategoryConfig(category, { [dayType]: { ...existing, [field]: num } });
       }
     }
+  };
+
+  const handleCustomOverrideChange = (
+    category: PlaceCategory,
+    dayIndex: number,
+    field: keyof CategoryDayOverride,
+    value: string,
+  ) => {
+    const key = `${category}_${dayIndex}`;
+    if (field === "minPerDay") {
+      setLocalCustomMin((prev) => ({ ...prev, [key]: value }));
+    } else {
+      setLocalCustomMax((prev) => ({ ...prev, [key]: value }));
+    }
+
+    const currentConfig = categoryConfigs?.[category] || {};
+    const currentOverrides = { ...(currentConfig.customDayOverrides || {}) };
+    const dayOverride = currentOverrides[dayIndex] || {};
+
+    if (value === "") {
+      currentOverrides[dayIndex] = { ...dayOverride, [field]: null };
+    } else {
+      const num = parseInt(value, 10);
+      if (!isNaN(num) && num >= 0) {
+        currentOverrides[dayIndex] = { ...dayOverride, [field]: num };
+      }
+    }
+    setCategoryConfig(category, { customDayOverrides: currentOverrides });
+  };
+
+  const handleAddCustomDay = (category: PlaceCategory, dayIndex: number) => {
+    if (isNaN(dayIndex) || dayIndex < 0) return;
+    const currentConfig = categoryConfigs?.[category] || {};
+    const currentOverrides = { ...(currentConfig.customDayOverrides || {}) };
+    if (currentOverrides[dayIndex] !== undefined) return;
+    currentOverrides[dayIndex] = { minPerDay: null, maxPerDay: null };
+    setCategoryConfig(category, { customDayOverrides: currentOverrides });
+  };
+
+  const handleRemoveCustomDay = (category: PlaceCategory, dayIndex: number) => {
+    const currentConfig = categoryConfigs?.[category] || {};
+    const currentOverrides = { ...(currentConfig.customDayOverrides || {}) };
+    delete currentOverrides[dayIndex];
+    const key = `${category}_${dayIndex}`;
+    setLocalCustomMin((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setLocalCustomMax((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setCategoryConfig(category, { customDayOverrides: currentOverrides });
   };
 
   const handleBlurDuration = (category: PlaceCategory) => {
@@ -301,9 +371,12 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
               const isExpanded = expandedCategories.has(category);
               const firstOverride = config.firstDayOverride || {};
               const lastOverride = config.lastDayOverride || {};
+              const customOverrides = config.customDayOverrides || {};
+              const hasCustomOverrides = Object.keys(customOverrides).length > 0;
               const hasOverrides =
                 firstOverride.minPerDay != null || firstOverride.maxPerDay != null ||
-                lastOverride.minPerDay != null || lastOverride.maxPerDay != null;
+                lastOverride.minPerDay != null || lastOverride.maxPerDay != null ||
+                hasCustomOverrides;
 
               return (
                 <div key={category} className="rounded-xl overflow-hidden">
@@ -448,6 +521,143 @@ export const CategorySettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             }
                             className={`${overrideInputClass} focus:ring-red-500`}
                           />
+                        </div>
+                      </div>
+
+                      {/* Custom Days (User-inputted specific days) */}
+                      {Object.entries(customOverrides)
+                        .sort(([a], [b]) => Number(a) - Number(b))
+                        .map(([dayStr, override]) => {
+                          const d = parseInt(dayStr, 10);
+                          const dayNum = d + 1;
+                          let dayDateLabel = "";
+                          if (dateMode === "fixed" && startDate) {
+                            try {
+                              dayDateLabel = ` (${format(addDays(parseISO(startDate), d), "MMM d")})`;
+                            } catch {}
+                          }
+                          const customKey = `${category}_${d}`;
+
+                          return (
+                            <div key={d} className="grid grid-cols-12 gap-4 items-center px-4 py-2.5 bg-purple-50/30 dark:bg-purple-950/10">
+                              <div className="col-span-4 flex items-center justify-between gap-1 pr-1">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center shrink-0">
+                                    <Calendar className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                                  </div>
+                                  <span className="text-xs font-bold text-surface-700 dark:text-surface-300 truncate">
+                                    Day {dayNum}{dayDateLabel}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => handleRemoveCustomDay(category, d)}
+                                  className="p-1 text-surface-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-surface-200 dark:hover:bg-surface-700 rounded transition-colors shrink-0"
+                                  title={`Remove Day ${dayNum} limit override`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              <div className="col-span-4 flex justify-center">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  placeholder="inherit"
+                                  value={localCustomMin[customKey] ?? (override?.minPerDay != null ? override.minPerDay : "")}
+                                  onChange={(e) =>
+                                    handleCustomOverrideChange(category, d, "minPerDay", e.target.value)
+                                  }
+                                  className={`${overrideInputClass} focus:ring-purple-500`}
+                                />
+                              </div>
+                              <div className="col-span-4 flex justify-center">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  placeholder="inherit"
+                                  value={localCustomMax[customKey] ?? (override?.maxPerDay != null ? override.maxPerDay : "")}
+                                  onChange={(e) =>
+                                    handleCustomOverrideChange(category, d, "maxPerDay", e.target.value)
+                                  }
+                                  className={`${overrideInputClass} focus:ring-purple-500`}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                      {/* Add Custom Day Limit Control */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-surface-100/60 dark:bg-surface-800/50 border-t border-surface-100 dark:border-surface-700/60">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-surface-600 dark:text-surface-300">
+                          <Plus className="w-3.5 h-3.5 text-primary-500" />
+                          <span>Add Day Limit:</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <select
+                            value={newDaySelect[category] ?? ""}
+                            onChange={(e) => setNewDaySelect((prev) => ({ ...prev, [category]: e.target.value }))}
+                            className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-600 rounded-lg px-2.5 py-1 text-xs font-semibold text-surface-800 dark:text-surface-200 outline-none focus:ring-1 focus:ring-primary-500"
+                          >
+                            <option value="">Select a day...</option>
+                            {Array.from({ length: Math.max(days || 1, 1) }, (_, i) => i).map((i) => {
+                              const isAdded = customOverrides[i] !== undefined;
+                              let label = `Day ${i + 1}`;
+                              if (dateMode === "fixed" && startDate) {
+                                try {
+                                  label += ` (${format(addDays(parseISO(startDate), i), "MMM d")})`;
+                                } catch {}
+                              }
+                              return (
+                                <option key={i} value={i} disabled={isAdded}>
+                                  {label}{isAdded ? " (added)" : ""}
+                                </option>
+                              );
+                            })}
+                            <option value="custom">Other Day #...</option>
+                          </select>
+
+                          {newDaySelect[category] === "custom" && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[11px] font-bold text-surface-400">Day:</span>
+                              <input
+                                type="number"
+                                min="1"
+                                max="99"
+                                placeholder="e.g. 4"
+                                value={customDayNumberInput[category] ?? ""}
+                                onChange={(e) => setCustomDayNumberInput((prev) => ({ ...prev, [category]: e.target.value }))}
+                                className="w-16 px-2 py-1 text-xs font-bold text-center bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-600 rounded-lg focus:ring-1 focus:ring-primary-500 text-surface-900 dark:text-white"
+                              />
+                            </div>
+                          )}
+
+                          <button
+                            onClick={() => {
+                              const selected = newDaySelect[category];
+                              let targetDayIndex: number | null = null;
+                              if (selected === "custom") {
+                                const rawNum = parseInt(customDayNumberInput[category] || "", 10);
+                                if (!isNaN(rawNum) && rawNum >= 1) {
+                                  targetDayIndex = rawNum - 1;
+                                }
+                              } else if (selected !== undefined && selected !== "") {
+                                targetDayIndex = parseInt(selected, 10);
+                              }
+
+                              if (targetDayIndex !== null) {
+                                handleAddCustomDay(category, targetDayIndex);
+                                setNewDaySelect((prev) => ({ ...prev, [category]: "" }));
+                                setCustomDayNumberInput((prev) => ({ ...prev, [category]: "" }));
+                              }
+                            }}
+                            disabled={
+                              !newDaySelect[category] ||
+                              (newDaySelect[category] === "custom" && !customDayNumberInput[category])
+                            }
+                            className="px-2.5 py-1 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:pointer-events-none rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Add</span>
+                          </button>
                         </div>
                       </div>
 

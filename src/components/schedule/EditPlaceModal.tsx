@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, MapPin, Timer, Sparkles, Loader2, ExternalLink, Coins, CalendarClock } from "lucide-react";
+import { X, MapPin, Timer, Sparkles, Loader2, ExternalLink, Coins, CalendarClock, Lock } from "lucide-react";
 import { useRouteStore } from "../../store/useRouteStore";
 import { ALL_CATEGORIES, getCategoryEmoji, getCategoryLabel, getDefaultDuration } from "../../utils/categoryUtils";
 import { PlaceCategory, ReservationInfo, ReservationRequirement } from "../../types";
@@ -30,6 +30,7 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
   const [reservationReq, setReservationReq] = useState<ReservationRequirement | "">("");
   const [reservationAdvance, setReservationAdvance] = useState("");
   const [reservationNotes, setReservationNotes] = useState("");
+  const [customTimeVal, setCustomTimeVal] = useState("");
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
       setReservationReq(place.reservation?.requirement || "");
       setReservationAdvance(place.reservation?.advanceTime || "");
       setReservationNotes(place.reservation?.notes || "");
+      setCustomTimeVal(place.customTime || "");
     }
   }, [place]);
 
@@ -69,6 +71,12 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
         }
       : undefined;
 
+    const trimmedCustomTime = customTimeVal.trim();
+    const shouldReoptimize =
+      place.dayIndex !== null &&
+      place.dayIndex !== undefined &&
+      ((trimmedCustomTime || undefined) !== place.customTime || finalDuration !== place.estimatedDuration);
+
     updatePlace(place.id, {
       description: desc,
       descriptionSource: desc !== place.description ? "user" : place.descriptionSource,
@@ -78,8 +86,18 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
       highlight: finalHighlight,
       priceEstimate: priceEstimate.trim() || undefined,
       reservation: finalReservation,
+      customTime: trimmedCustomTime || undefined,
+      pinnedToDay: trimmedCustomTime ? true : place.pinnedToDay,
     });
     onClose();
+
+    if (shouldReoptimize && place.dayIndex !== null && place.dayIndex !== undefined) {
+      try {
+        useRouteStore.getState().optimizeDay(place.dayIndex);
+      } catch (e) {
+        console.error("Failed to re-optimize day after editing place", e);
+      }
+    }
   };
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -311,6 +329,37 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
                 className="col-span-2 text-xs font-medium bg-white dark:bg-surface-900 border border-indigo-200 dark:border-indigo-800/80 text-surface-900 dark:text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 title="Advance booking timing guidance"
               />
+            </div>
+
+            {/* Custom Locked Reservation Time */}
+            <div className="pt-2.5 mt-2 border-t border-indigo-100 dark:border-indigo-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                  Locked Schedule Time
+                </span>
+                <span className="text-[10px] text-indigo-700/80 dark:text-indigo-400 leading-tight">
+                  Locks this place to an exact arrival time (won't be moved by optimizer)
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <input
+                  type="time"
+                  value={customTimeVal}
+                  onChange={(e) => setCustomTimeVal(e.target.value)}
+                  className="text-xs font-bold bg-white dark:bg-surface-900 border border-indigo-200 dark:border-indigo-800/80 text-surface-900 dark:text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  title="Lock schedule arrival time"
+                />
+                {customTimeVal && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomTimeVal("")}
+                    className="text-[10px] font-bold text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

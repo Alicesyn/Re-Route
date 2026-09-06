@@ -21,6 +21,7 @@ export interface CategoryConfig {
   maxPerDay?: number | null;
   firstDayOverride?: CategoryDayOverride;
   lastDayOverride?: CategoryDayOverride;
+  customDayOverrides?: Record<number, CategoryDayOverride>;
 }
 
 export interface PlaceHighlight {
@@ -64,6 +65,7 @@ export interface Place {
   googlePlaceId?: string; // Original Google Maps Place ID for deduplication and syncing
   priceEstimate?: string; // Estimated cost per person or admission (e.g. "Free", "$15 - $25", "¥800")
   reservation?: ReservationInfo; // Reservation requirements and advance booking timing
+  customTime?: string; // Optional locked arrival/reservation time in "HH:mm" format (e.g. "13:30", "19:00")
 }
 
 export interface Hotel {

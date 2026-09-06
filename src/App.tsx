@@ -46,6 +46,7 @@ function App() {
     showFlights,
     arrivalFlight,
     departureFlight,
+    startDate,
     dayStartTime,
     dayEndTime,
     categoryConfigs,
@@ -183,6 +184,8 @@ function App() {
         showFlights ? arrivalFlight?.location : null,
         showFlights ? departureFlight?.location : null,
         categoryConfigs,
+        startDate,
+        dayStartTime,
       );
 
       if (result.success) {

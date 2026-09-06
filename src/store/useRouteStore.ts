@@ -371,6 +371,10 @@ export const useRouteStore = create<RouteState>()(
           places: state.places.map((p) =>
             p.id === id ? { ...p, ...updates } : p,
           ),
+          optimizedRoutes: state.optimizedRoutes.map((r) => ({
+            ...r,
+            stops: r.stops.map((s) => (s.id === id ? { ...s, ...updates } : s)),
+          })),
         })),
 
       updatePlacesBulk: (updates) =>
@@ -379,6 +383,13 @@ export const useRouteStore = create<RouteState>()(
             const update = updates.find((u) => u.id === p.id);
             return update ? { ...p, ...update.updates } : p;
           }),
+          optimizedRoutes: state.optimizedRoutes.map((r) => ({
+            ...r,
+            stops: r.stops.map((s) => {
+              const update = updates.find((u) => u.id === s.id);
+              return update ? { ...s, ...update.updates } : s;
+            }),
+          })),
         })),
 
       removePlace: (id) =>
@@ -834,8 +845,8 @@ export const useRouteStore = create<RouteState>()(
               currentOrder.push("departure");
           }
 
-          const oldIndex = currentOrder.indexOf(activeId);
-          const newIndex = currentOrder.indexOf(overId);
+          const oldIndex = currentOrder.findIndex((id) => String(id) === String(activeId));
+          const newIndex = currentOrder.findIndex((id) => String(id) === String(overId));
 
           if (oldIndex === -1 || newIndex === -1) {
             set({ isCalculating: false });
@@ -846,7 +857,18 @@ export const useRouteStore = create<RouteState>()(
           const [movedItem] = newSequence.splice(oldIndex, 1);
           newSequence.splice(newIndex, 0, movedItem);
 
-          const dayPlaces = state.places.filter((p) => p.dayIndex === dayIndex && !p.isDisabled);
+          // Build complete day places including any stop currently in route.stops
+          const dayPlaceMap = new Map<string, Place>();
+          state.places
+            .filter((p) => p.dayIndex === dayIndex && !p.isDisabled)
+            .forEach((p) => dayPlaceMap.set(String(p.id), p));
+          route.stops.forEach((s) => {
+            if (!dayPlaceMap.has(String(s.id))) {
+              dayPlaceMap.set(String(s.id), s);
+            }
+          });
+          const dayPlaces = Array.from(dayPlaceMap.values());
+
           const result = await solveSingleDay(
             dayPlaces,
             state.hotels,
@@ -867,11 +889,11 @@ export const useRouteStore = create<RouteState>()(
           routes[routeIdx] = result;
 
           const updatedPlaces = state.places.map((p) => {
-            if (p.dayIndex !== dayIndex) return p;
-            const stopIdx = result.stops.findIndex((s) => s.id === p.id);
-            return stopIdx >= 0
-              ? { ...p, orderInDay: stopIdx, pinnedToDay: true }
-              : p;
+            const stopIdx = result.stops.findIndex((s) => String(s.id) === String(p.id));
+            if (stopIdx >= 0) {
+              return { ...p, dayIndex, orderInDay: stopIdx, pinnedToDay: true };
+            }
+            return p;
           });
 
           set({ optimizedRoutes: routes, places: updatedPlaces, isCalculating: false });
