@@ -129,6 +129,7 @@ export interface ItinerarySnapshot {
   travelMode: TravelMode;
   dailyBudget?: number;
   strictBudget?: boolean;
+  avoidClosedHours?: boolean;
   places: Place[];
   hotels: Hotel[];
   missingPlaces?: string[];

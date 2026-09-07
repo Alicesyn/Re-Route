@@ -37,6 +37,7 @@ function App() {
     days,
     travelMode,
     strictBudget,
+    avoidClosedHours,
     optimizedRoutes,
     setOptimizedRoutes,
     unassignAll,
@@ -186,6 +187,7 @@ function App() {
         categoryConfigs,
         startDate,
         dayStartTime,
+        avoidClosedHours,
       );
 
       if (result.success) {

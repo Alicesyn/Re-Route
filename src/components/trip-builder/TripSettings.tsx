@@ -86,6 +86,8 @@ export const TripSettings: React.FC = React.memo(() => {
     setTravelMode,
     strictBudget,
     setStrictBudget,
+    avoidClosedHours,
+    setAvoidClosedHours,
     hotels,
     setHotelRange,
     appMode,
@@ -356,6 +358,9 @@ export const TripSettings: React.FC = React.memo(() => {
               Enforce Time Budget
             </h4>
             <button
+              type="button"
+              role="switch"
+              aria-checked={strictBudget}
               onClick={() => setStrictBudget(!strictBudget)}
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${strictBudget ? "bg-primary-500" : "bg-surface-300 dark:bg-surface-600"}`}
             >
@@ -367,6 +372,31 @@ export const TripSettings: React.FC = React.memo(() => {
           </div>
           <p className="text-[10px] text-surface-500 dark:text-surface-400 pr-8">
             If ON, the auto-scheduler will leave places Unassigned if they exceed your daily hours. If OFF, it will fit everything in.
+          </p>
+        </div>
+
+        {/* Avoid Closed Hours Toggle */}
+        <div className="mt-3 flex flex-col gap-1.5 p-3 bg-surface-100 dark:bg-surface-800/50 rounded-xl border border-surface-200 dark:border-surface-700/50">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-semibold text-surface-900 dark:text-white flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-primary-500" />
+              Avoid Closed Hours
+            </h4>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={avoidClosedHours}
+              onClick={() => setAvoidClosedHours(!avoidClosedHours)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${avoidClosedHours ? "bg-primary-500" : "bg-surface-300 dark:bg-surface-600"}`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform`}
+                style={{ transform: avoidClosedHours ? "translateX(18px)" : "translateX(4px)" }}
+              />
+            </button>
+          </div>
+          <p className="text-[10px] text-surface-500 dark:text-surface-400 pr-8">
+            If ON, Optimize Route schedules places during their open hours and avoids days when places are closed.
           </p>
         </div>
       </div>

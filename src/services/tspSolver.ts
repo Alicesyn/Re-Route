@@ -11,6 +11,7 @@ import {
 import { getDistance, estimateTime } from "../utils/distance";
 import { fetchRouteSegment } from "./mapsService";
 import { parseISO, addDays, setHours, setMinutes } from "date-fns";
+import { checkTimeConflict, getPlaceDayHours } from "../utils/timeUtils";
 
 
 // Time-budget-aware clustering
@@ -26,6 +27,8 @@ function clusterPlaces(
   arrivalLocation?: Place | null,
   departureLocation?: Place | null,
   categoryConfigs?: Partial<Record<PlaceCategory, CategoryConfig>>,
+  startDateISO: string = new Date().toISOString(),
+  avoidClosedHours: boolean = true,
 ): Place[] {
   const pinned = places.filter((p) => p.dayIndex !== null && (p.pinnedToDay || !!p.customTime));
   const unassigned = places.filter(
@@ -161,6 +164,15 @@ function clusterPlaces(
           }
         }
 
+        // Penalize days where this place is completely closed
+        if (avoidClosedHours && place.openingHours && place.openingHours.length > 0) {
+          const dayDate = addDays(parseISO(startDateISO), d);
+          const dayHours = getPlaceDayHours(place.openingHours, dayDate);
+          if (dayHours === "closed") {
+            score -= 100000;
+          }
+        }
+
         if (score > maxScore) {
           maxScore = score;
           bestDay = d;
@@ -200,37 +212,183 @@ function parseTimeToMinutes(timeStr: string): number {
   return (h || 0) * 60 + (m || 0);
 }
 
-// 2-Opt Algorithm for a sub-path (Start -> Stops -> End)
+function evaluateRouteCost(
+  points: (Hotel | Place)[],
+  startMinutes: number,
+  currentDate: Date,
+  avoidClosedHours: boolean,
+  travelMode: TravelMode,
+): { totalDistance: number; totalCost: number; conflicts: number } {
+  let totalDist = 0;
+  let currentTime = startMinutes;
+  let conflicts = 0;
+  let penaltyMinutes = 0;
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const from = points[i];
+    const to = points[i + 1];
+    const segDist = getDistance(from.lat, from.lng, to.lat, to.lng);
+    totalDist += segDist;
+
+    const travelMin = Math.round(estimateTime(segDist, travelMode) / 60);
+    currentTime += travelMin;
+
+    const isPlace =
+      "id" in to &&
+      to.id !== "start-hotel" &&
+      to.id !== "end-hotel" &&
+      to.id !== "arrival" &&
+      to.id !== "departure";
+
+    if (isPlace) {
+      const place = to as Place;
+      const duration = place.estimatedDuration || 60;
+
+      if (avoidClosedHours && place.openingHours && place.openingHours.length > 0) {
+        const conflict = checkTimeConflict(currentTime, duration, place.openingHours, currentDate);
+        if (conflict.hasConflict) {
+          conflicts++;
+          penaltyMinutes += 60;
+        }
+      }
+
+      currentTime += duration;
+    }
+  }
+
+  // 1 conflict = 1,000 km penalty to guarantee avoiding closed hours over shortest distance
+  const totalCost = totalDist + conflicts * 1000000 + penaltyMinutes * 1000;
+  return { totalDistance: totalDist, totalCost, conflicts };
+}
+
+// 2-Opt Algorithm for a sub-path (Start -> Stops -> End) with opening-hours awareness
 function optimize2OptSub(
   startAnchor: Hotel | Place | null,
   endAnchor: Hotel | Place | null,
   places: Place[],
+  windowStartTimeMinutes: number = 540,
+  currentDate: Date = new Date(),
+  avoidClosedHours: boolean = true,
+  travelMode: TravelMode = "driving",
 ): Place[] {
   if (places.length <= 1) return places;
 
-  const points: (Hotel | Place)[] = [];
+  // For small N (<= 6 stops), exact permutation search guarantees zero conflicts and optimal distance
+  if (places.length <= 6) {
+    let bestPoints: (Hotel | Place)[] = [];
+    let bestCost = Infinity;
+
+    const permute = (arr: Place[], current: Place[] = []) => {
+      if (arr.length === 0) {
+        const candidatePoints: (Hotel | Place)[] = [];
+        if (startAnchor) candidatePoints.push(startAnchor);
+        candidatePoints.push(...current);
+        if (endAnchor) candidatePoints.push(endAnchor);
+
+        const { totalCost } = evaluateRouteCost(
+          candidatePoints,
+          windowStartTimeMinutes,
+          currentDate,
+          avoidClosedHours,
+          travelMode,
+        );
+
+        if (totalCost < bestCost) {
+          bestCost = totalCost;
+          bestPoints = candidatePoints;
+        }
+        return;
+      }
+
+      for (let i = 0; i < arr.length; i++) {
+        const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+        permute(rest, [...current, arr[i]]);
+      }
+    };
+
+    permute(places);
+
+    const placeStart = startAnchor ? 1 : 0;
+    const placeEnd = endAnchor ? bestPoints.length - 1 : bestPoints.length;
+    return bestPoints.slice(placeStart, placeEnd) as Place[];
+  }
+
+  // For N > 6:
+  // 1. Initial smart sort: sort places by opening time so early-opening places come first
+  let sortedPlaces = [...places];
+  if (avoidClosedHours) {
+    sortedPlaces.sort((a, b) => {
+      const aHours = getPlaceDayHours(a.openingHours, currentDate);
+      const bHours = getPlaceDayHours(b.openingHours, currentDate);
+      const aOpen = typeof aHours === "object" && aHours ? aHours.open : 720;
+      const bOpen = typeof bHours === "object" && bHours ? bHours.open : 720;
+      return aOpen - bOpen;
+    });
+  }
+
+  let points: (Hotel | Place)[] = [];
   if (startAnchor) points.push(startAnchor);
-  points.push(...places);
+  points.push(...sortedPlaces);
   if (endAnchor) points.push(endAnchor);
 
   const swapStart = startAnchor ? 1 : 0;
   const swapEnd = endAnchor ? points.length - 2 : points.length - 1;
 
-  let bestDistance = calculateTotalDistance(points);
-  let improved = true;
+  let { totalCost: bestCost } = evaluateRouteCost(
+    points,
+    windowStartTimeMinutes,
+    currentDate,
+    avoidClosedHours,
+    travelMode,
+  );
 
-  while (improved) {
+  let improved = true;
+  let iterations = 0;
+  const maxIterations = 50;
+
+  while (improved && iterations < maxIterations) {
     improved = false;
+    iterations++;
+
+    // 2-Opt edge swaps
     for (let i = swapStart; i <= swapEnd; i++) {
       for (let j = i + 1; j <= swapEnd; j++) {
         const newPoints = swap2Opt(points, i, j);
-        const newDistance = calculateTotalDistance(newPoints);
+        const { totalCost: newCost } = evaluateRouteCost(
+          newPoints,
+          windowStartTimeMinutes,
+          currentDate,
+          avoidClosedHours,
+          travelMode,
+        );
 
-        if (newDistance < bestDistance) {
-          for (let k = 0; k < points.length; k++) {
-            points[k] = newPoints[k];
-          }
-          bestDistance = newDistance;
+        if (newCost < bestCost) {
+          points = newPoints;
+          bestCost = newCost;
+          improved = true;
+        }
+      }
+    }
+
+    // 1-Opt node relocation (move stop from position i to position j)
+    for (let i = swapStart; i <= swapEnd; i++) {
+      for (let j = swapStart; j <= swapEnd; j++) {
+        if (i === j) continue;
+        const copy = [...points];
+        const [moved] = copy.splice(i, 1);
+        copy.splice(j, 0, moved);
+
+        const { totalCost: newCost } = evaluateRouteCost(
+          copy,
+          windowStartTimeMinutes,
+          currentDate,
+          avoidClosedHours,
+          travelMode,
+        );
+
+        if (newCost < bestCost) {
+          points = copy;
+          bestCost = newCost;
           improved = true;
         }
       }
@@ -242,12 +400,15 @@ function optimize2OptSub(
   return points.slice(placeStart, placeEnd) as Place[];
 }
 
-// 2-Opt Algorithm for a single day's route, respecting locked custom reservation times
+// Algorithm for a single day's route, respecting locked custom reservation times and open hours
 function optimizeDayRoute(
   startHotel: Hotel | null,
   endHotel: Hotel | null,
   dayPlaces: Place[],
-  dayStartTime: string = "09:00"
+  dayStartTime: string = "09:00",
+  currentDate: Date = new Date(),
+  avoidClosedHours: boolean = true,
+  travelMode: TravelMode = "driving",
 ): Place[] {
   if (dayPlaces.length <= 1) return dayPlaces;
 
@@ -257,7 +418,15 @@ function optimizeDayRoute(
     .sort((a, b) => parseTimeToMinutes(a.customTime!) - parseTimeToMinutes(b.customTime!));
 
   if (lockedPlaces.length === 0) {
-    const optimized = optimize2OptSub(startHotel, endHotel, dayPlaces);
+    const optimized = optimize2OptSub(
+      startHotel,
+      endHotel,
+      dayPlaces,
+      parseTimeToMinutes(dayStartTime),
+      currentDate,
+      avoidClosedHours,
+      travelMode,
+    );
     return optimized.map((p, idx) => ({ ...p, orderInDay: idx }));
   }
 
@@ -312,7 +481,17 @@ function optimizeDayRoute(
       // Penalize windows that would severely overflow their time window
       const currentBucketDuration = windowBuckets[w].reduce((sum, p) => sum + (p.estimatedDuration || 60), 0);
       const isTight = currentBucketDuration + duration > wCapacity && wCapacity > 0;
-      const score = dist * (isTight ? 2.5 : 1.0);
+      let score = dist * (isTight ? 2.5 : 1.0);
+
+      // Penalize assigning to a window where the place is closed
+      if (avoidClosedHours && place.openingHours && place.openingHours.length > 0) {
+        const hours = getPlaceDayHours(place.openingHours, currentDate);
+        if (typeof hours === "object" && hours) {
+          if (windowEndTimes[w] <= hours.open || windowStartTimes[w] >= hours.close) {
+            score += 1000000;
+          }
+        }
+      }
 
       if (score < minAdditionalDist) {
         minAdditionalDist = score;
@@ -323,13 +502,21 @@ function optimizeDayRoute(
     windowBuckets[bestWindow].push(place);
   }
 
-  // Optimize each window bucket using 2-Opt and assemble finalized sequence
+  // Optimize each window bucket using 2-Opt/permutation and assemble finalized sequence
   const finalizedPlaces: Place[] = [];
 
   for (let w = 0; w < numWindows; w++) {
     const startAnchor = w === 0 ? startHotel : lockedPlaces[w - 1];
     const endAnchor = w === numWindows - 1 ? endHotel : lockedPlaces[w];
-    const optimizedSub = optimize2OptSub(startAnchor, endAnchor, windowBuckets[w]);
+    const optimizedSub = optimize2OptSub(
+      startAnchor,
+      endAnchor,
+      windowBuckets[w],
+      windowStartTimes[w],
+      currentDate,
+      avoidClosedHours,
+      travelMode,
+    );
     finalizedPlaces.push(...optimizedSub);
 
     if (w < lockedPlaces.length) {
@@ -348,21 +535,6 @@ function swap2Opt(route: any[], i: number, k: number): any[] {
   ];
 }
 
-function calculateTotalDistance(
-  points: { lat: number; lng: number }[],
-): number {
-  let dist = 0;
-  for (let i = 0; i < points.length - 1; i++) {
-    dist += getDistance(
-      points[i].lat,
-      points[i].lng,
-      points[i + 1].lat,
-      points[i + 1].lng,
-    );
-  }
-  return dist;
-}
-
 function buildDayRoute(
   dayPlaces: Place[],
   hotels: Hotel[],
@@ -373,6 +545,8 @@ function buildDayRoute(
   manualOrder: boolean = false,
   manualSequence?: string[],
   dayStartTime: string = "09:00",
+  startDateISO: string = new Date().toISOString(),
+  avoidClosedHours: boolean = true,
 ): DayRoute {
   const endHotelRaw = hotels.find((h) => h.dayIndex === dayIndex) || null;
   const startHotelRaw =
@@ -389,9 +563,19 @@ function buildDayRoute(
   const arrivalLoc = sanitize(arrivalLocation);
   const departureLoc = sanitize(departureLocation);
 
+  const currentDate = addDays(parseISO(startDateISO), dayIndex);
+
   let optimizedPlaces = manualOrder
     ? dayPlaces
-    : optimizeDayRoute(startHotel, endHotel, dayPlaces, dayStartTime);
+    : optimizeDayRoute(
+        startHotel,
+        endHotel,
+        dayPlaces,
+        dayStartTime,
+        currentDate,
+        avoidClosedHours,
+        travelMode,
+      );
 
   let dayDist = 0;
   let points: (Place | Hotel)[] = [];
@@ -597,7 +781,8 @@ export async function solveSingleDay(
   manualOrder: boolean = false,
   manualSequence?: string[],
   startDateISO: string = new Date().toISOString(),
-  dayStartTime: string = "09:00"
+  dayStartTime: string = "09:00",
+  avoidClosedHours: boolean = true,
 ): Promise<DayRoute> {
   const route = buildDayRoute(
     dayPlaces,
@@ -609,6 +794,8 @@ export async function solveSingleDay(
     manualOrder,
     manualSequence,
     dayStartTime,
+    startDateISO,
+    avoidClosedHours,
   );
   return await fetchAccurateRouteTimes(route, startDateISO, dayStartTime);
 }
@@ -625,6 +812,7 @@ export async function solveTSP(
   categoryConfigs?: Partial<Record<PlaceCategory, CategoryConfig>>,
   startDateISO: string = new Date().toISOString(),
   dayStartTime: string = "09:00",
+  avoidClosedHours: boolean = true,
 ): Promise<OptimizationResult> {
   const startTime = performance.now();
 
@@ -639,6 +827,8 @@ export async function solveTSP(
     arrivalLocation,
     departureLocation,
     categoryConfigs,
+    startDateISO,
+    avoidClosedHours,
   );
 
   // 2. Build initial routes for each day
@@ -658,6 +848,8 @@ export async function solveTSP(
       false,
       undefined,
       dayStartTime,
+      startDateISO,
+      avoidClosedHours,
     );
 
     const limit = dailyBudgets[d];
@@ -709,6 +901,8 @@ export async function solveTSP(
           false,
           undefined,
           dayStartTime,
+          startDateISO,
+          avoidClosedHours,
         );
 
         // Recalculate totalDayMin

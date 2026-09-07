@@ -46,6 +46,7 @@ interface RouteState extends ModeData {
   travelMode: TravelMode;
   dailyBudget: number; // minutes (user-configurable)
   strictBudget: boolean; // if true, won't assign places that exceed daily budget
+  avoidClosedHours: boolean; // if true, optimizer sorts places only during open hours
   appMode: "real" | "mock" | "dropdown-mock";
   theme: "light" | "dark";
   showImages: boolean;
@@ -79,6 +80,7 @@ interface RouteState extends ModeData {
   setTravelMode: (mode: TravelMode) => void;
   setDailyBudget: (minutes: number) => void;
   setStrictBudget: (strict: boolean) => void;
+  setAvoidClosedHours: (avoid: boolean) => void;
   setAppMode: (mode: "real" | "mock" | "dropdown-mock") => void;
   setTheme: (theme: "light" | "dark") => void;
   setShowImages: (show: boolean) => void;
@@ -198,6 +200,7 @@ export const useRouteStore = create<RouteState>()(
       travelMode: "driving",
       dailyBudget: 720, // 12 hours default
       strictBudget: true,
+      avoidClosedHours: true,
       places: [],
       hotels: [],
       missingPlaces: [],
@@ -300,6 +303,7 @@ export const useRouteStore = create<RouteState>()(
       setTravelMode: (travelMode) => set({ travelMode }),
       setDailyBudget: (dailyBudget) => set({ dailyBudget }),
       setStrictBudget: (strictBudget) => set({ strictBudget }),
+      setAvoidClosedHours: (avoidClosedHours) => set({ avoidClosedHours }),
       setAppMode: (newMode) =>
         set((state) => {
           const oldMode = state.appMode;
@@ -434,7 +438,8 @@ export const useRouteStore = create<RouteState>()(
                 !!manualSequence,
                 manualSequence,
                 state.startDate,
-                state.dayStartTime
+                state.dayStartTime,
+                state.avoidClosedHours
               );
               if (idx >= 0) newRoutes[idx] = result;
               set({ places: newPlaces, optimizedRoutes: newRoutes, isCalculating: false });
@@ -501,7 +506,8 @@ export const useRouteStore = create<RouteState>()(
                   !!manualSequence,
                   manualSequence,
                   state.startDate,
-                  state.dayStartTime
+                  state.dayStartTime,
+                  state.avoidClosedHours
                 );
                 if (idx >= 0) newRoutes[idx] = result;
               }
@@ -639,7 +645,8 @@ export const useRouteStore = create<RouteState>()(
             !!manualSequence,
             manualSequence,
             state.startDate,
-            state.dayStartTime
+            state.dayStartTime,
+            state.avoidClosedHours
           );
           
           if (idx >= 0) {
@@ -693,7 +700,8 @@ export const useRouteStore = create<RouteState>()(
               !!manualSequence,
               manualSequence,
               state.startDate,
-              state.dayStartTime
+              state.dayStartTime,
+              state.avoidClosedHours
             );
             if (idx >= 0) newRoutes[idx] = result;
           }
@@ -790,7 +798,8 @@ export const useRouteStore = create<RouteState>()(
             false,
             undefined,
             state.startDate,
-            state.dayStartTime
+            state.dayStartTime,
+            state.avoidClosedHours
           );
 
           const newRoutes = [...state.optimizedRoutes];
@@ -883,7 +892,8 @@ export const useRouteStore = create<RouteState>()(
             true, // manualOrder = true
             newSequence,
             state.startDate,
-            state.dayStartTime
+            state.dayStartTime,
+            state.avoidClosedHours
           );
 
           routes[routeIdx] = result;
@@ -920,6 +930,7 @@ export const useRouteStore = create<RouteState>()(
             travelMode: state.travelMode,
             dailyBudget: state.dailyBudget,
             strictBudget: state.strictBudget,
+            avoidClosedHours: state.avoidClosedHours,
             places: state.places,
             hotels: state.hotels,
             missingPlaces: state.missingPlaces,
@@ -961,6 +972,7 @@ export const useRouteStore = create<RouteState>()(
             travelMode: trip.travelMode || state.travelMode,
             dailyBudget: trip.dailyBudget ?? state.dailyBudget,
             strictBudget: trip.strictBudget ?? state.strictBudget,
+            avoidClosedHours: trip.avoidClosedHours ?? state.avoidClosedHours,
             places: trip.places || [],
             hotels: trip.hotels || [],
             missingPlaces: trip.missingPlaces || [],
@@ -1001,6 +1013,7 @@ export const useRouteStore = create<RouteState>()(
             travelMode: trip.travelMode || state.travelMode,
             dailyBudget: trip.dailyBudget ?? state.dailyBudget,
             strictBudget: trip.strictBudget ?? state.strictBudget,
+            avoidClosedHours: trip.avoidClosedHours ?? state.avoidClosedHours,
             places: trip.places || [],
             hotels: trip.hotels || [],
             missingPlaces: trip.missingPlaces || [],
@@ -1034,6 +1047,7 @@ export const useRouteStore = create<RouteState>()(
             travelMode: state.travelMode,
             dailyBudget: state.dailyBudget,
             strictBudget: state.strictBudget,
+            avoidClosedHours: state.avoidClosedHours,
             places: state.places,
             hotels: state.hotels,
             missingPlaces: state.missingPlaces,
@@ -1103,6 +1117,7 @@ export const useRouteStore = create<RouteState>()(
             travelMode: trip.travelMode || "driving",
             dailyBudget: trip.dailyBudget ?? 720,
             strictBudget: trip.strictBudget ?? true,
+            avoidClosedHours: trip.avoidClosedHours ?? true,
             places: Array.isArray(trip.places) ? trip.places : [],
             hotels: Array.isArray(trip.hotels) ? trip.hotels : [],
             missingPlaces: Array.isArray(trip.missingPlaces) ? trip.missingPlaces : [],
@@ -1163,6 +1178,7 @@ export const useRouteStore = create<RouteState>()(
         travelMode: state.travelMode,
         dailyBudget: state.dailyBudget,
         strictBudget: state.strictBudget,
+        avoidClosedHours: state.avoidClosedHours,
         places: state.places,
         hotels: state.hotels,
         missingPlaces: state.missingPlaces,
