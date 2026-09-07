@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { useRouteStore } from "../../store/useRouteStore";
 import {
   X,
@@ -9,6 +9,7 @@ import {
   Download,
   Upload,
   FileJson,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "../../services/toastService";
@@ -25,23 +26,51 @@ export const LoadTripModal: React.FC<LoadTripModalProps> = ({
   const { savedTrips, loadTrip, deleteTrip, exportTripAsJson, importTripFromJson } =
     useRouteStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [exportingTripId, setExportingTripId] = useState<string | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsImporting(true);
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      const res = importTripFromJson(content);
-      if (res.success) {
-        toast.success(`Loaded "${res.tripTitle || "Trip"}" successfully!`, "Trip Imported");
-      } else {
-        toast.error(res.error || "Failed to import trip file.", "Import Error");
+    reader.onload = async (event) => {
+      try {
+        const content = event.target?.result as string;
+        await new Promise((r) => setTimeout(r, 250));
+        const res = importTripFromJson(content);
+        if (res.success) {
+          toast.success(`Loaded "${res.tripTitle || "Trip"}" successfully!`, "Trip Imported");
+          onClose();
+        } else {
+          toast.error(res.error || "Failed to import trip file.", "Import Error");
+        }
+      } finally {
+        setIsImporting(false);
       }
+    };
+    reader.onerror = () => {
+      setIsImporting(false);
+      toast.error("Failed to read trip file.", "Import Error");
     };
     reader.readAsText(file);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleExportTrip = async (e: React.MouseEvent, trip: any) => {
+    e.stopPropagation();
+    if (exportingTripId) return;
+    setExportingTripId(trip.id);
+    try {
+      await new Promise((r) => setTimeout(r, 250));
+      exportTripAsJson(trip.id);
+      toast.success(`Exported "${trip.title}" to JSON.`, "Export Complete");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to export trip", "Export Error");
+    } finally {
+      setExportingTripId(null);
+    }
   };
 
 
@@ -81,10 +110,20 @@ export const LoadTripModal: React.FC<LoadTripModalProps> = ({
             </span>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 text-xs font-bold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 px-2.5 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-950/40 transition-colors"
+              disabled={isImporting}
+              className="flex items-center gap-1.5 text-xs font-bold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:text-primary-300 px-2.5 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-950/40 transition-colors disabled:opacity-50"
             >
-              <Upload className="w-3.5 h-3.5" />
-              <span>Import Trip File (.json)</span>
+              {isImporting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-500" />
+                  <span>Importing...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Import Trip File (.json)</span>
+                </>
+              )}
             </button>
             <input
               ref={fileInputRef}
@@ -106,10 +145,20 @@ export const LoadTripModal: React.FC<LoadTripModalProps> = ({
                 </p>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 text-white text-xs font-bold hover:bg-primary-700 transition-colors shadow-sm"
+                  disabled={isImporting}
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 text-white text-xs font-bold hover:bg-primary-700 transition-colors shadow-sm disabled:opacity-50"
                 >
-                  <Upload className="w-3.5 h-3.5" />
-                  Import Trip File (.json)
+                  {isImporting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Importing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Import Trip File (.json)</span>
+                    </>
+                  )}
                 </button>
               </div>
             ) : (
@@ -157,19 +206,16 @@ export const LoadTripModal: React.FC<LoadTripModalProps> = ({
                       {/* Action buttons on card */}
                       <div className="absolute right-3 bottom-3 flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            try {
-                              exportTripAsJson(trip.id);
-                              toast.success(`Exported "${trip.title}" to JSON.`, "Export Complete");
-                            } catch (err: any) {
-                              toast.error(err?.message || "Failed to export trip", "Export Error");
-                            }
-                          }}
-                          className="p-1.5 text-surface-500 hover:text-primary-600 hover:bg-surface-100 dark:hover:bg-surface-700 rounded-lg transition-colors"
+                          onClick={(e) => handleExportTrip(e, trip)}
+                          disabled={exportingTripId === trip.id}
+                          className="p-1.5 text-surface-500 hover:text-primary-600 hover:bg-surface-100 dark:hover:bg-surface-700 rounded-lg transition-colors disabled:opacity-75"
                           title="Export trip as JSON file"
                         >
-                          <Download className="w-4 h-4" />
+                          {exportingTripId === trip.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
+                          ) : (
+                            <Download className="w-4 h-4" />
+                          )}
                         </button>
                         <button
                           onClick={(e) => {

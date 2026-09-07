@@ -70,7 +70,7 @@ export const ReservationBadge: React.FC<ReservationBadgeProps> = ({
   if (compact) {
     return (
       <span
-        className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border shadow-2xs whitespace-nowrap cursor-help transition-all ${config.badgeClass} ${className}`}
+        className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border shadow-2xs whitespace-nowrap cursor-help transition-colors ${config.badgeClass} ${className}`}
         title={tooltip}
       >
         <IconComponent className={`w-2.5 h-2.5 shrink-0 ${config.iconClass}`} />
@@ -89,7 +89,7 @@ export const ReservationBadge: React.FC<ReservationBadgeProps> = ({
 
   return (
     <div
-      className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-md px-2 py-1 border shadow-2xs transition-all cursor-help ${config.badgeClass} ${className}`}
+      className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-md px-2 py-1 border shadow-2xs transition-colors cursor-help ${config.badgeClass} ${className}`}
       title={tooltip}
     >
       <IconComponent className={`w-3.5 h-3.5 shrink-0 ${config.iconClass}`} />

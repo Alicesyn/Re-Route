@@ -21,6 +21,23 @@ import {
   getSpecificMockReservation,
 } from "../../utils/mockAiUtils";
 
+// Day badge colors (static)
+const DAY_COLORS = [
+  "bg-blue-50 text-blue-700 border-blue-200",
+  "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "bg-amber-50 text-amber-700 border-amber-200",
+  "bg-purple-50 text-purple-700 border-purple-200",
+  "bg-rose-50 text-rose-700 border-rose-200",
+  "bg-cyan-50 text-cyan-700 border-cyan-200",
+  "bg-orange-50 text-orange-700 border-orange-200",
+];
+
+const getBadgeColor = (dayIndex: number | null) => {
+  if (dayIndex === null)
+    return "bg-surface-100 text-surface-500 border-surface-200";
+  return DAY_COLORS[dayIndex % DAY_COLORS.length];
+};
+
 interface PlaceItemProps {
   place: Place;
 }
@@ -60,10 +77,15 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
     isDragging,
   } = useSortable({ id: place.id });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  const style = transform
+    ? {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : undefined,
+      }
+    : undefined;
+
+  const dayIndices = React.useMemo(() => Array.from({ length: days }, (_, i) => i), [days]);
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
@@ -177,23 +199,6 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
     setDurationVal(getDefaultDuration(newCat).toString());
   };
 
-  // Day badge colors
-  const dayColors = [
-    "bg-blue-50 text-blue-700 border-blue-200",
-    "bg-emerald-50 text-emerald-700 border-emerald-200",
-    "bg-amber-50 text-amber-700 border-amber-200",
-    "bg-purple-50 text-purple-700 border-purple-200",
-    "bg-rose-50 text-rose-700 border-rose-200",
-    "bg-cyan-50 text-cyan-700 border-cyan-200",
-    "bg-orange-50 text-orange-700 border-orange-200",
-  ];
-
-  const getBadgeColor = (dayIndex: number | null) => {
-    if (dayIndex === null)
-      return "bg-surface-100 text-surface-500 border-surface-200";
-    return dayColors[dayIndex % dayColors.length];
-  };
-
   const activePhotoUrl = getActivePhotoUrl(place.photoUrl);
   const hasImage = showImages && !!activePhotoUrl;
 
@@ -201,7 +206,7 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
     <div
       ref={setNodeRef}
       style={style}
-      className={`group card-place transition-all ${
+      className={`group card-place transition-colors duration-150 ${
         place.isDisabled
           ? "opacity-80 bg-surface-50/80 dark:bg-surface-850/60 border-dashed border-amber-200 dark:border-amber-900/40"
           : ""
@@ -219,17 +224,18 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
 
         <div className="flex-1 min-w-0">
           {hasImage && (
-            <div className="w-full h-24 mb-3 rounded-lg overflow-hidden relative shrink-0">
+            <div className="w-full h-24 mb-3 rounded-lg overflow-hidden relative shrink-0 bg-surface-100 dark:bg-surface-800">
               <img 
                 src={activePhotoUrl!} 
                 alt={place.name} 
                 loading="lazy"
+                decoding="async"
                 onError={(e) => {
                   e.currentTarget.parentElement!.style.display = "none";
                 }}
                 className="absolute inset-0 w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-black/10" />
+              <div className="absolute inset-0 bg-black/10 pointer-events-none" />
             </div>
           )}
           {/* Header Row: Title & Address on Left, Actions on Right */}
@@ -296,7 +302,7 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
                     title="Assign to day"
                   >
                     <option value="">-</option>
-                    {Array.from({ length: days }).map((_, i) => (
+                    {dayIndices.map((i) => (
                       <option key={i} value={i}>
                         D{i + 1}
                       </option>

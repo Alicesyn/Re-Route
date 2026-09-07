@@ -18,6 +18,13 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react";
+import { PlaceHighlightBadge } from "../common/PlaceHighlightBadge";
+import { ReservationBadge } from "../common/ReservationBadge";
+import {
+  getSpecificMockHighlight,
+  getSpecificMockPrice,
+  getSpecificMockReservation,
+} from "../../utils/mockAiUtils";
 
 // Popular curated quick-start destinations for exploring suggestions
 const PRESET_DESTINATIONS = [
@@ -195,7 +202,15 @@ export const SuggestedPlaces: React.FC = React.memo(() => {
 
     setTimeout(() => {
       const { dayIndex, orderInDay, pinnedToDay, ...cleanPlace } = place;
-      addPlace(cleanPlace);
+      const enrichedPlace: Omit<Place, "dayIndex" | "orderInDay" | "pinnedToDay"> = {
+        ...cleanPlace,
+        id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        highlight: cleanPlace.highlight || getSpecificMockHighlight(cleanPlace),
+        priceEstimate: cleanPlace.priceEstimate || getSpecificMockPrice(cleanPlace),
+        reservation: cleanPlace.reservation || getSpecificMockReservation(cleanPlace),
+        descriptionSource: cleanPlace.descriptionSource || (appMode === "real" ? "ai" : "mock"),
+      };
+      addPlace(enrichedPlace);
 
       setSuggestions((prev) => prev.filter((p) => p.id !== place.id));
       setAddedIds((prev) => {
@@ -545,14 +560,28 @@ export const SuggestedPlaces: React.FC = React.memo(() => {
                 )}
 
                 <div className={`flex flex-col flex-grow ${hasImage ? "p-4 pt-1" : "p-4"}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-surface-400 uppercase tracking-tight bg-surface-50 dark:bg-surface-900 border border-surface-200/50 dark:border-surface-700/50 px-2 py-0.5 rounded-full relative z-10">
-                      <span>{getCategoryEmoji(place.category)}</span>
-                      <span>{getCategoryLabel(place.category)}</span>
-                    </span>
+                  <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-surface-400 uppercase tracking-tight bg-surface-50 dark:bg-surface-900 border border-surface-200/50 dark:border-surface-700/50 px-2 py-0.5 rounded-full relative z-10">
+                        <span>{getCategoryEmoji(place.category)}</span>
+                        <span>{getCategoryLabel(place.category)}</span>
+                      </span>
+                      {place.priceEstimate && (
+                        <span
+                          className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full border relative z-10 ${
+                            place.priceEstimate.toLowerCase().includes("free")
+                              ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
+                              : "bg-surface-50 dark:bg-surface-900 text-surface-600 dark:text-surface-400 border-surface-200/50 dark:border-surface-700/50"
+                          }`}
+                          title={`Estimated price: ${place.priceEstimate}`}
+                        >
+                          {place.priceEstimate}
+                        </span>
+                      )}
+                    </div>
                     {distanceStr && (
                       <span
-                        className="flex items-center gap-0.5 text-[10px] font-semibold text-surface-400 relative z-10 max-w-[140px] truncate"
+                        className="flex items-center gap-0.5 text-[10px] font-semibold text-surface-400 relative z-10 max-w-[130px] truncate"
                         title={hotelLabel ? `${distanceStr} from ${hotelLabel}` : distanceStr}
                       >
                         <MapPin className="w-3 h-3 text-purple-400 shrink-0" />
@@ -580,9 +609,27 @@ export const SuggestedPlaces: React.FC = React.memo(() => {
                       {place.address}
                     </p>
                   )}
-                  <p className="text-[11px] text-surface-500 dark:text-surface-400 leading-relaxed line-clamp-2 relative z-10">
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 leading-relaxed line-clamp-2 relative z-10 mb-2">
                     {place.description}
                   </p>
+
+                  {/* Reservation Requirement Badge */}
+                  {place.reservation && (
+                    <div className="mb-2 relative z-10">
+                      <ReservationBadge reservation={place.reservation} compact />
+                    </div>
+                  )}
+
+                  {/* Contextual Highlight (Must-Try, Photo Spot, etc.) */}
+                  {place.highlight && place.highlight.text && (
+                    <div className="mb-2 relative z-10">
+                      <PlaceHighlightBadge
+                        highlight={place.highlight}
+                        category={place.category}
+                        compact
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between p-4 pt-0 z-10">

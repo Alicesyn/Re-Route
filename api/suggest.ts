@@ -77,6 +77,29 @@ export default async function handler(req: Request) {
       You are a professional travel planner. I need exactly 6 highly recommended tourist attractions near latitude ${lat}, longitude ${lng}.
       DO NOT recommend any of these places: ${(rejectedNames || []).join(", ") || "None"}.
       
+      For each place, provide:
+      - 3-7 comma-separated, punchy phrases highlighting the core vibe and what it's famous for in "description".
+      - Categorize into one of: museum, restaurant, coffee_shop, park, landmark, shopping, entertainment, beach, religious_site, nightlife, other.
+      - Estimated visit duration in minutes in "estimatedDuration".
+      - Typical cost or admission fee per person in local currency (e.g. "Free", "¥600", "$15 - $25 / person") in "priceEstimate".
+        If admission or access is completely free, explicitly set "priceEstimate" to "Free".
+      - CRITICAL HIGHLIGHT GUIDELINES in "highlight": { "label": "string", "text": "string" }:
+        Highlights must NEVER be generic. Provide ultra-specific, concrete recommendations:
+        * For restaurant: label="Must-Try", text=<Name the EXACT signature dish>
+        * For coffee_shop: label="Must-Order", text=<Name the EXACT specialty brew, drink, or pastry>
+        * For landmark/museum: label="Best Photo Spot" or "Must-See", text=<Name the EXACT vantage point, angle, or exhibit>
+        * For park/beach: label="Best Time to Visit" or "Scenic Spot", text=<Name the EXACT spot or optimal timing>
+        * For religious_site: label="Visitor Tip" or "Must-See", text=<Specific inner garden, courtyard, or etiquette>
+        * For shopping: label="Where to Go" or "What to Buy", text=<Name the EXACT store, stall number, or floor>
+        * For nightlife/entertainment: label="Best Time to Go" or "Top Experience"
+        * For other: label="Pro Tip" or "Advice"
+      - RESERVATION GUIDELINES in "reservation":
+        {
+          "requirement": "required" | "recommended" | "not_needed" | "walk_ins_only",
+          "advanceTime": <string with concrete timing, e.g. "Reserve 1 month in advance", "Opens 30 days prior at midnight", "Walk-ins only; line forms 15m before opening", "No reservation needed">,
+          "notes": <string or null>
+        }
+
       Return ONLY a JSON array of objects with this exact structure:
       [
         {
@@ -85,7 +108,17 @@ export default async function handler(req: Request) {
           "category": "museum" | "restaurant" | "coffee_shop" | "park" | "landmark" | "shopping" | "entertainment" | "beach" | "religious_site" | "nightlife" | "other",
           "lat": number,
           "lng": number,
-          "estimatedDuration": number (in minutes)
+          "estimatedDuration": number,
+          "priceEstimate": "string",
+          "highlight": {
+            "label": "string",
+            "text": "string"
+          },
+          "reservation": {
+            "requirement": "required" | "recommended" | "not_needed" | "walk_ins_only",
+            "advanceTime": "string",
+            "notes": "string or null"
+          }
         }
       ]
     `;

@@ -68,6 +68,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({
   const [parsedTripPreview, setParsedTripPreview] = useState<ItinerarySnapshot | null>(null);
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isReadingFile, setIsReadingFile] = useState(false);
+  const [isImportingTrip, setIsImportingTrip] = useState(false);
   const [tripImportSuccess, setTripImportSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,6 +77,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
   const [text, setText] = useState("");
   const [modalState, setModalState] = useState<ModalState>("input");
   const [results, setResults] = useState<ImportResult[]>([]);
+  const [isFinalizing, setIsFinalizing] = useState(false);
   const [progress, setProgress] = useState({
     current: 0,
     total: 0,
@@ -95,6 +98,9 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         setJsonText("");
         setParsedTripPreview(null);
         setJsonError(null);
+        setIsReadingFile(false);
+        setIsImportingTrip(false);
+        setIsFinalizing(false);
         setTripImportSuccess(false);
         setActiveTab(defaultTab);
       }, 300);
@@ -162,10 +168,20 @@ export const ImportModal: React.FC<ImportModalProps> = ({
     setIsDragOver(false);
     const file = e.dataTransfer.files?.[0];
     if (file) {
+      setIsReadingFile(true);
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        parseAndPreviewJson(content);
+      reader.onload = async (event) => {
+        try {
+          const content = event.target?.result as string;
+          await new Promise((r) => setTimeout(r, 200));
+          parseAndPreviewJson(content);
+        } finally {
+          setIsReadingFile(false);
+        }
+      };
+      reader.onerror = () => {
+        setIsReadingFile(false);
+        setJsonError("Failed to read file.");
       };
       reader.readAsText(file);
     }
@@ -174,22 +190,38 @@ export const ImportModal: React.FC<ImportModalProps> = ({
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setIsReadingFile(true);
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        parseAndPreviewJson(content);
+      reader.onload = async (event) => {
+        try {
+          const content = event.target?.result as string;
+          await new Promise((r) => setTimeout(r, 200));
+          parseAndPreviewJson(content);
+        } finally {
+          setIsReadingFile(false);
+        }
+      };
+      reader.onerror = () => {
+        setIsReadingFile(false);
+        setJsonError("Failed to read file.");
       };
       reader.readAsText(file);
     }
   };
 
-  const handleConfirmTripImport = () => {
-    if (!jsonText && !parsedTripPreview) return;
-    const res = importTripFromJson(jsonText || JSON.stringify({ trip: parsedTripPreview }));
-    if (res.success) {
-      setTripImportSuccess(true);
-    } else {
-      setJsonError(res.error || "Failed to import trip.");
+  const handleConfirmTripImport = async () => {
+    if ((!jsonText && !parsedTripPreview) || isImportingTrip) return;
+    setIsImportingTrip(true);
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      const res = importTripFromJson(jsonText || JSON.stringify({ trip: parsedTripPreview }));
+      if (res.success) {
+        setTripImportSuccess(true);
+      } else {
+        setJsonError(res.error || "Failed to import trip.");
+      }
+    } finally {
+      setIsImportingTrip(false);
     }
   };
 
@@ -334,30 +366,37 @@ export const ImportModal: React.FC<ImportModalProps> = ({
     setModalState("review");
   };
 
-  const handleFinalize = () => {
-    const selectedResults = results.filter((r) => r.selected && r.match);
-    const failedResults = results.filter((r) => !r.match || (!r.selected && !r.isDuplicate));
+  const handleFinalize = async () => {
+    if (isFinalizing) return;
+    setIsFinalizing(true);
+    try {
+      await new Promise((r) => setTimeout(r, 250));
+      const selectedResults = results.filter((r) => r.selected && r.match);
+      const failedResults = results.filter((r) => !r.match || (!r.selected && !r.isDuplicate));
 
-    failedResults.forEach((res) => {
-      addMissingPlace(res.query);
-    });
-
-    selectedResults.forEach((res) => {
-      const bestMatch = res.match!;
-      const category = autoCategorize(bestMatch.name, "", bestMatch.types);
-      const estimatedDuration = getDefaultDuration(category);
-
-      addPlace({
-        ...bestMatch,
-        id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        category,
-        estimatedDuration,
-        description: "",
-        descriptionSource: appMode === "real" ? "ai" : "mock",
+      failedResults.forEach((res) => {
+        addMissingPlace(res.query);
       });
-    });
 
-    setModalState("success");
+      selectedResults.forEach((res) => {
+        const bestMatch = res.match!;
+        const category = autoCategorize(bestMatch.name, "", bestMatch.types);
+        const estimatedDuration = getDefaultDuration(category);
+
+        addPlace({
+          ...bestMatch,
+          id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          category,
+          estimatedDuration,
+          description: "",
+          descriptionSource: appMode === "real" ? "ai" : "mock",
+        });
+      });
+
+      setModalState("success");
+    } finally {
+      setIsFinalizing(false);
+    }
   };
 
   const toggleSelect = (index: number) => {
@@ -485,12 +524,12 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                         }}
                         onDragLeave={() => setIsDragOver(false)}
                         onDrop={handleFileDrop}
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => !isReadingFile && fileInputRef.current?.click()}
                         className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
                           isDragOver
                             ? "border-primary-500 bg-primary-50/50 dark:bg-primary-950/30"
                             : "border-surface-200 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/40 hover:bg-surface-100/50 dark:hover:bg-surface-900/70"
-                        }`}
+                        } ${isReadingFile ? "pointer-events-none opacity-80" : ""}`}
                       >
                         <input
                           ref={fileInputRef}
@@ -500,13 +539,17 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                           className="hidden"
                         />
                         <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400 flex items-center justify-center mb-3">
-                          <Upload className="w-6 h-6" />
+                          {isReadingFile ? (
+                            <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
+                          ) : (
+                            <Upload className="w-6 h-6" />
+                          )}
                         </div>
                         <p className="text-sm font-bold text-surface-800 dark:text-surface-100">
-                          Click to browse or drag & drop a .json trip file
+                          {isReadingFile ? "Reading & analyzing trip file..." : "Click to browse or drag & drop a .json trip file"}
                         </p>
                         <p className="text-xs text-surface-400 dark:text-surface-500 mt-1">
-                          Compatible with all RE-ROUTE JSON export formats
+                          {isReadingFile ? "Parsing itinerary structure and places..." : "Compatible with all RE-ROUTE JSON export formats"}
                         </p>
                       </div>
 
@@ -604,11 +647,20 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                         </button>
                         <button
                           onClick={handleConfirmTripImport}
-                          disabled={!parsedTripPreview}
+                          disabled={!parsedTripPreview || isImportingTrip}
                           className="flex-1 py-3 px-4 rounded-xl bg-primary-600 text-white font-bold hover:bg-primary-700 shadow-lg shadow-primary-500/20 disabled:opacity-40 transition-all flex items-center justify-center gap-2"
                         >
-                          <Sparkles className="w-4 h-4" />
-                          Import & Load Trip
+                          {isImportingTrip ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Importing Itinerary...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-4 h-4" />
+                              Import & Load Trip
+                            </>
+                          )}
                         </button>
                       </div>
                     </>
@@ -777,10 +829,17 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                         </button>
                         <button
                           onClick={handleFinalize}
-                          disabled={results.every((r) => !r.selected)}
-                          className="flex-2 py-3 px-8 rounded-xl bg-primary-600 text-white font-bold hover:bg-primary-700 shadow-lg shadow-primary-500/20 disabled:opacity-50 transition-all"
+                          disabled={results.every((r) => !r.selected) || isFinalizing}
+                          className="flex-2 py-3 px-8 rounded-xl bg-primary-600 text-white font-bold hover:bg-primary-700 shadow-lg shadow-primary-500/20 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                         >
-                          Add {results.filter((r) => r.selected).length} Selected Places
+                          {isFinalizing ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Adding Places...
+                            </>
+                          ) : (
+                            `Add ${results.filter((r) => r.selected).length} Selected Places`
+                          )}
                         </button>
                       </div>
                     </div>

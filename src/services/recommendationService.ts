@@ -2,6 +2,11 @@ import { Place, Hotel, PlaceCategory } from "../types";
 import { searchPlaces } from "./mapsService";
 import { getDistance } from "../utils/distance";
 import { suggestSights } from "./aiService";
+import {
+  getSpecificMockHighlight,
+  getSpecificMockPrice,
+  getSpecificMockReservation,
+} from "../utils/mockAiUtils";
 
 // Curated top sights for Kyoto
 const KYOTO_SIGHTS = [
@@ -16,6 +21,9 @@ const KYOTO_SIGHTS = [
     description: "Famous for thousands of vermilion torii gates, winding mountain trails, and sacred fox statues.",
     types: ["tourist_attraction", "place_of_worship"],
     photoUrl: "https://loremflickr.com/800/600/kyoto,temple",
+    priceEstimate: "Free",
+    highlight: { label: "Scenic Spot", text: "Senbon Torii path just past Okusha shrine where crowds thin out" },
+    reservation: { requirement: "not_needed" as const, advanceTime: "No reservation needed" },
   },
   {
     id: "rec_kyoto_kinkaku",
@@ -28,6 +36,9 @@ const KYOTO_SIGHTS = [
     description: "Breathtaking Zen temple covered in brilliant gold leaf, reflecting beautifully across a mirror pond.",
     types: ["tourist_attraction", "temple"],
     photoUrl: "https://loremflickr.com/800/600/kyoto,pavilion",
+    priceEstimate: "¥500",
+    highlight: { label: "Best Photo Spot", text: "Mirror pond vantage directly facing the golden reliquary hall" },
+    reservation: { requirement: "not_needed" as const, advanceTime: "Purchase tickets on-site at entrance" },
   },
   {
     id: "rec_kyoto_gion",
@@ -40,6 +51,9 @@ const KYOTO_SIGHTS = [
     description: "Kyoto's historic geisha district filled with traditional wooden machiya merchant houses and teahouses.",
     types: ["tourist_attraction", "neighborhood"],
     photoUrl: "https://loremflickr.com/800/600/kyoto,geisha",
+    priceEstimate: "Free",
+    highlight: { label: "Best Walk", text: "Shirakawa canal stone path at twilight when lanterns illuminate" },
+    reservation: { requirement: "not_needed" as const, advanceTime: "Public historic preservation district" },
   },
   {
     id: "rec_kyoto_arashiyama",
@@ -52,6 +66,9 @@ const KYOTO_SIGHTS = [
     description: "A serene and towering bamboo forest with sunlight filtering through stalks and pleasant walking paths.",
     types: ["tourist_attraction", "natural_feature"],
     photoUrl: "https://loremflickr.com/800/600/kyoto,bamboo",
+    priceEstimate: "Free",
+    highlight: { label: "Best Time to Visit", text: "Early morning before 8:00 AM for peaceful photos without tour groups" },
+    reservation: { requirement: "not_needed" as const, advanceTime: "No reservation needed" },
   },
   {
     id: "rec_kyoto_kiyomizu",
@@ -64,6 +81,9 @@ const KYOTO_SIGHTS = [
     description: "Historic temple famed for its massive wooden stage offering panoramic views of Kyoto without using any nails.",
     types: ["tourist_attraction", "place_of_worship"],
     photoUrl: "https://loremflickr.com/800/600/kyoto,pagoda",
+    priceEstimate: "¥400",
+    highlight: { label: "Must-See", text: "Main wooden stage for panoramic city views and Otowa waterfall below" },
+    reservation: { requirement: "not_needed" as const, advanceTime: "Tickets purchased at entrance gate" },
   },
   {
     id: "rec_kyoto_nishiki",
@@ -76,6 +96,9 @@ const KYOTO_SIGHTS = [
     description: "A vibrant five-block narrow shopping street packed with over a hundred lively food stalls and shops.",
     types: ["tourist_attraction", "shopping_mall"],
     photoUrl: "https://loremflickr.com/800/600/kyoto,market",
+    priceEstimate: "¥1,000 - ¥2,500",
+    highlight: { label: "Must-Try", text: "Tako Tamago (baby octopus skewers stuffed with quail egg) and fresh dashi tamagoyaki" },
+    reservation: { requirement: "walk_ins_only" as const, advanceTime: "Walk-in food stalls; peak crowds 11 AM - 3 PM" },
   },
 ];
 
@@ -92,6 +115,9 @@ const TOKYO_SIGHTS = [
     description: "The world's busiest pedestrian scramble crossing, surrounded by massive neon screens and towering skyscrapers.",
     types: ["tourist_attraction", "street"],
     photoUrl: "https://loremflickr.com/800/600/tokyo,shibuya",
+    priceEstimate: "Free",
+    highlight: { label: "Best Vantage", text: "Sky Edge rooftop corner overlooking the scramble crossing at dusk" },
+    reservation: { requirement: "not_needed" as const, advanceTime: "No reservation needed" },
   },
   {
     id: "rec_tokyo_sensoji",
@@ -104,6 +130,9 @@ const TOKYO_SIGHTS = [
     description: "Tokyo's oldest and most iconic Buddhist temple, reached via the historic Nakamise shopping street.",
     types: ["tourist_attraction", "place_of_worship"],
     photoUrl: "https://loremflickr.com/800/600/tokyo,sensoji",
+    priceEstimate: "Free",
+    highlight: { label: "Must-Try", text: "Fresh jumbo melonpan from Kagetsudo and warm age-manju along Nakamise-dori" },
+    reservation: { requirement: "not_needed" as const, advanceTime: "No reservation needed for grounds" },
   },
   {
     id: "rec_tokyo_skytree",
@@ -116,6 +145,9 @@ const TOKYO_SIGHTS = [
     description: "Futuristic broadcasting tower and observation deck offering breathtaking views extending all the way to Mt. Fuji.",
     types: ["tourist_attraction", "observation_deck"],
     photoUrl: "https://loremflickr.com/800/600/tokyo,skytree",
+    priceEstimate: "¥2,100 - ¥3,100",
+    highlight: { label: "Best Photo Spot", text: "Tembo Deck glass floor section at 350m looking straight down" },
+    reservation: { requirement: "recommended" as const, advanceTime: "Book online 1-7 days ahead to skip the ticket queue" },
   },
   {
     id: "rec_tokyo_meiji",
@@ -128,6 +160,9 @@ const TOKYO_SIGHTS = [
     description: "A tranquil Shinto shrine dedicated to Emperor Meiji, nestled deep inside a dense forest in the heart of Tokyo.",
     types: ["tourist_attraction", "place_of_worship"],
     photoUrl: "https://loremflickr.com/800/600/tokyo,meiji",
+    priceEstimate: "Free",
+    highlight: { label: "Visitor Tip", text: "Tranquil inner garden iris pond and giant cedar Torii gate along the forest walk" },
+    reservation: { requirement: "not_needed" as const, advanceTime: "No reservation needed" },
   },
   {
     id: "rec_tokyo_shinjuku",
@@ -140,6 +175,9 @@ const TOKYO_SIGHTS = [
     description: "A sprawling city park combining English, French, and traditional Japanese garden designs with peaceful ponds.",
     types: ["tourist_attraction", "park"],
     photoUrl: "https://loremflickr.com/800/600/tokyo,garden",
+    priceEstimate: "¥500",
+    highlight: { label: "Scenic Spot", text: "Traditional Japanese landscape garden and greenhouse pavilion" },
+    reservation: { requirement: "not_needed" as const, advanceTime: "Tickets purchased at ticket vending kiosks" },
   },
   {
     id: "rec_tokyo_akihabara",
@@ -152,6 +190,9 @@ const TOKYO_SIGHTS = [
     description: "The global epicenter of anime, gaming, manga culture, and massive multi-story electronics stores.",
     types: ["tourist_attraction", "neighborhood"],
     photoUrl: "https://loremflickr.com/800/600/tokyo,akihabara",
+    priceEstimate: "Free",
+    highlight: { label: "Where to Go", text: "Radio Kaikan multi-floor hobby center and retro gaming shops along Chuo Dori" },
+    reservation: { requirement: "not_needed" as const, advanceTime: "Stores open around 10:00 - 11:00 AM" },
   },
 ];
 
@@ -168,6 +209,9 @@ const getGenericSights = (lat: number, lng: number) => [
     description: "Quaint historic district with cobblestone alleys, unique local boutiques, and local architecture.",
     types: ["tourist_attraction"],
     photoUrl: "https://loremflickr.com/800/600/historic,architecture",
+    priceEstimate: "Free",
+    highlight: { label: "Best Vantage", text: "Upper terrace balcony overlooking the grand architectural facade and skyline" },
+    reservation: { requirement: "not_needed" as const, advanceTime: "Open public district" },
   },
   {
     id: "rec_gen_sight2",
@@ -180,6 +224,9 @@ const getGenericSights = (lat: number, lng: number) => [
     description: "Scenic botanic gardens featuring thousands of plant species, tranquil lakes, and pleasant walking paths.",
     types: ["tourist_attraction", "park"],
     photoUrl: "https://loremflickr.com/800/600/park,nature",
+    priceEstimate: "Free",
+    highlight: { label: "Best Time to Visit", text: "Early morning before 9:00 AM or golden hour right before sunset" },
+    reservation: { requirement: "not_needed" as const, advanceTime: "No reservation needed" },
   },
   {
     id: "rec_gen_sight3",
@@ -192,6 +239,9 @@ const getGenericSights = (lat: number, lng: number) => [
     description: "A beautiful hillside observation point offering stunning panoramic views of the city skyline.",
     types: ["tourist_attraction", "viewpoint"],
     photoUrl: "https://loremflickr.com/800/600/city,skyline",
+    priceEstimate: "Free",
+    highlight: { label: "Best Photo Spot", text: "Observation deck pointing west toward the setting sun" },
+    reservation: { requirement: "not_needed" as const, advanceTime: "Public viewpoint" },
   },
 ];
 
@@ -291,12 +341,18 @@ export async function getSuggestedPlaces(
   const seenSuggestionNames = new Set<string>();
 
   for (const anchor of anchors) {
-    const cacheKey = `re_route_suggestions_v3_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
+    const cacheKeyV4 = `re_route_suggestions_v4_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
+    const cacheKeyV3 = `re_route_suggestions_v3_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
     let candidateSights: any[] = [];
 
     if (appMode === "real") {
-      // Check persistent localStorage first, then sessionStorage
-      const cachedData = localStorage.getItem(cacheKey) || sessionStorage.getItem(cacheKey);
+      // Check persistent localStorage first, then sessionStorage (try v4, then fallback to v3)
+      const cachedData =
+        localStorage.getItem(cacheKeyV4) ||
+        sessionStorage.getItem(cacheKeyV4) ||
+        localStorage.getItem(cacheKeyV3) ||
+        sessionStorage.getItem(cacheKeyV3);
+
       if (cachedData) {
         try {
           candidateSights = JSON.parse(cachedData);
@@ -317,6 +373,10 @@ export async function getSuggestedPlaces(
 
           const enrichedSuggestions = await Promise.all(
             aiSuggestions.map(async (suggestion, idx) => {
+              const fallbackHighlight = suggestion.highlight || getSpecificMockHighlight(suggestion);
+              const fallbackPrice = suggestion.priceEstimate || getSpecificMockPrice(suggestion);
+              const fallbackReservation = suggestion.reservation || getSpecificMockReservation(suggestion);
+
               try {
                 const mapsResult = await searchPlaces(suggestion.name, {
                   lat: suggestion.lat,
@@ -335,6 +395,9 @@ export async function getSuggestedPlaces(
                     description: suggestion.description,
                     types: bestMatch.types,
                     photoUrl: bestMatch.photoUrl,
+                    highlight: fallbackHighlight,
+                    priceEstimate: bestMatch.priceEstimate || fallbackPrice,
+                    reservation: fallbackReservation,
                   };
                 }
               } catch (e) {
@@ -351,15 +414,18 @@ export async function getSuggestedPlaces(
                 description: suggestion.description,
                 types: [],
                 photoUrl: undefined,
+                highlight: fallbackHighlight,
+                priceEstimate: fallbackPrice,
+                reservation: fallbackReservation,
               };
             })
           );
 
           candidateSights = enrichedSuggestions;
           try {
-            localStorage.setItem(cacheKey, JSON.stringify(candidateSights));
+            localStorage.setItem(cacheKeyV4, JSON.stringify(candidateSights));
           } catch (_) {
-            sessionStorage.setItem(cacheKey, JSON.stringify(candidateSights));
+            sessionStorage.setItem(cacheKeyV4, JSON.stringify(candidateSights));
           }
         } catch (err) {
           console.warn("Failed to fetch suggestions from Gemini API, falling back to local dataset:", err);
@@ -408,6 +474,9 @@ export async function getSuggestedPlaces(
     orderInDay: null,
     pinnedToDay: false,
     photoUrl: s.photoUrl,
+    highlight: s.highlight || getSpecificMockHighlight(s),
+    priceEstimate: s.priceEstimate || getSpecificMockPrice(s),
+    reservation: s.reservation || getSpecificMockReservation(s),
     nearestHotel: s._nearestHotelName
       ? { name: s._nearestHotelName, distanceM: s._nearestHotelDistanceM }
       : undefined,
@@ -459,8 +528,13 @@ export function getCachedSuggestions(
   const seenSuggestionNames = new Set<string>();
 
   for (const anchor of anchors) {
-    const cacheKey = `re_route_suggestions_v3_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
-    const cachedData = localStorage.getItem(cacheKey) || sessionStorage.getItem(cacheKey);
+    const cacheKeyV4 = `re_route_suggestions_v4_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
+    const cacheKeyV3 = `re_route_suggestions_v3_${anchor.lat.toFixed(2)}_${anchor.lng.toFixed(2)}`;
+    const cachedData =
+      localStorage.getItem(cacheKeyV4) ||
+      sessionStorage.getItem(cacheKeyV4) ||
+      localStorage.getItem(cacheKeyV3) ||
+      sessionStorage.getItem(cacheKeyV3);
     if (!cachedData) return null; // not cached yet
 
     try {
@@ -473,6 +547,9 @@ export function getCachedSuggestions(
         const distanceM = getDistance(s.lat, s.lng, anchor.lat, anchor.lng);
         allSuggestions.push({
           ...s,
+          highlight: s.highlight || getSpecificMockHighlight(s),
+          priceEstimate: s.priceEstimate || getSpecificMockPrice(s),
+          reservation: s.reservation || getSpecificMockReservation(s),
           nearestHotel: anchor.label ? { name: anchor.label, distanceM } : undefined,
         });
       }

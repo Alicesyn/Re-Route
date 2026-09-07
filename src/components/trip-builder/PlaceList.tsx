@@ -78,19 +78,28 @@ export const PlaceList: React.FC<PlaceListProps> = React.memo(({ isExpanded }) =
     return list;
   }, [places, searchQuery, categoryFilter]);
 
-  const activeCount = useMemo(
-    () => baseFilteredPlaces.filter((p) => !p.isDisabled).length,
-    [baseFilteredPlaces],
-  );
-  const unassignedCount = useMemo(
-    () => baseFilteredPlaces.filter((p) => !p.isDisabled && p.dayIndex === null).length,
-    [baseFilteredPlaces],
-  );
-  const disabledCount = useMemo(
-    () => baseFilteredPlaces.filter((p) => p.isDisabled).length,
-    [baseFilteredPlaces],
-  );
-  const allCount = baseFilteredPlaces.length;
+  const { activeCount, unassignedCount, disabledCount, allCount } = useMemo(() => {
+    let active = 0;
+    let unassigned = 0;
+    let disabled = 0;
+    for (let i = 0; i < baseFilteredPlaces.length; i++) {
+      const p = baseFilteredPlaces[i];
+      if (p.isDisabled) {
+        disabled++;
+      } else {
+        active++;
+        if (p.dayIndex === null) {
+          unassigned++;
+        }
+      }
+    }
+    return {
+      activeCount: active,
+      unassignedCount: unassigned,
+      disabledCount: disabled,
+      allCount: baseFilteredPlaces.length,
+    };
+  }, [baseFilteredPlaces]);
 
   const filteredPlaces = useMemo(() => {
     switch (activeTab) {
@@ -257,10 +266,10 @@ export const PlaceList: React.FC<PlaceListProps> = React.memo(({ isExpanded }) =
             strategy={rectSortingStrategy}
           >
             <div
-              className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-all duration-300 ${isExpanded ? "" : "max-h-[360px] overflow-y-auto pr-2 custom-scrollbar"} print:max-h-none print:overflow-visible print:grid-cols-1`}
+              className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-[max-height] duration-300 ease-in-out ${isExpanded ? "" : "max-h-[360px] overflow-y-auto pr-2 custom-scrollbar overscroll-contain smooth-scroll-container"} print:max-h-none print:overflow-visible print:grid-cols-1`}
             >
-              {filteredPlaces.map((place) => (
-                <div key={place.id} className="h-full content-auto">
+              {filteredPlaces.map((place, index) => (
+                <div key={place.id} className={`h-full ${index >= 6 ? "content-auto" : ""}`}>
                   <PlaceItem place={place} />
                 </div>
               ))}

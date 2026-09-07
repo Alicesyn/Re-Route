@@ -149,33 +149,48 @@ const ExpandableDescription: React.FC<{ text: any }> = ({ text }) => {
 
 interface SortableStopProps {
   stop: any;
-  stopIdx: number;
   stopArrivalTime: number;
   isFirst: boolean;
   isLast: boolean;
   unassignPlace: (id: string) => void;
   updatePlace: (id: string, updates: any) => void;
-  leadingSegIdx: number;
-  route: any;
   dayIndex: number;
-  currentTime: number;
   dateMode: "fixed" | "duration";
   currentDate: Date;
-  onEdit: () => void;
+  onEdit: (id: string) => void;
 }
 
-const SortableStop: React.FC<SortableStopProps> = React.memo(({
-  stop,
-  stopArrivalTime,
-  isFirst,
-  isLast,
-  unassignPlace,
-  updatePlace,
-  dayIndex,
-  dateMode,
-  currentDate,
-  onEdit,
-}) => {
+const areSortableStopPropsEqual = (
+  prev: SortableStopProps,
+  next: SortableStopProps,
+) => {
+  return (
+    prev.stop === next.stop &&
+    prev.stopArrivalTime === next.stopArrivalTime &&
+    prev.isFirst === next.isFirst &&
+    prev.isLast === next.isLast &&
+    prev.dayIndex === next.dayIndex &&
+    prev.dateMode === next.dateMode &&
+    prev.currentDate?.getTime() === next.currentDate?.getTime() &&
+    prev.unassignPlace === next.unassignPlace &&
+    prev.updatePlace === next.updatePlace &&
+    prev.onEdit === next.onEdit
+  );
+};
+
+const SortableStop: React.FC<SortableStopProps> = React.memo(
+  ({
+    stop,
+    stopArrivalTime,
+    isFirst,
+    isLast,
+    unassignPlace,
+    updatePlace,
+    dayIndex,
+    dateMode,
+    currentDate,
+    onEdit,
+  }) => {
   const timeConflict = 
     dateMode === "fixed" 
       ? checkTimeConflict(stopArrivalTime, stop.estimatedDuration || 60, stop.openingHours, currentDate)
@@ -230,7 +245,7 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
       <div className="flex gap-4 relative z-10">
         <div className="relative z-20">
           <button
-            onClick={onEdit}
+            onClick={() => onEdit(stop.id)}
             className="w-10 h-10 rounded-full bg-white dark:bg-surface-800 border-2 border-surface-100 dark:border-surface-700 flex items-center justify-center shrink-0 shadow-sm hover:border-primary-500 group-hover:border-primary-500 transition-colors"
             title="Edit Place Details"
           >
@@ -251,7 +266,7 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
         <div className="flex-1 min-w-0 pt-0.5 pb-4">
           <div className="flex items-center justify-between gap-2 relative">
             <button
-              onClick={onEdit}
+              onClick={() => onEdit(stop.id)}
               className="text-sm font-bold text-surface-900 dark:text-white truncate hover:text-primary-600 group-hover:text-primary-600 transition-colors text-left outline-none focus:ring-2 focus:ring-primary-500 rounded"
               title="Edit Place Details"
             >
@@ -486,7 +501,7 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(({
       </div>
     </div>
   );
-});
+}, areSortableStopPropsEqual);
 
 const SortableAnchor: React.FC<{
   id: string;
@@ -705,22 +720,67 @@ export const DailySchedule: React.FC = () => {
   const [editingPlaceId, setEditingPlaceId] = useState<string | null>(null);
   const [optimizingDayIndex, setOptimizingDayIndex] = useState<number | null>(null);
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
-  const {
-    optimizedRoutes,
-    optimizeDay,
-    unassignPlace,
-    updatePlace,
-    reorderDayStops,
-    startDate,
-    dateMode,
-    dayStartTime,
-    dayEndTime,
-    showFlights,
-    arrivalFlight,
-    departureFlight,
-    distanceUnit,
-  } = useRouteStore();
+
+  const optimizedRoutes = useRouteStore((s) => s.optimizedRoutes);
+  const optimizeDay = useRouteStore((s) => s.optimizeDay);
+  const unassignPlace = useRouteStore((s) => s.unassignPlace);
+  const updatePlace = useRouteStore((s) => s.updatePlace);
+  const reorderDayStops = useRouteStore((s) => s.reorderDayStops);
+  const startDate = useRouteStore((s) => s.startDate);
+  const dateMode = useRouteStore((s) => s.dateMode);
+  const dayStartTime = useRouteStore((s) => s.dayStartTime);
+  const dayEndTime = useRouteStore((s) => s.dayEndTime);
+  const showFlights = useRouteStore((s) => s.showFlights);
+  const arrivalFlight = useRouteStore((s) => s.arrivalFlight);
+  const departureFlight = useRouteStore((s) => s.departureFlight);
+  const distanceUnit = useRouteStore((s) => s.distanceUnit);
+
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+  const handleEditPlace = React.useCallback((id: string) => {
+    setEditingPlaceId(id);
+  }, []);
+
+  // Smooth mouse-wheel to horizontal scroll translation on desktop
+  React.useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // If user holds Shift or is already scrolling horizontally (trackpad deltaX), let browser handle it
+      if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+
+      // Check if mouse is over an inner vertically scrollable stops container
+      let target = e.target as HTMLElement | null;
+      let isOverActiveVerticalScroll = false;
+
+      while (target && target !== el) {
+        if (
+          target.classList.contains("overflow-y-auto") ||
+          target.classList.contains("custom-scrollbar")
+        ) {
+          const canScrollDown =
+            e.deltaY > 0 &&
+            target.scrollTop + target.clientHeight < target.scrollHeight - 1;
+          const canScrollUp = e.deltaY < 0 && target.scrollTop > 1;
+          if (canScrollDown || canScrollUp) {
+            isOverActiveVerticalScroll = true;
+            break;
+          }
+        }
+        target = target.parentElement;
+      }
+
+      // If not scrolling an inner vertical list that has scroll room, translate wheel to horizontal scrolling
+      if (!isOverActiveVerticalScroll) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
 
   const hasHeuristicTransit = optimizedRoutes.some((r) =>
     r.segments.some((s) => s.travelMode === "transit" && s.isHeuristic !== false)
@@ -895,7 +955,7 @@ export const DailySchedule: React.FC = () => {
 
       <div
         ref={scrollContainerRef}
-        className="p-6 overflow-x-auto overflow-y-hidden custom-scrollbar flex gap-6 snap-x snap-mandatory"
+        className="p-6 overflow-x-auto overflow-y-hidden custom-scrollbar flex gap-6 snap-x snap-proximity smooth-scroll-container"
       >
         {optimizedRoutes.map((route, i) => {
           const currentDate = addDays(parseISO(startDate), i);
@@ -954,7 +1014,7 @@ export const DailySchedule: React.FC = () => {
             <div
               key={i}
               id={`schedule-day-${i}`}
-              className="flex-shrink-0 w-80 md:w-96 snap-start"
+              className={`flex-shrink-0 w-80 md:w-96 snap-start ${i >= 3 ? "content-auto-day" : ""}`}
             >
               <div className="bg-white dark:bg-surface-800 rounded-2xl border border-surface-100 dark:border-surface-700 shadow-xl overflow-hidden flex flex-col h-full max-h-[600px]">
                 <div className="p-4 border-b border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-800/50">
@@ -1037,7 +1097,7 @@ export const DailySchedule: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pl-8 pr-4 py-4 space-y-0 relative">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pl-8 pr-4 py-4 space-y-0 relative smooth-scroll-container">
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -1185,24 +1245,20 @@ export const DailySchedule: React.FC = () => {
                                 }
 
                                 element = (
-                                  <SortableStop
-                                    key={stop.id}
-                                    stop={stop}
-                                    stopIdx={idx}
-                                    stopArrivalTime={stopArrivalTime}
-                                    isFirst={isFirst}
-                                    isLast={isLast}
-                                    unassignPlace={unassignPlace}
-                                    updatePlace={updatePlace}
-                                    leadingSegIdx={-1}
-                                    route={route}
-                                    dayIndex={i}
-                                    currentTime={currentTime}
-                                    dateMode={dateMode}
-                                    currentDate={currentDate}
-                                    onEdit={() => setEditingPlaceId(stop.id)}
-                                  />
-                                );
+                                    <SortableStop
+                                      key={stop.id}
+                                      stop={stop}
+                                      stopArrivalTime={stopArrivalTime}
+                                      isFirst={isFirst}
+                                      isLast={isLast}
+                                      unassignPlace={unassignPlace}
+                                      updatePlace={updatePlace}
+                                      dayIndex={i}
+                                      dateMode={dateMode}
+                                      currentDate={currentDate}
+                                      onEdit={handleEditPlace}
+                                    />
+                                  );
                                 itemDuration = stop.estimatedDuration || 0;
                               }
                             }

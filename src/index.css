@@ -36,7 +36,8 @@
   }
 
   .card-place {
-    @apply relative bg-white dark:bg-surface-800 border rounded-xl shadow-sm transition-all border-surface-200 dark:border-surface-700 hover:border-surface-300 dark:hover:border-surface-500 h-full;
+    @apply relative bg-white dark:bg-surface-800 border rounded-xl shadow-sm transition-colors duration-150 border-surface-200 dark:border-surface-700 hover:border-surface-300 dark:hover:border-surface-500 h-full;
+    contain: layout paint;
   }
 
   .schedule-container {
@@ -45,6 +46,7 @@
 
   .schedule-day-card {
     @apply flex-none w-[320px] bg-white dark:bg-surface-800 rounded-xl shadow-sm border border-surface-200 dark:border-surface-700 flex flex-col print:w-full print:border-none print:shadow-none print:break-inside-avoid print:mb-8;
+    contain: layout paint;
   }
 
   /* Schedule Visuals */
@@ -99,7 +101,19 @@
 
   .content-auto {
     content-visibility: auto;
-    contain-intrinsic-size: 0 160px;
+    contain-intrinsic-height: auto 240px;
+  }
+
+  .content-auto-day {
+    content-visibility: auto;
+    contain-intrinsic-width: auto 384px;
+    contain-intrinsic-height: auto 600px;
+  }
+
+  .smooth-scroll-container {
+    -webkit-overflow-scrolling: touch;
+    will-change: scroll-position;
+    overscroll-behavior: contain;
   }
 }
 

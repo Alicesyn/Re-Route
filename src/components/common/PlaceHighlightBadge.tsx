@@ -44,7 +44,7 @@ export const PlaceHighlightBadge: React.FC<PlaceHighlightBadgeProps> = ({
 
   return (
     <div
-      className={`flex items-start gap-1.5 rounded-lg border transition-all ${
+      className={`flex items-start gap-1.5 rounded-lg border ${
         compact
           ? "px-2 py-1 text-[11px] bg-amber-50/80 dark:bg-amber-950/25 border-amber-200/60 dark:border-amber-800/40 text-amber-950 dark:text-amber-100"
           : "px-2.5 py-1.5 text-xs bg-amber-50/90 dark:bg-amber-950/30 border-amber-200/70 dark:border-amber-800/50 text-amber-950 dark:text-amber-100 shadow-sm"

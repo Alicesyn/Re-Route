@@ -110,17 +110,31 @@ export const Header: React.FC = React.memo(() => {
     }
   };
 
-  const handleExportTripJson = () => {
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportingType, setExportingType] = useState<"json" | "txt" | "names" | null>(null);
+
+  const handleExportTripJson = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    setExportingType("json");
     try {
+      await new Promise((r) => setTimeout(r, 250));
       exportTripAsJson();
       toast.success(`Exported "${title || "Trip"}" to JSON file.`, "Export Complete");
     } catch (err: any) {
       toast.error(err?.message || "Failed to export trip file", "Export Error");
+    } finally {
+      setIsExporting(false);
+      setExportingType(null);
     }
   };
 
-  const handleExportTxt = () => {
+  const handleExportTxt = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    setExportingType("txt");
     try {
+      await new Promise((r) => setTimeout(r, 250));
       const placesList = useRouteStore.getState().places;
       const textContent = placesList
         .map((p, i) => `${i + 1}. ${p.name}\n   ${p.address}`)
@@ -137,11 +151,18 @@ export const Header: React.FC = React.memo(() => {
       toast.success("Places list exported to text file.", "Export Complete");
     } catch (err: any) {
       toast.error(err?.message || "Failed to export text file", "Export Error");
+    } finally {
+      setIsExporting(false);
+      setExportingType(null);
     }
   };
 
-  const handleExportNamesTxt = () => {
+  const handleExportNamesTxt = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    setExportingType("names");
     try {
+      await new Promise((r) => setTimeout(r, 250));
       const placesList = useRouteStore.getState().places;
       const textContent = placesList.map((p) => p.name).join("\n");
       const blob = new Blob([textContent], { type: "text/plain" });
@@ -154,6 +175,9 @@ export const Header: React.FC = React.memo(() => {
       toast.success("Place names exported to text file.", "Export Complete");
     } catch (err: any) {
       toast.error(err?.message || "Failed to export names file", "Export Error");
+    } finally {
+      setIsExporting(false);
+      setExportingType(null);
     }
   };
 
@@ -316,19 +340,35 @@ export const Header: React.FC = React.memo(() => {
         <div className="relative group">
           <button
             onClick={handleExportTripJson}
-            className="btn-secondary flex items-center gap-1.5 py-1.5 px-3 text-xs sm:text-sm"
+            disabled={isExporting}
+            className="btn-secondary flex items-center gap-1.5 py-1.5 px-3 text-xs sm:text-sm disabled:opacity-75 transition-all"
           >
-            <Download className="w-4 h-4" /> <span className="hidden sm:inline">Export</span>
-            <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
+            {isExporting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
+                <span className="hidden sm:inline">Exporting...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export</span>
+                <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
+              </>
+            )}
           </button>
 
           {/* Dropdown for export formats on hover */}
           <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden flex flex-col">
             <button
               onClick={handleExportTripJson}
-              className="w-full text-left px-4 py-3 text-sm text-surface-800 dark:text-surface-100 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-primary-600 dark:hover:text-primary-400 flex items-start gap-3 transition-colors border-b border-surface-100 dark:border-surface-700"
+              disabled={isExporting}
+              className="w-full text-left px-4 py-3 text-sm text-surface-800 dark:text-surface-100 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-primary-600 dark:hover:text-primary-400 flex items-start gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 disabled:opacity-50"
             >
-              <FileJson className="w-4 h-4 shrink-0 mt-0.5 text-primary-500" />
+              {exportingType === "json" ? (
+                <Loader2 className="w-4 h-4 shrink-0 mt-0.5 text-primary-500 animate-spin" />
+              ) : (
+                <FileJson className="w-4 h-4 shrink-0 mt-0.5 text-primary-500" />
+              )}
               <div>
                 <div className="font-semibold flex items-center gap-1.5">
                   Export Entire Trip (.json)
@@ -344,7 +384,8 @@ export const Header: React.FC = React.memo(() => {
 
             <button
               onClick={() => window.print()}
-              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium"
+              disabled={isExporting}
+              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium disabled:opacity-50"
             >
               <Download className="w-4 h-4 shrink-0 text-surface-400" />
               Export PDF / Print
@@ -352,17 +393,27 @@ export const Header: React.FC = React.memo(() => {
 
             <button
               onClick={handleExportTxt}
-              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium"
+              disabled={isExporting}
+              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium disabled:opacity-50"
             >
-              <FileText className="w-4 h-4 shrink-0 text-surface-400" />
+              {exportingType === "txt" ? (
+                <Loader2 className="w-4 h-4 shrink-0 text-primary-500 animate-spin" />
+              ) : (
+                <FileText className="w-4 h-4 shrink-0 text-surface-400" />
+              )}
               Export Text (Full Details)
             </button>
 
             <button
               onClick={handleExportNamesTxt}
-              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors font-medium"
+              disabled={isExporting}
+              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors font-medium disabled:opacity-50"
             >
-              <List className="w-4 h-4 shrink-0 text-surface-400" />
+              {exportingType === "names" ? (
+                <Loader2 className="w-4 h-4 shrink-0 text-primary-500 animate-spin" />
+              ) : (
+                <List className="w-4 h-4 shrink-0 text-surface-400" />
+              )}
               Export Place Names List
             </button>
           </div>
