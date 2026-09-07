@@ -18,9 +18,13 @@ import {
   Pin,
   Coins,
   Lock,
+  Pencil,
+  Plus,
+  Trash2,
+  Coffee,
 } from "lucide-react";
 import { toast } from "../../services/toastService";
-import { TravelMode, RouteSegment } from "../../types";
+import { TravelMode, RouteSegment, CustomBuffer } from "../../types";
 import { getCategoryEmoji } from "../../utils/categoryUtils";
 import { format, addDays, parseISO } from "date-fns";
 import { checkTimeConflict } from "../../utils/timeUtils";
@@ -63,7 +67,7 @@ const formatTime = (totalMinutes: number) => {
   const { timeFormat } = useRouteStore.getState();
   const hours = Math.floor(totalMinutes / 60) % 24;
   const mins = Math.floor(totalMinutes % 60);
-  
+
   if (timeFormat === "24h") {
     return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
   }
@@ -79,35 +83,412 @@ const formatTimeString = (timeStr: string) => {
   return formatTime(h * 60 + m);
 };
 
-const BufferPill: React.FC<{
+interface BufferPillProps {
   minutes: number;
+  startTime?: number;
   label?: string;
   showLine?: boolean;
   isReservation?: boolean;
-}> = ({ minutes, label, showLine = true, isReservation = false }) => {
+  type?: "arrival" | "departure" | "reservation" | "custom";
+  stopName?: string;
+  reservationTime?: string;
+  customLabel?: string;
+  onSaveMinutes?: (newMinutes: number) => void;
+  onSaveReservationTime?: (newTime: string) => void;
+  onSaveLabel?: (newLabel: string) => void;
+  onDelete?: () => void;
+}
+
+const BufferPill: React.FC<BufferPillProps> = ({
+  minutes,
+  startTime,
+  label,
+  showLine = true,
+  isReservation = false,
+  type,
+  stopName,
+  reservationTime,
+  customLabel,
+  onSaveMinutes,
+  onSaveReservationTime,
+  onSaveLabel,
+  onDelete,
+}) => {
+  const isEditable = !!(onSaveMinutes || onSaveReservationTime || onSaveLabel || onDelete);
+  const [isOpen, setIsOpen] = useState(false);
+  const [tempMinutes, setTempMinutes] = useState(minutes);
+  const [tempReservationTime, setTempReservationTime] = useState(reservationTime || "");
+  const [tempLabel, setTempLabel] = useState(customLabel || "");
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      setTempMinutes(minutes);
+      if (reservationTime) setTempReservationTime(reservationTime);
+      if (customLabel !== undefined) setTempLabel(customLabel);
+    }
+  }, [minutes, reservationTime, customLabel, isOpen]);
+
+  const presets =
+    type === "departure"
+      ? [30, 45, 60, 90, 120, 180]
+      : [15, 30, 45, 60, 90, 120];
+
+  const handleSave = () => {
+    if (onSaveMinutes) {
+      onSaveMinutes(tempMinutes);
+    }
+    if (isReservation && onSaveReservationTime && tempReservationTime) {
+      onSaveReservationTime(tempReservationTime);
+    }
+    if (onSaveLabel) {
+      onSaveLabel(tempLabel);
+    }
+    setIsOpen(false);
+  };
+
   return (
-    <div className="pt-0 pb-3 pl-12 relative group">
+    <div className={`pt-0 pb-3 pl-12 relative group flex items-center justify-between gap-2 ${isOpen ? "z-50" : ""}`}>
       {/* Line connector segment */}
       {showLine && (
         <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-surface-200 dark:bg-surface-700/50" />
       )}
-      <div
-        className={`travel-pill inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border ${
-          isReservation
-            ? "bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300"
-            : "bg-surface-50 dark:bg-surface-800 border-surface-200 dark:border-surface-700 text-surface-500 dark:text-surface-400"
-        }`}
-      >
-        {isReservation ? (
-          <Lock className="w-3 h-3 text-purple-500 shrink-0" />
-        ) : (
-          <Clock className="w-3 h-3 text-surface-400 shrink-0" />
+
+      {/* Interactive Buffer Pill */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={(e) => {
+            if (!isEditable) return;
+            e.stopPropagation();
+            setTempMinutes(minutes);
+            if (reservationTime) setTempReservationTime(reservationTime);
+            if (customLabel !== undefined) setTempLabel(customLabel);
+            setIsOpen((prev) => !prev);
+          }}
+          disabled={!isEditable}
+          className={`travel-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border shadow-2xs transition-all ${
+            isEditable
+              ? "cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:shadow-xs hover:scale-[1.02] active:scale-[0.98]"
+              : "cursor-default"
+          } ${
+            isReservation
+              ? "bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300"
+              : type === "custom"
+                ? "bg-amber-50/80 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200"
+                : "bg-surface-50 dark:bg-surface-800 border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300"
+          }`}
+          title={isEditable ? `Click to edit buffer (${minutes}m)` : undefined}
+        >
+          {isReservation ? (
+            <Lock className="w-3 h-3 text-purple-500 shrink-0" />
+          ) : type === "custom" ? (
+            <Timer className="w-3 h-3 text-amber-500 shrink-0" />
+          ) : (
+            <Clock className="w-3 h-3 text-surface-400 shrink-0" />
+          )}
+          <span>{label || `${minutes} min buffer`}</span>
+          {isEditable && (
+            <Pencil className="w-2.5 h-2.5 opacity-50 group-hover:opacity-100 hover:opacity-100 transition-opacity text-primary-500 dark:text-primary-400" />
+          )}
+        </button>
+
+        {/* Inline Buffer Edit Popover */}
+        {isOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-transparent"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(false);
+              }}
+            />
+            <div
+              className="absolute left-0 top-full mt-2 z-50 w-72 bg-white dark:bg-surface-850 rounded-xl shadow-2xl border border-surface-200 dark:border-surface-700 p-3.5 text-surface-900 dark:text-white ring-1 ring-black/10 dark:ring-white/10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-surface-100 dark:border-surface-700 mb-2.5">
+                <span className="text-xs font-bold flex items-center gap-1.5 text-surface-900 dark:text-white">
+                  {type === "arrival" ? (
+                    <>
+                      <PlaneLanding className="w-3.5 h-3.5 text-emerald-500" />
+                      Arrival Buffer Time
+                    </>
+                  ) : type === "departure" ? (
+                    <>
+                      <PlaneTakeoff className="w-3.5 h-3.5 text-red-500" />
+                      Departure Airport Buffer
+                    </>
+                  ) : isReservation ? (
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                      Reservation Buffer
+                    </>
+                  ) : type === "custom" ? (
+                    <>
+                      <Timer className="w-3.5 h-3.5 text-amber-500" />
+                      Custom Day Buffer
+                    </>
+                  ) : (
+                    <>
+                      <Timer className="w-3.5 h-3.5 text-primary-500" />
+                      Edit Buffer Time
+                    </>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="p-1 rounded text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <p className="text-[11px] text-surface-600 dark:text-surface-300 mb-3 leading-snug">
+                {type === "arrival"
+                  ? "Time needed after landing for customs, baggage claim, and transit exit before sightseeing begins."
+                  : type === "departure"
+                    ? "Airport lead time required before flight takeoff for check-in, bag drop, and security screening."
+                    : isReservation
+                      ? `Free time gap before locked reservation${stopName ? ` at ${stopName}` : ""}.`
+                      : "Custom buffer allocated in this day's schedule to prevent fatigue or cushion transit delays."}
+              </p>
+
+              {/* Custom Label editing if available */}
+              {onSaveLabel && (
+                <div className="space-y-1.5 mb-3">
+                  <label className="text-[11px] font-bold text-surface-500 uppercase tracking-tight">
+                    Buffer Label:
+                  </label>
+                  <input
+                    type="text"
+                    value={tempLabel}
+                    onChange={(e) => setTempLabel(e.target.value)}
+                    placeholder="e.g. Lunch Break, Coffee Stop..."
+                    className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                  <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                    {["Rest Break", "Coffee / Snack", "Lunch Break", "Buffer Time"].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => setTempLabel(suggestion)}
+                        className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border border-surface-200 dark:border-surface-700 hover:border-primary-400 transition-colors"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Number stepper and input */}
+              {onSaveMinutes && (
+                <div className="space-y-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] font-bold text-surface-500 uppercase tracking-tight shrink-0">
+                      Duration:
+                    </label>
+                    <div className="flex items-center flex-1 border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden bg-surface-50 dark:bg-surface-900">
+                      <button
+                        type="button"
+                        onClick={() => setTempMinutes((m) => Math.max(0, m - 15))}
+                        className="px-2.5 py-1.5 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-600 dark:text-surface-300 text-xs font-bold transition-colors"
+                        title="-15 minutes"
+                      >
+                        -15
+                      </button>
+                      <input
+                        type="number"
+                        min="0"
+                        max="480"
+                        step="5"
+                        value={tempMinutes}
+                        onChange={(e) => setTempMinutes(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="flex-1 min-w-0 bg-transparent text-center text-xs font-bold text-surface-900 dark:text-white py-1 focus:outline-none"
+                      />
+                      <span className="text-[10px] text-surface-400 dark:text-surface-500 pr-2 font-medium">
+                        min
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setTempMinutes((m) => m + 15)}
+                        className="px-2.5 py-1.5 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-600 dark:text-surface-300 text-xs font-bold transition-colors"
+                        title="+15 minutes"
+                      >
+                        +15
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Preset chips */}
+                  <div className="flex items-center gap-1 flex-wrap pt-1">
+                    <span className="text-[10px] font-semibold text-surface-400 mr-0.5">Presets:</span>
+                    {presets.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setTempMinutes(preset)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                          tempMinutes === preset
+                            ? "bg-primary-600 text-white border-primary-600"
+                            : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700 hover:bg-surface-200 dark:hover:bg-surface-700"
+                        }`}
+                      >
+                        {preset}m
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Reservation time adjustment if applicable */}
+              {isReservation && onSaveReservationTime && (
+                <div className="space-y-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] font-bold text-surface-500 uppercase tracking-tight shrink-0">
+                      Reservation:
+                    </label>
+                    <input
+                      type="time"
+                      value={tempReservationTime}
+                      onChange={(e) => setTempReservationTime(e.target.value)}
+                      className="flex-1 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-2.5 py-1 text-xs font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-surface-100 dark:border-surface-700">
+                {onDelete ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false);
+                      onDelete();
+                    }}
+                    className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Delete
+                  </button>
+                ) : <span />}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    className="px-2.5 py-1 text-xs font-semibold text-surface-500 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700 rounded-md transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    className="px-3 py-1 text-xs font-bold bg-primary-600 hover:bg-primary-700 text-white rounded-md shadow-2xs transition-colors"
+                  >
+                    Save Buffer
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
         )}
-        <span>{label || `${minutes} min buffer`}</span>
       </div>
+
+      {/* Right-aligned ETA time badge */}
+      {startTime !== undefined && (
+        <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded border border-surface-200 dark:border-surface-700 bg-surface-100 dark:bg-surface-800 text-surface-800 dark:text-surface-100 shadow-2xs shrink-0">
+          {formatTime(startTime)}
+        </span>
+      )}
     </div>
   );
 };
+
+const SortableCustomBuffer: React.FC<{
+  buffer: CustomBuffer;
+  startTime?: number;
+  isFirst: boolean;
+  isLast: boolean;
+  onUpdate: (updates: Partial<CustomBuffer>) => void;
+  onDelete: () => void;
+}> = React.memo(({ buffer, startTime, isFirst, isLast, onUpdate, onDelete }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: buffer.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 1,
+    position: "relative" as const,
+    opacity: isDragging ? 0.3 : 1,
+    scale: isDragging ? 1.02 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`relative group ${isDragging ? "cursor-grabbing" : ""}`}
+    >
+      {/* Visual Drop Indicator */}
+      {isDragging && (
+        <div className="absolute inset-x-0 -top-2 h-1 bg-amber-500/50 rounded-full blur-[1px] animate-pulse" />
+      )}
+
+      {/* Line connector */}
+      <div
+        className={`absolute left-5 w-0.5 bg-surface-200 dark:bg-surface-700/50 ${isFirst ? "top-5" : "top-0"} ${isLast ? "h-5" : "bottom-0"}`}
+      />
+
+      <div className="relative flex items-center justify-between gap-2">
+        {/* Drag Handle */}
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute -left-6 top-3 -translate-y-1/2 p-1.5 text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:hover:text-surface-200 cursor-grab active:cursor-grabbing opacity-30 group-hover:opacity-100 hover:opacity-100 transition-opacity touch-none z-20"
+          title="Drag to reorder buffer"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <BufferPill
+            minutes={buffer.duration}
+            startTime={startTime}
+            label={buffer.label ? `${buffer.label} (${buffer.duration}m)` : `${buffer.duration} min buffer`}
+            showLine={false}
+            type="custom"
+            customLabel={buffer.label}
+            onSaveMinutes={(newMinutes) => onUpdate({ duration: newMinutes })}
+            onSaveLabel={(newLabel) => onUpdate({ label: newLabel })}
+            onDelete={onDelete}
+          />
+        </div>
+
+        {/* Quick delete button on hover */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-500 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-800/60 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10"
+          title="Remove buffer"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  );
+});
 
 const ExpandableDescription: React.FC<{ text: any }> = ({ text }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -116,10 +497,10 @@ const ExpandableDescription: React.FC<{ text: any }> = ({ text }) => {
     typeof text === "string"
       ? text
       : text && typeof text === "object" && "text" in text
-      ? String(text.text)
-      : text && typeof text === "object"
-      ? JSON.stringify(text)
-      : String(text || "");
+        ? String(text.text)
+        : text && typeof text === "object"
+          ? JSON.stringify(text)
+          : String(text || "");
 
   if (!rawText.trim()) return null;
 
@@ -191,317 +572,315 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(
     currentDate,
     onEdit,
   }) => {
-  const timeConflict = 
-    dateMode === "fixed" 
-      ? checkTimeConflict(stopArrivalTime, stop.estimatedDuration || 60, stop.openingHours, currentDate)
-      : { hasConflict: false };
-      
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: stop.id });
+    const timeConflict =
+      dateMode === "fixed"
+        ? checkTimeConflict(stopArrivalTime, stop.estimatedDuration || 60, stop.openingHours, currentDate)
+        : { hasConflict: false };
 
-  const [isTimeModalOpen, setIsTimeModalOpen] = useState(false);
-  const [tempTime, setTempTime] = useState(
-    stop.customTime || formatMinutesTo24h(stopArrivalTime)
-  );
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: stop.id });
 
-  const isCustomTime = !!stop.customTime;
-  const customTimeMinutes = isCustomTime ? parseTimeToMinutes(stop.customTime) : null;
-  const isLate = isCustomTime && stopArrivalTime > (customTimeMinutes ?? 0);
-  const lateMinutes = isLate ? stopArrivalTime - (customTimeMinutes ?? 0) : 0;
+    const [isTimeModalOpen, setIsTimeModalOpen] = useState(false);
+    const [tempTime, setTempTime] = useState(
+      stop.customTime || formatMinutesTo24h(stopArrivalTime)
+    );
 
-  const openUpward = isLast && !isFirst;
+    const isCustomTime = !!stop.customTime;
+    const customTimeMinutes = isCustomTime ? parseTimeToMinutes(stop.customTime) : null;
+    const isLate = isCustomTime && stopArrivalTime > (customTimeMinutes ?? 0);
+    const lateMinutes = isLate ? stopArrivalTime - (customTimeMinutes ?? 0) : 0;
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 60 : isTimeModalOpen ? 50 : 1,
-    position: "relative" as const,
-    opacity: isDragging ? 0.3 : 1,
-    scale: isDragging ? 1.02 : 1,
-  };
+    const openUpward = isLast && !isFirst;
 
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`relative group ${isDragging ? "cursor-grabbing" : ""} ${isTimeModalOpen ? "z-50" : ""}`}
-    >
-      {/* Visual Drop Indicator */}
-      {isDragging && (
-        <div className="absolute inset-x-0 -top-2 h-1 bg-primary-500/50 rounded-full blur-[1px] animate-pulse" />
-      )}
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      zIndex: isDragging ? 60 : isTimeModalOpen ? 50 : 1,
+      position: "relative" as const,
+      opacity: isDragging ? 0.3 : 1,
+      scale: isDragging ? 1.02 : 1,
+    };
 
-      {/* Line connector */}
+    return (
       <div
-        className={`absolute left-5 w-0.5 bg-surface-200 dark:bg-surface-700/50 ${isFirst ? "top-5" : "top-0"} ${isLast ? "h-5" : "bottom-0"}`}
-      />
+        ref={setNodeRef}
+        style={style}
+        className={`relative group ${isDragging ? "cursor-grabbing" : ""} ${isTimeModalOpen ? "z-50" : ""}`}
+      >
+        {/* Visual Drop Indicator */}
+        {isDragging && (
+          <div className="absolute inset-x-0 -top-2 h-1 bg-primary-500/50 rounded-full blur-[1px] animate-pulse" />
+        )}
 
-      <div className="flex gap-4 relative z-10">
-        <div className="relative z-20">
-          <button
-            onClick={() => onEdit(stop.id)}
-            className="w-10 h-10 rounded-full bg-white dark:bg-surface-800 border-2 border-surface-100 dark:border-surface-700 flex items-center justify-center shrink-0 shadow-sm hover:border-primary-500 group-hover:border-primary-500 transition-colors"
-            title="Edit Place Details"
-          >
-            <span className="text-sm">{getCategoryEmoji(stop.category)}</span>
-          </button>
+        {/* Line connector */}
+        <div
+          className={`absolute left-5 w-0.5 bg-surface-200 dark:bg-surface-700/50 ${isFirst ? "top-5" : "top-0"} ${isLast ? "h-5" : "bottom-0"}`}
+        />
 
-          {/* Drag Handle */}
-          <div
-            {...attributes}
-            {...listeners}
-            className="absolute -left-6 top-5 -translate-y-1/2 p-1.5 text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:hover:text-surface-200 cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-100 hover:opacity-100 transition-opacity touch-none"
-            title="Drag to reorder"
-          >
-            <GripVertical className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="flex-1 min-w-0 pt-0.5 pb-4">
-          <div className="flex items-center justify-between gap-2 relative">
+        <div className="flex gap-4 relative z-10">
+          <div className="relative z-20">
             <button
               onClick={() => onEdit(stop.id)}
-              className="text-sm font-bold text-surface-900 dark:text-white truncate hover:text-primary-600 group-hover:text-primary-600 transition-colors text-left outline-none focus:ring-2 focus:ring-primary-500 rounded"
+              className="w-10 h-10 rounded-full bg-white dark:bg-surface-800 border-2 border-surface-100 dark:border-surface-700 flex items-center justify-center shrink-0 shadow-sm hover:border-primary-500 group-hover:border-primary-500 transition-colors"
               title="Edit Place Details"
             >
-              {stop.name}
-              {stop.romanizedName && stop.romanizedName.toLowerCase() !== stop.name.toLowerCase() && (
-                <span className="ml-1.5 text-xs font-normal text-surface-500 dark:text-surface-400 italic">
-                  ({stop.romanizedName})
-                </span>
-              )}
+              <span className="text-sm">{getCategoryEmoji(stop.category)}</span>
             </button>
-            <div className="flex items-center gap-1 shrink-0">
-              {timeConflict.hasConflict && (
-                <div 
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-[10px] font-bold border border-red-200 dark:border-red-800"
-                  title={timeConflict.reason}
-                >
-                  <AlertTriangle className="w-3 h-3" />
-                  <span className="hidden sm:inline">Closed</span>
-                </div>
-              )}
-              {/* Pin Toggle Button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  updatePlace(stop.id, { pinnedToDay: !stop.pinnedToDay });
-                }}
-                className={`p-1 rounded transition-colors ${
-                  stop.pinnedToDay
-                    ? "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50"
-                    : "text-surface-300 dark:text-surface-600 hover:text-amber-600 dark:hover:text-amber-400 opacity-0 group-hover:opacity-100 hover:bg-surface-100 dark:hover:bg-surface-700"
-                }`}
-                title={stop.pinnedToDay ? "Pinned to this day (click to unpin)" : "Pin to this day (prevent optimizer from moving)"}
-                aria-label={stop.pinnedToDay ? "Unpin stop from this day" : "Pin stop to this day"}
-              >
-                <Pin className={`w-3.5 h-3.5 ${stop.pinnedToDay ? "fill-current" : ""}`} />
-              </button>
-              {/* Remove from day Button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  unassignPlace(stop.id);
-                }}
-                className="p-1 text-surface-300 dark:text-surface-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors opacity-0 group-hover:opacity-100"
-                title="Remove from day"
-                aria-label="Remove stop from day"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+
+            {/* Drag Handle */}
+            <div
+              {...attributes}
+              {...listeners}
+              className="absolute -left-6 top-5 -translate-y-1/2 p-1.5 text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:hover:text-surface-200 cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-100 hover:opacity-100 transition-opacity touch-none"
+              title="Drag to reorder"
+            >
+              <GripVertical className="w-4 h-4" />
             </div>
           </div>
 
-          <div className="flex items-center gap-2 mt-1 flex-wrap relative">
-            {/* Arrival Time Badge / Custom Time Lock Button */}
-            <div className="relative inline-block">
+          <div className="flex-1 min-w-0 pt-0.5 pb-4">
+            <div className="flex items-center justify-between gap-2 relative">
               <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setTempTime(stop.customTime || formatMinutesTo24h(stopArrivalTime));
-                  setIsTimeModalOpen((prev) => !prev);
-                }}
-                className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded flex items-center gap-1 transition-all border ${
-                  isCustomTime
-                    ? "bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700/80 shadow-2xs hover:bg-purple-200/80 dark:hover:bg-purple-900/60"
-                    : "bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 border-transparent hover:border-primary-300"
-                }`}
-                title={
-                  isCustomTime
-                    ? `Locked reservation time at ${formatTimeString(stop.customTime)}. Click to edit or unlock.`
-                    : "Calculated arrival time. Click to lock custom reservation time."
-                }
+                onClick={() => onEdit(stop.id)}
+                className="text-sm font-bold text-surface-900 dark:text-white truncate hover:text-primary-600 group-hover:text-primary-600 transition-colors text-left outline-none focus:ring-2 focus:ring-primary-500 rounded flex-1 min-w-0"
+                title="Edit Place Details"
               >
-                {isCustomTime && <Lock className="w-2.5 h-2.5 text-purple-600 dark:text-purple-400 shrink-0" />}
-                <span>{isCustomTime ? formatTimeString(stop.customTime) : formatTime(stopArrivalTime)}</span>
-                {isCustomTime && <span className="text-[9px] font-semibold opacity-75 uppercase">Reserved</span>}
+                <span className="truncate block">
+                  {stop.name}
+                  {stop.romanizedName && stop.romanizedName.toLowerCase() !== stop.name.toLowerCase() && (
+                    <span className="ml-1.5 text-xs font-normal text-surface-500 dark:text-surface-400 italic">
+                      ({stop.romanizedName})
+                    </span>
+                  )}
+                </span>
               </button>
-
-              {/* Time Lock Popover */}
-              {isTimeModalOpen && (
-                <>
+              <div className="flex items-center gap-1 shrink-0">
+                {timeConflict.hasConflict && (
                   <div
-                    className="fixed inset-0 z-40 bg-transparent"
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-[10px] font-bold border border-red-200 dark:border-red-800"
+                    title={timeConflict.reason}
+                  >
+                    <AlertTriangle className="w-3 h-3" />
+                    <span className="hidden sm:inline">Closed</span>
+                  </div>
+                )}
+                {/* Pin Toggle Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updatePlace(stop.id, { pinnedToDay: !stop.pinnedToDay });
+                  }}
+                  className={`p-1 rounded transition-colors ${stop.pinnedToDay
+                      ? "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                      : "text-surface-300 dark:text-surface-600 hover:text-amber-600 dark:hover:text-amber-400 opacity-0 group-hover:opacity-100 hover:bg-surface-100 dark:hover:bg-surface-700"
+                    }`}
+                  title={stop.pinnedToDay ? "Pinned to this day (click to unpin)" : "Pin to this day (prevent optimizer from moving)"}
+                  aria-label={stop.pinnedToDay ? "Unpin stop from this day" : "Pin stop to this day"}
+                >
+                  <Pin className={`w-3.5 h-3.5 ${stop.pinnedToDay ? "fill-current" : ""}`} />
+                </button>
+                {/* Remove from day Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    unassignPlace(stop.id);
+                  }}
+                  className="p-1 text-surface-300 dark:text-surface-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors opacity-0 group-hover:opacity-100"
+                  title="Remove from day"
+                  aria-label="Remove stop from day"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Arrival Time Badge / Custom Time Lock Button */}
+                <div className="relative inline-block ml-0.5">
+                  <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setIsTimeModalOpen(false);
+                      setTempTime(stop.customTime || formatMinutesTo24h(stopArrivalTime));
+                      setIsTimeModalOpen((prev) => !prev);
                     }}
-                  />
-                  <div
-                    className={`absolute left-0 ${
-                      openUpward ? "bottom-full mb-2" : "top-full mt-2"
-                    } z-50 w-72 bg-white dark:bg-surface-850 rounded-xl shadow-2xl border border-surface-200 dark:border-surface-700 p-3.5 text-surface-900 dark:text-white ring-1 ring-black/10 dark:ring-white/10`}
-                    onClick={(e) => e.stopPropagation()}
+                    className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded flex items-center gap-1 transition-all border shadow-2xs ${isCustomTime
+                        ? "bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700/80 hover:bg-purple-200/80 dark:hover:bg-purple-900/60"
+                        : "bg-surface-100 dark:bg-surface-800 text-surface-800 dark:text-surface-100 border-surface-200 dark:border-surface-700 hover:border-primary-400 dark:hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-300"
+                      }`}
+                    title={
+                      isCustomTime
+                        ? `Locked reservation time at ${formatTimeString(stop.customTime)}. Click to edit or unlock.`
+                        : "Calculated arrival time. Click to lock custom reservation time."
+                    }
                   >
-                    <div className="flex items-center justify-between pb-2 border-b border-surface-100 dark:border-surface-700 mb-2.5">
-                      <span className="text-xs font-bold flex items-center gap-1.5 text-surface-900 dark:text-white">
-                        <Lock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                        Locked Reservation Time
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setIsTimeModalOpen(false)}
-                        className="p-1 rounded text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 transition-colors"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    {isCustomTime && <Lock className="w-2.5 h-2.5 text-purple-600 dark:text-purple-400 shrink-0" />}
+                    <span>{isCustomTime ? formatTimeString(stop.customTime) : formatTime(stopArrivalTime)}</span>
+                    {isCustomTime && <span className="text-[9px] font-semibold opacity-75 uppercase">Locked</span>}
+                  </button>
 
-                    <p className="text-[11px] text-surface-600 dark:text-surface-300 mb-3 leading-snug">
-                      Fix this place to an exact time. The optimizer will schedule other stops around it and will not move this place.
-                    </p>
-
-                    <div className="flex items-center gap-2 mb-3">
-                      <label className="text-xs font-bold text-surface-600 dark:text-surface-300 uppercase shrink-0">Time:</label>
-                      <input
-                        type="time"
-                        value={tempTime}
-                        onChange={(e) => setTempTime(e.target.value)}
-                        className="flex-1 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  {/* Time Lock Popover */}
+                  {isTimeModalOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40 bg-transparent"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsTimeModalOpen(false);
+                        }}
                       />
-                    </div>
+                      <div
+                        className={`absolute right-0 ${openUpward ? "bottom-full mb-2" : "top-full mt-2"
+                          } z-50 w-72 bg-white dark:bg-surface-850 rounded-xl shadow-2xl border border-surface-200 dark:border-surface-700 p-3.5 text-surface-900 dark:text-white ring-1 ring-black/10 dark:ring-white/10`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-between pb-2 border-b border-surface-100 dark:border-surface-700 mb-2.5">
+                          <span className="text-xs font-bold flex items-center gap-1.5 text-surface-900 dark:text-white">
+                            <Lock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                            Locked Reservation Time
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setIsTimeModalOpen(false)}
+                            className="p-1 rounded text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
 
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-surface-100 dark:border-surface-700">
-                      {isCustomTime ? (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            updatePlace(stop.id, { customTime: undefined });
-                            setIsTimeModalOpen(false);
-                            toast.info(`Removed locked time for ${stop.name}.`);
-                            try {
-                              await useRouteStore.getState().optimizeDay(dayIndex);
-                            } catch (e) {
-                              console.error("Failed to re-optimize day after unlocking time", e);
-                            }
-                          }}
-                          className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline"
-                        >
-                          Unlock
-                        </button>
-                      ) : <span />}
+                        <p className="text-[11px] text-surface-600 dark:text-surface-300 mb-3 leading-snug">
+                          Fix this place to an exact time. The optimizer will schedule other stops around it and will not move this place.
+                        </p>
 
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setIsTimeModalOpen(false)}
-                          className="px-2.5 py-1 text-xs font-semibold text-surface-500 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700 rounded-md transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (tempTime) {
-                              updatePlace(stop.id, { customTime: tempTime, pinnedToDay: true });
-                              setIsTimeModalOpen(false);
-                              toast.success(`Locked ${stop.name} to ${formatTimeString(tempTime)}.`);
-                              try {
-                                await useRouteStore.getState().optimizeDay(dayIndex);
-                              } catch (e) {
-                                console.error("Failed to re-optimize day after setting custom time", e);
-                              }
-                            }
-                          }}
-                          className="px-3 py-1 text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white rounded-md shadow-2xs transition-colors"
-                        >
-                          Lock Time
-                        </button>
+                        <div className="flex items-center gap-2 mb-3">
+                          <label className="text-xs font-bold text-surface-600 dark:text-surface-300 uppercase shrink-0">Time:</label>
+                          <input
+                            type="time"
+                            value={tempTime}
+                            onChange={(e) => setTempTime(e.target.value)}
+                            className="flex-1 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-surface-100 dark:border-surface-700">
+                          {isCustomTime ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                updatePlace(stop.id, { customTime: undefined });
+                                setIsTimeModalOpen(false);
+                                toast.info(`Removed locked time for ${stop.name}.`);
+                                try {
+                                  await useRouteStore.getState().optimizeDay(dayIndex);
+                                } catch (e) {
+                                  console.error("Failed to re-optimize day after unlocking time", e);
+                                }
+                              }}
+                              className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline"
+                            >
+                              Unlock
+                            </button>
+                          ) : <span />}
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setIsTimeModalOpen(false)}
+                              className="px-2.5 py-1 text-xs font-semibold text-surface-500 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700 rounded-md transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (tempTime) {
+                                  updatePlace(stop.id, { customTime: tempTime, pinnedToDay: true });
+                                  setIsTimeModalOpen(false);
+                                  toast.success(`Locked ${stop.name} to ${formatTimeString(tempTime)}.`);
+                                  try {
+                                    await useRouteStore.getState().optimizeDay(dayIndex);
+                                  } catch (e) {
+                                    console.error("Failed to re-optimize day after setting custom time", e);
+                                  }
+                                }
+                              }}
+                              className="px-3 py-1 text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white rounded-md shadow-2xs transition-colors"
+                            >
+                              Lock Time
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap relative">
+              {/* Late Arrival Warning */}
+              {isLate && (
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700/80"
+                  title={`Reservation is locked at ${formatTimeString(stop.customTime)}, but estimated arrival from previous stops is ${formatTime(stopArrivalTime)}`}
+                >
+                  <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Late by {lateMinutes}m</span>
+                </span>
+              )}
+
+              <span className="text-[10px] font-bold text-surface-400 uppercase tracking-tight flex items-center gap-1">
+                <Timer className="w-2.5 h-2.5" />
+                {stop.estimatedDuration || 60}m visit
+              </span>
+              {stop.priceEstimate && (
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 border ${stop.priceEstimate.toLowerCase().includes("free")
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                      : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700"
+                    }`}
+                  title={`Estimated price: ${stop.priceEstimate}`}
+                >
+                  <Coins className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                  {stop.priceEstimate}
+                </span>
+              )}
+              {stop.reservation && (
+                <ReservationBadge reservation={stop.reservation} compact />
               )}
             </div>
 
-            {/* Late Arrival Warning */}
-            {isLate && (
-              <span
-                className="text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700/80"
-                title={`Reservation is locked at ${formatTimeString(stop.customTime)}, but estimated arrival from previous stops is ${formatTime(stopArrivalTime)}`}
-              >
-                <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                <span>Late by {lateMinutes}m</span>
-              </span>
+            {(stop.description || (Array.isArray(stop.openingHours) && stop.openingHours.length > 0)) && (
+              <div className="mt-1 space-y-1">
+                {stop.description && <ExpandableDescription text={stop.description} />}
+                {Array.isArray(stop.openingHours) && stop.openingHours.length > 0 && (
+                  <div
+                    className="inline-flex items-center gap-1 text-[10px] text-surface-400 dark:text-surface-500 cursor-help"
+                    title={stop.openingHours.filter((h: any) => typeof h === "string").join("\n")}
+                  >
+                    <Clock className="w-3 h-3" />
+                    <span>View Hours</span>
+                  </div>
+                )}
+              </div>
             )}
 
-            <span className="text-[10px] font-bold text-surface-400 uppercase tracking-tight flex items-center gap-1">
-              <Timer className="w-2.5 h-2.5" />
-              {stop.estimatedDuration || 60}m visit
-            </span>
-            {stop.priceEstimate && (
-              <span
-                className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 border ${
-                  stop.priceEstimate.toLowerCase().includes("free")
-                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                    : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700"
-                }`}
-                title={`Estimated price: ${stop.priceEstimate}`}
-              >
-                <Coins className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
-                {stop.priceEstimate}
-              </span>
-            )}
-            {stop.reservation && (
-              <ReservationBadge reservation={stop.reservation} compact />
+            {/* Contextual Highlight (Must-Try, Photo Spot, etc.) - Always visible, never cut off */}
+            {stop.highlight && stop.highlight.text && (
+              <div className="mt-2">
+                <PlaceHighlightBadge highlight={stop.highlight} category={stop.category} compact />
+              </div>
             )}
           </div>
-
-          {(stop.description || (Array.isArray(stop.openingHours) && stop.openingHours.length > 0)) && (
-            <div className="mt-1 space-y-1">
-              {stop.description && <ExpandableDescription text={stop.description} />}
-              {Array.isArray(stop.openingHours) && stop.openingHours.length > 0 && (
-                <div 
-                  className="inline-flex items-center gap-1 text-[10px] text-surface-400 dark:text-surface-500 cursor-help"
-                  title={stop.openingHours.filter((h: any) => typeof h === "string").join("\n")}
-                >
-                  <Clock className="w-3 h-3" />
-                  <span>View Hours</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Contextual Highlight (Must-Try, Photo Spot, etc.) - Always visible, never cut off */}
-          {stop.highlight && stop.highlight.text && (
-            <div className="mt-2">
-              <PlaceHighlightBadge highlight={stop.highlight} category={stop.category} compact />
-            </div>
-          )}
         </div>
       </div>
-    </div>
-  );
-}, areSortableStopPropsEqual);
+    );
+  }, areSortableStopPropsEqual);
 
 const SortableAnchor: React.FC<{
   id: string;
@@ -510,9 +889,11 @@ const SortableAnchor: React.FC<{
   time?: string;
   calculatedTime?: number;
   buffer?: number;
+  bufferStartTime?: number;
   isFirst: boolean;
   isLast: boolean;
-}> = React.memo(({ id, type, name, time, calculatedTime, buffer, isFirst, isLast }) => {
+  onUpdateBuffer?: (newBuffer: number) => void;
+}> = React.memo(({ id, type, name, time, calculatedTime, buffer, bufferStartTime, isFirst, isLast, onUpdateBuffer }) => {
   const {
     attributes,
     listeners,
@@ -566,8 +947,28 @@ const SortableAnchor: React.FC<{
 
       {/* Line connector */}
       <div
-        className={`absolute left-5 w-0.5 bg-surface-200 dark:bg-surface-700/50 ${isFirst ? "top-5" : "top-0"} ${isLast ? "h-5" : "bottom-0"}`}
+        className={`absolute left-5 w-0.5 bg-surface-200 dark:bg-surface-700/50 ${
+          type === "departure"
+            ? "top-0 bottom-6"
+            : isFirst
+              ? "top-5"
+              : isLast
+                ? "h-5"
+                : "bottom-0"
+        }`}
       />
+
+      {/* Pre-flight Departure Buffer rendered BEFORE Trip Departure icon */}
+      {type === "departure" && buffer !== undefined && (
+        <BufferPill
+          minutes={buffer}
+          startTime={bufferStartTime ?? (time ? parseTimeToMinutes(time) - buffer : calculatedTime)}
+          label={`${buffer} min buffer before flight`}
+          showLine={false}
+          type="departure"
+          onSaveMinutes={onUpdateBuffer}
+        />
+      )}
 
       <div className="flex items-start gap-4 relative z-20">
         <div className="relative">
@@ -589,17 +990,17 @@ const SortableAnchor: React.FC<{
         </div>
 
         <div className="flex-1 min-w-0 pt-0.5 pb-2">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <h4 className="text-sm font-bold text-surface-900 dark:text-white truncate">
               {name}
             </h4>
             {time && (
-              <span className="text-[10px] font-bold font-mono text-surface-400">
+              <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded border border-surface-200 dark:border-surface-700 bg-surface-100 dark:bg-surface-800 text-surface-800 dark:text-surface-100 shadow-2xs shrink-0">
                 {formatTimeString(time)}
               </span>
             )}
             {calculatedTime !== undefined && (
-              <span className="text-[10px] font-bold font-mono text-surface-400">
+              <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded border border-surface-200 dark:border-surface-700 bg-surface-100 dark:bg-surface-800 text-surface-800 dark:text-surface-100 shadow-2xs shrink-0">
                 {formatTime(calculatedTime)}
               </span>
             )}
@@ -615,8 +1016,21 @@ const SortableAnchor: React.FC<{
           </p>
         </div>
       </div>
-      {buffer !== undefined && (
-        <BufferPill minutes={buffer} showLine={!isLast} />
+
+      {/* Post-arrival buffer rendered AFTER Arrival icon */}
+      {type !== "departure" && buffer !== undefined && (
+        <BufferPill
+          minutes={buffer}
+          startTime={bufferStartTime ?? (time ? parseTimeToMinutes(time) : calculatedTime)}
+          label={
+            type === "arrival"
+              ? `${buffer} min buffer after landing`
+              : `${buffer} min buffer`
+          }
+          showLine={!isLast}
+          type={type === "arrival" ? "arrival" : undefined}
+          onSaveMinutes={onUpdateBuffer}
+        />
       )}
     </div>
   );
@@ -657,11 +1071,10 @@ const SegmentPill: React.FC<{
       {/* Line connector segment - always full height for segments as they are intermediate */}
       <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-surface-200 dark:bg-surface-700/50" />
       <div
-        className={`travel-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer relative overflow-hidden shadow-2xs ${
-          isHeuristicTransit
+        className={`travel-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer relative overflow-hidden shadow-2xs ${isHeuristicTransit
             ? "bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-600/70 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/60"
             : "bg-surface-50 hover:bg-surface-100 dark:bg-surface-700/90 dark:hover:bg-surface-600 border border-surface-200 dark:border-surface-600 text-surface-700 dark:text-surface-100"
-        }`}
+          }`}
         title={
           isHeuristicTransit
             ? `Estimated Transit: Live transit APIs return ZERO_RESULTS for Japan transit or are offline. Time is estimated geometrically (~${distanceUnit === "imperial" ? "11 mph local / ~101 mph express" : "18 km/h local / ~162 km/h express"}) without real-time train timetables or megastation transfer times.`
@@ -720,19 +1133,31 @@ export const DailySchedule: React.FC = () => {
   const [editingPlaceId, setEditingPlaceId] = useState<string | null>(null);
   const [optimizingDayIndex, setOptimizingDayIndex] = useState<number | null>(null);
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
+  const [addBufferDayIndex, setAddBufferDayIndex] = useState<number | null>(null);
+  const [newBufferDuration, setNewBufferDuration] = useState<number>(30);
+  const [newBufferLabel, setNewBufferLabel] = useState<string>("Rest Break");
+  const [inlineBufferAfter, setInlineBufferAfter] = useState<{ dayIndex: number; afterId: string } | null>(null);
+  const [inlineDuration, setInlineDuration] = useState<number>(30);
+  const [inlineLabel, setInlineLabel] = useState<string>("Rest Break");
 
   const optimizedRoutes = useRouteStore((s) => s.optimizedRoutes);
   const optimizeDay = useRouteStore((s) => s.optimizeDay);
   const unassignPlace = useRouteStore((s) => s.unassignPlace);
   const updatePlace = useRouteStore((s) => s.updatePlace);
   const reorderDayStops = useRouteStore((s) => s.reorderDayStops);
+  const customBuffers = useRouteStore((s) => s.customBuffers);
+  const addCustomBuffer = useRouteStore((s) => s.addCustomBuffer);
+  const updateCustomBuffer = useRouteStore((s) => s.updateCustomBuffer);
+  const deleteCustomBuffer = useRouteStore((s) => s.deleteCustomBuffer);
   const startDate = useRouteStore((s) => s.startDate);
   const dateMode = useRouteStore((s) => s.dateMode);
   const dayStartTime = useRouteStore((s) => s.dayStartTime);
   const dayEndTime = useRouteStore((s) => s.dayEndTime);
   const showFlights = useRouteStore((s) => s.showFlights);
   const arrivalFlight = useRouteStore((s) => s.arrivalFlight);
+  const setArrivalFlight = useRouteStore((s) => s.setArrivalFlight);
   const departureFlight = useRouteStore((s) => s.departureFlight);
+  const setDepartureFlight = useRouteStore((s) => s.setDepartureFlight);
   const distanceUnit = useRouteStore((s) => s.distanceUnit);
 
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
@@ -838,413 +1263,635 @@ export const DailySchedule: React.FC = () => {
   return (
     <>
       <div className="schedule-container">
-      <div className="px-6 py-3 border-b border-surface-100 dark:border-surface-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-50 dark:bg-surface-800 shrink-0">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h2 className="text-lg font-bold text-surface-900 dark:text-white">
-            Optimized Schedule
-          </h2>
+        <div className="px-6 py-3 border-b border-surface-100 dark:border-surface-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-50 dark:bg-surface-800 shrink-0">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-lg font-bold text-surface-900 dark:text-white">
+              Optimized Schedule
+            </h2>
 
-          {hasHeuristicTransit && (
-            <button
-              onClick={() => setIsBannerDismissed((prev) => !prev)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
-                !isBannerDismissed
-                  ? "bg-amber-100/90 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700/80 shadow-2xs hover:bg-amber-200/80 dark:hover:bg-amber-900/70"
-                  : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700/80 hover:bg-amber-100/80 dark:hover:bg-amber-900/60 shadow-2xs"
-              }`}
-              title={
-                isBannerDismissed
-                  ? "Click to view notice: Why are transit times orange & estimated?"
-                  : "Click to hide transit notice"
-              }
-              aria-label="Toggle orange transit notice"
-            >
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-              <span>Orange Transit = Estimated</span>
-              <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-200/70 dark:bg-amber-900/70 px-1.5 py-0.5 rounded-full">
-                {!isBannerDismissed ? "Hide Notice" : "Why?"}
-              </span>
-            </button>
-          )}
-        </div>
-
-        {/* Day Quick Navigation */}
-        <div className="flex items-center gap-3 overflow-hidden min-w-0 flex-1 sm:justify-end">
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs font-bold text-surface-400 uppercase tracking-wider whitespace-nowrap">
-              Jump to:
-            </span>
-
-            {optimizedRoutes.length > 18 && (
-              <input
-                type="number"
-                placeholder="Day #"
-                min={1}
-                max={optimizedRoutes.length}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value);
-                  if (!isNaN(val)) scrollToDay(val - 1);
-                }}
-                className="w-20 bg-white dark:bg-surface-700 border border-surface-200 dark:border-surface-600 rounded-md px-2 py-0.5 text-xs font-bold text-primary-600 outline-none focus:ring-1 focus:ring-primary-500 text-center"
-              />
+            {hasHeuristicTransit && (
+              <button
+                onClick={() => setIsBannerDismissed((prev) => !prev)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${!isBannerDismissed
+                    ? "bg-amber-100/90 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700/80 shadow-2xs hover:bg-amber-200/80 dark:hover:bg-amber-900/70"
+                    : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700/80 hover:bg-amber-100/80 dark:hover:bg-amber-900/60 shadow-2xs"
+                  }`}
+                title={
+                  isBannerDismissed
+                    ? "Click to view notice: Why are transit times orange & estimated?"
+                    : "Click to hide transit notice"
+                }
+                aria-label="Toggle orange transit notice"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>Orange Transit = Estimated</span>
+                <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-200/70 dark:bg-amber-900/70 px-1.5 py-0.5 rounded-full">
+                  {!isBannerDismissed ? "Hide Notice" : "Why?"}
+                </span>
+              </button>
             )}
           </div>
 
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            {optimizedRoutes.map((_, i) => {
-              const btnDate = addDays(parseISO(startDate), i);
-              return (
-                <button
-                  key={i}
-                  onClick={() => scrollToDay(i)}
-                  className={`px-3 py-1.5 rounded-lg bg-white dark:bg-surface-700 border border-surface-200 dark:border-surface-600 font-bold text-surface-600 dark:text-surface-300 hover:border-primary-500 hover:text-primary-600 transition-all whitespace-nowrap flex flex-col items-center justify-center min-w-[60px] ${dateMode === "fixed" ? "text-[10px]" : "text-xs"}`}
-                >
-                  {dateMode === "fixed" ? (
-                    <>
-                      <span className="opacity-50">D{i + 1}</span>
-                      <span>{format(btnDate, "MMM d")}</span>
-                    </>
-                  ) : (
-                    <span>Day {i + 1}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+          {/* Day Quick Navigation */}
+          <div className="flex items-center gap-3 overflow-hidden min-w-0 flex-1 sm:justify-end">
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-bold text-surface-400 uppercase tracking-wider whitespace-nowrap">
+                Jump to:
+              </span>
 
-      {/* Heuristic Transit Inaccurate Times Warning Banner */}
-      {hasHeuristicTransit && !isBannerDismissed && (
-        <div className="mx-4 sm:mx-6 mt-4 p-3.5 rounded-2xl border border-amber-300 dark:border-amber-700/80 bg-gradient-to-r from-amber-50 to-orange-50/60 dark:from-amber-950/50 dark:to-orange-950/30 text-amber-950 dark:text-amber-200 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 rounded-lg bg-amber-200/80 dark:bg-amber-900/60 shrink-0">
-                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              </div>
-              <p className="text-xs sm:text-sm font-semibold text-amber-950 dark:text-amber-100">
-                ⚠ Transit times are estimated — actual durations may differ significantly.
-              </p>
+              {optimizedRoutes.length > 18 && (
+                <input
+                  type="number"
+                  placeholder="Day #"
+                  min={1}
+                  max={optimizedRoutes.length}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val)) scrollToDay(val - 1);
+                  }}
+                  className="w-20 bg-white dark:bg-surface-700 border border-surface-200 dark:border-surface-600 rounded-md px-2 py-0.5 text-xs font-bold text-primary-600 outline-none focus:ring-1 focus:ring-primary-500 text-center"
+                />
+              )}
             </div>
-            <button
-              onClick={() => setIsBannerDismissed(true)}
-              className="p-1.5 rounded-xl text-amber-700 dark:text-amber-400 hover:bg-amber-200/60 dark:hover:bg-amber-900/60 transition-colors shrink-0"
-              title="Dismiss notice"
-              aria-label="Dismiss heuristic transit notice"
-            >
-              <X className="w-4 h-4" />
-            </button>
+
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+              {optimizedRoutes.map((_, i) => {
+                const btnDate = addDays(parseISO(startDate), i);
+                return (
+                  <button
+                    key={i}
+                    onClick={() => scrollToDay(i)}
+                    className={`px-3 py-1.5 rounded-lg bg-white dark:bg-surface-700 border border-surface-200 dark:border-surface-600 font-bold text-surface-600 dark:text-surface-300 hover:border-primary-500 hover:text-primary-600 transition-all whitespace-nowrap flex flex-col items-center justify-center min-w-[60px] ${dateMode === "fixed" ? "text-[10px]" : "text-xs"}`}
+                  >
+                    {dateMode === "fixed" ? (
+                      <>
+                        <span className="opacity-50">D{i + 1}</span>
+                        <span>{format(btnDate, "MMM d")}</span>
+                      </>
+                    ) : (
+                      <span>Day {i + 1}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <details className="mt-2">
-            <summary className="text-[11px] sm:text-xs font-bold text-amber-800 dark:text-amber-300 cursor-pointer hover:text-amber-950 dark:hover:text-amber-100 transition-colors select-none">
-              Why this happens
-            </summary>
-            <p className="mt-1.5 text-[11px] sm:text-xs text-amber-900/80 dark:text-amber-300/80 leading-relaxed pl-1">
-              Google Maps developer APIs return <code className="font-mono text-[10px] bg-amber-200/70 dark:bg-amber-900/70 px-1 py-0.5 rounded font-bold">ZERO_RESULTS</code> for Japan transit due to commercial licensing. Times are approximated geometrically (~{distanceUnit === "imperial" ? "11 mph local / ~101 mph express" : "18 km/h local / ~162 km/h express"}) without real timetables, departure intervals, or megastation transfer walks. Cross-check with local transit apps (NAVITIME, Jorudan) on your travel day.{" "}
-              <button
-                onClick={() => { window.location.hash = "#about-limitations"; }}
-                className="inline font-bold text-amber-950 dark:text-amber-100 underline underline-offset-2 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-              >
-                More details →
-              </button>
-            </p>
-          </details>
         </div>
-      )}
+
+        {/* Heuristic Transit Inaccurate Times Warning Banner */}
+        {hasHeuristicTransit && !isBannerDismissed && (
+          <div className="mx-4 sm:mx-6 mt-4 p-3.5 rounded-2xl border border-amber-300 dark:border-amber-700/80 bg-gradient-to-r from-amber-50 to-orange-50/60 dark:from-amber-950/50 dark:to-orange-950/30 text-amber-950 dark:text-amber-200 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-amber-200/80 dark:bg-amber-900/60 shrink-0">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <p className="text-xs sm:text-sm font-semibold text-amber-950 dark:text-amber-100">
+                  ⚠ Transit times are estimated — actual durations may differ significantly.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsBannerDismissed(true)}
+                className="p-1.5 rounded-xl text-amber-700 dark:text-amber-400 hover:bg-amber-200/60 dark:hover:bg-amber-900/60 transition-colors shrink-0"
+                title="Dismiss notice"
+                aria-label="Dismiss heuristic transit notice"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <details className="mt-2">
+              <summary className="text-[11px] sm:text-xs font-bold text-amber-800 dark:text-amber-300 cursor-pointer hover:text-amber-950 dark:hover:text-amber-100 transition-colors select-none">
+                Why this happens
+              </summary>
+              <p className="mt-1.5 text-[11px] sm:text-xs text-amber-900/80 dark:text-amber-300/80 leading-relaxed pl-1">
+                Google Maps developer APIs return <code className="font-mono text-[10px] bg-amber-200/70 dark:bg-amber-900/70 px-1 py-0.5 rounded font-bold">ZERO_RESULTS</code> for Japan transit due to commercial licensing. Times are approximated geometrically (~{distanceUnit === "imperial" ? "11 mph local / ~101 mph express" : "18 km/h local / ~162 km/h express"}) without real timetables, departure intervals, or megastation transfer walks. Cross-check with local transit apps (NAVITIME, Jorudan) on your travel day.{" "}
+                <button
+                  onClick={() => { window.location.hash = "#about-limitations"; }}
+                  className="inline font-bold text-amber-950 dark:text-amber-100 underline underline-offset-2 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                >
+                  More details →
+                </button>
+              </p>
+            </details>
+          </div>
+        )}
 
 
-      <div
-        ref={scrollContainerRef}
-        className="p-6 overflow-x-auto overflow-y-hidden custom-scrollbar flex gap-6 snap-x snap-proximity smooth-scroll-container"
-      >
-        {optimizedRoutes.map((route, i) => {
-          const currentDate = addDays(parseISO(startDate), i);
-          const isFirstDay = i === 0;
-          const isLastDay = i === optimizedRoutes.length - 1;
+        <div
+          ref={scrollContainerRef}
+          className="p-6 overflow-x-auto overflow-y-hidden custom-scrollbar flex gap-6 snap-x snap-proximity smooth-scroll-container"
+        >
+          {optimizedRoutes.map((route, i) => {
+            const currentDate = addDays(parseISO(startDate), i);
+            const isFirstDay = i === 0;
+            const isLastDay = i === optimizedRoutes.length - 1;
 
-          // Calculate base day start time in minutes
-          const [startH, startM] = dayStartTime.split(":").map(Number);
-          let currentTime = startH * 60 + startM;
+            // Calculate base day start time in minutes
+            const [startH, startM] = dayStartTime.split(":").map(Number);
+            let currentTime = startH * 60 + startM;
 
-          // Calculate available time for this day
-          let dayAvailableMinutes = baseDayMinutes;
-          if (showFlights) {
-            if (isFirstDay && arrivalFlight) {
-              const [arrH, arrM] = arrivalFlight.time.split(":").map(Number);
-              const arrivalTotal = arrH * 60 + arrM;
-              const dayStartTotal = startH * 60 + startM;
-              const effectiveStart = Math.max(dayStartTotal, arrivalTotal);
-              currentTime = effectiveStart; // Day starts after flight
+            // Calculate available time for this day
+            let dayAvailableMinutes = baseDayMinutes;
+            if (showFlights) {
+              if (isFirstDay && arrivalFlight) {
+                const [arrH, arrM] = arrivalFlight.time.split(":").map(Number);
+                const arrivalTotal = arrH * 60 + arrM;
+                const dayStartTotal = startH * 60 + startM;
+                const effectiveStart = Math.max(dayStartTotal, arrivalTotal);
+                currentTime = effectiveStart; // Day starts after flight
 
-              let available = endH * 60 + endM - effectiveStart;
-              if (available < 0) available += 24 * 60;
-              dayAvailableMinutes = available;
+                let available = endH * 60 + endM - effectiveStart;
+                if (available < 0) available += 24 * 60;
+                dayAvailableMinutes = available;
+              }
+              if (isLastDay && departureFlight) {
+                const [depH, depM] = departureFlight.time.split(":").map(Number);
+                const depTotal = depH * 60 + depM;
+                // Handle overnight: if dayEndTime is "00:00" (midnight), treat as 1440
+                const rawDayEnd = endH * 60 + endM;
+                const dayEndTotal = rawDayEnd === 0 ? 24 * 60 : rawDayEnd;
+                const effectiveEnd = Math.min(dayEndTotal, depTotal - (departureFlight.buffer ?? 90));
+
+                let available = effectiveEnd - (startH * 60 + startM);
+                if (available < 0) available += 24 * 60;
+                dayAvailableMinutes = available;
+              }
             }
-            if (isLastDay && departureFlight) {
-              const [depH, depM] = departureFlight.time.split(":").map(Number);
-              const depTotal = depH * 60 + depM;
-              // Handle overnight: if dayEndTime is "00:00" (midnight), treat as 1440
-              const rawDayEnd = endH * 60 + endM;
-              const dayEndTotal = rawDayEnd === 0 ? 24 * 60 : rawDayEnd;
-              const effectiveEnd = Math.min(dayEndTotal, depTotal);
 
-              let available = effectiveEnd - (startH * 60 + startM);
-              if (available < 0) available += 24 * 60;
-              dayAvailableMinutes = available;
-            }
-          }
+            const visitMin = route.stops.reduce(
+              (acc, s) => acc + (s.estimatedDuration || 0),
+              0,
+            );
+            const dayCustomBuffers = customBuffers.filter((b) => b.dayIndex === i);
+            const bufferMin = dayCustomBuffers.reduce((acc, b) => acc + (b.duration || 0), 0);
+            const travelMin = Math.round(route.totalTime / 60);
+            const dayHasHeuristicTransit = route.segments.some(
+              (s) => s.travelMode === "transit" && s.isHeuristic !== false
+            );
+            const totalDayMin = visitMin + travelMin + bufferMin;
+            const remainingTime = Math.max(0, dayAvailableMinutes - totalDayMin);
+            const isOverBudget = totalDayMin > dayAvailableMinutes;
+            const budgetPct = Math.min(
+              100,
+              Math.round((totalDayMin / dayAvailableMinutes) * 100),
+            );
 
-          const visitMin = route.stops.reduce(
-            (acc, s) => acc + (s.estimatedDuration || 0),
-            0,
-          );
-          const travelMin = Math.round(route.totalTime / 60);
-          const dayHasHeuristicTransit = route.segments.some(
-            (s) => s.travelMode === "transit" && s.isHeuristic !== false
-          );
-          const totalDayMin = visitMin + travelMin;
-          const remainingTime = Math.max(0, dayAvailableMinutes - totalDayMin);
-          const isOverBudget = totalDayMin > dayAvailableMinutes;
-          const budgetPct = Math.min(
-            100,
-            Math.round((totalDayMin / dayAvailableMinutes) * 100),
-          );
+            const getDayItemSequence = (dayRoute: typeof route, dayIdx: number) => {
+              let ids = dayRoute.manualSequence ? [...dayRoute.manualSequence] : [];
+              const dayCustoms = customBuffers.filter((b) => b.dayIndex === dayIdx);
+              const isFirst = dayIdx === 0;
+              const isLast = dayIdx === optimizedRoutes.length - 1;
 
-          return (
-            <div
-              key={i}
-              id={`schedule-day-${i}`}
-              className={`flex-shrink-0 w-80 md:w-96 snap-start ${i >= 3 ? "content-auto-day" : ""}`}
-            >
-              <div className="bg-white dark:bg-surface-800 rounded-2xl border border-surface-100 dark:border-surface-700 shadow-xl overflow-hidden flex flex-col h-full max-h-[600px]">
-                <div className="p-4 border-b border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-800/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex flex-col">
-                      <h3 className="text-lg font-bold text-surface-900 dark:text-white leading-tight">
-                        Day {i + 1}
-                      </h3>
-                      {dateMode === "fixed" && (
-                        <span className="text-[11px] font-bold text-primary-600 dark:text-primary-400 uppercase tracking-wider">
-                          {format(currentDate, "MMM d (EEE)")}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {route.stops.length > 1 && (
-                        <button
-                          onClick={() => handleOptimizeSingleDay(i)}
-                          disabled={optimizingDayIndex !== null}
-                          className="p-1.5 rounded-lg bg-white dark:bg-surface-700 border border-surface-200 dark:border-surface-600 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-all disabled:opacity-50"
-                          title="Optimize this day's route"
-                        >
-                          {optimizingDayIndex === i ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
-                          ) : (
-                            <Wand2 className="w-4 h-4" />
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
+              if (!dayRoute.manualSequence) {
+                if (showFlights && isFirst && arrivalFlight) ids.push("arrival");
+                if (dayRoute.startHotel) ids.push("start-hotel");
+                dayRoute.stops.forEach((s) => ids.push(s.id));
+                dayCustoms.forEach((b) => ids.push(b.id));
+                if (dayRoute.endHotel && !isLast) ids.push("end-hotel");
+                if (showFlights && isLast && departureFlight) ids.push("departure");
+              } else {
+                dayCustoms.forEach((b) => {
+                  if (!ids.includes(b.id)) {
+                    const endIdx = ids.findIndex((id) => id === "end-hotel" || id === "departure");
+                    if (endIdx >= 0) {
+                      ids.splice(endIdx, 0, b.id);
+                    } else {
+                      ids.push(b.id);
+                    }
+                  }
+                });
+                ids = ids.filter((id) => {
+                  if (id.startsWith("custom-buffer-")) {
+                    return dayCustoms.some((b) => b.id === id);
+                  }
+                  return true;
+                });
+                if (showFlights && isFirst && arrivalFlight && !ids.includes("arrival")) {
+                  ids.unshift("arrival");
+                } else if (!showFlights) {
+                  ids = ids.filter((id) => id !== "arrival" && id !== "departure");
+                }
+                if (showFlights && isLast && departureFlight && !ids.includes("departure")) {
+                  ids.push("departure");
+                }
+              }
+              if (isLast) {
+                ids = ids.filter((id) => id !== "end-hotel");
+              }
+              return ids;
+            };
 
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-[10px] font-bold text-surface-500 uppercase tracking-tight">
-                      <span className="flex items-center gap-1.5 bg-surface-100 dark:bg-surface-700/50 px-2 py-0.5 rounded-full">
-                        <Timer className="w-3 h-3 text-primary-500" />
-                        <span className="text-surface-400">Visit:</span>
-                        <span className="text-surface-600 dark:text-surface-300">
-                          {visitMin > 60
-                            ? `${Math.floor(visitMin / 60)}h ${visitMin % 60}m`
-                            : `${visitMin}m`}
-                        </span>
-                      </span>
-                      <span className="flex items-center gap-1.5 bg-surface-100 dark:bg-surface-700/50 px-2 py-0.5 rounded-full">
-                        <Clock className="w-3 h-3 text-primary-500" />
-                        <span className="text-surface-400">Travel:</span>
-                        <span className="text-surface-600 dark:text-surface-300">
-                          {travelMin > 60
-                            ? `${Math.floor(travelMin / 60)}h ${travelMin % 60}m`
-                            : `${travelMin}m`}
-                        </span>
-                        {dayHasHeuristicTransit && (
-                          <span
-                            className="inline-flex items-center gap-0.5 text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 border border-amber-300 dark:border-amber-700/80 px-1 py-0.2 rounded"
-                            title="Day travel duration contains heuristic transit estimates"
-                          >
-                            <AlertTriangle className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
-                            <span>~Heuristic</span>
+            const dayItems = getDayItemSequence(route, i);
+
+            return (
+              <div
+                key={i}
+                id={`schedule-day-${i}`}
+                className={`flex-shrink-0 w-80 md:w-96 snap-start ${i >= 3 ? "content-auto-day" : ""}`}
+              >
+                <div className="bg-white dark:bg-surface-800 rounded-2xl border border-surface-100 dark:border-surface-700 shadow-xl overflow-hidden flex flex-col h-full max-h-[600px]">
+                  <div className="p-4 border-b border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-800/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex flex-col">
+                        <h3 className="text-lg font-bold text-surface-900 dark:text-white leading-tight">
+                          Day {i + 1}
+                        </h3>
+                        {dateMode === "fixed" && (
+                          <span className="text-[11px] font-bold text-primary-600 dark:text-primary-400 uppercase tracking-wider">
+                            {format(currentDate, "MMM d (EEE)")}
                           </span>
                         )}
-                      </span>
-                    </div>
-                    <div
-                      className={`text-[10px] font-black px-1.5 py-0.5 rounded ${isOverBudget ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}
-                    >
-                      {isOverBudget
-                        ? "OVER BUDGET"
-                        : remainingTime >= 60
-                          ? `${Math.floor(remainingTime / 60)}h ${remainingTime % 60}m left`
-                          : `${remainingTime}m left`}
-                    </div>
-                  </div>
-
-                  {/* Budget bar */}
-                  <div className="w-full bg-surface-100 dark:bg-surface-700 rounded-full h-1 mt-3 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${isOverBudget ? "bg-red-500" : "bg-primary-500"}`}
-                      style={{ width: `${budgetPct}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pl-8 pr-4 py-4 space-y-0 relative smooth-scroll-container">
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={(event) => {
-                      const { active, over } = event;
-                      if (over && active.id !== over.id) {
-                        reorderDayStops(
-                          i,
-                          active.id as string,
-                          over.id as string,
-                        );
-                      }
-                    }}
-                  >
-                    <SortableContext
-                      items={(() => {
-                        if (route.manualSequence) return route.manualSequence;
-                        const items = [];
-                        if (showFlights && isFirstDay && arrivalFlight)
-                          items.push("arrival");
-                        if (route.startHotel) items.push("start-hotel");
-                        route.stops.forEach((s) => items.push(s.id));
-                        if (route.endHotel) items.push("end-hotel");
-                        if (showFlights && isLastDay && departureFlight)
-                          items.push("departure");
-                        return items;
-                      })()}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <div className="flex flex-col relative">
-                        {(() => {
-                          const items =
-                            route.manualSequence ||
-                            (() => {
-                              const ids = [];
-                              if (showFlights && isFirstDay && arrivalFlight)
-                                ids.push("arrival");
-                              if (route.startHotel) ids.push("start-hotel");
-                              route.stops.forEach((s) => ids.push(s.id));
-                              if (route.endHotel) ids.push("end-hotel");
-                              if (showFlights && isLastDay && departureFlight)
-                                ids.push("departure");
-                              return ids;
-                            })();
-
-
-                          return items.map((itemId, idx) => {
-                            const isFirst = idx === 0;
-                            const isLast = idx === items.length - 1;
-
-                            let element = null;
-                            let itemDuration = 0;
-                            let preBufferPill = null;
-
-                            if (itemId === "arrival" && arrivalFlight) {
-                              element = (
-                                <SortableAnchor
-                                  key="arrival"
-                                  id="arrival"
-                                  type="arrival"
-                                  name={
-                                    arrivalFlight.location
-                                      ? arrivalFlight.location.name
-                                      : "Flight Arrival"
-                                  }
-                                  time={arrivalFlight.time}
-                                  buffer={arrivalFlight.buffer}
-                                  isFirst={isFirst}
-                                  isLast={isLast}
-                                />
-                              );
-                              itemDuration = arrivalFlight.buffer;
-                            } else if (
-                              itemId === "departure" &&
-                              departureFlight
-                            ) {
-                              element = (
-                                <SortableAnchor
-                                  key="departure"
-                                  id="departure"
-                                  type="departure"
-                                  name={
-                                    departureFlight.location
-                                      ? departureFlight.location.name
-                                      : "Flight Departure"
-                                  }
-                                  time={departureFlight.time}
-                                  buffer={departureFlight.buffer}
-                                  isFirst={isFirst}
-                                  isLast={isLast}
-                                />
-                              );
-                              itemDuration = departureFlight.buffer;
-                            } else if (
-                              itemId === "start-hotel" &&
-                              route.startHotel
-                            ) {
-                              element = (
-                                <SortableAnchor
-                                  key="start-hotel"
-                                  id="start-hotel"
-                                  name={route.startHotel.name}
-                                  type="start-hotel"
-                                  calculatedTime={currentTime}
-                                  isFirst={isFirst}
-                                  isLast={isLast}
-                                />
-                              );
-                            } else if (
-                              itemId === "end-hotel" &&
-                              route.endHotel
-                            ) {
-                              element = (
-                                <SortableAnchor
-                                  key="end-hotel"
-                                  id="end-hotel"
-                                  name={route.endHotel.name}
-                                  type="end-hotel"
-                                  calculatedTime={currentTime}
-                                  isFirst={isFirst}
-                                  isLast={isLast}
-                                />
-                              );
+                      </div>
+                      <div className="flex items-center gap-2 relative">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (addBufferDayIndex === i) {
+                              setAddBufferDayIndex(null);
                             } else {
-                              const stop = route.stops.find(
-                                (s) => s.id === itemId,
-                              );
-                              if (stop) {
-                                let stopArrivalTime = currentTime;
-                                if (stop.customTime) {
-                                  const customMin = parseTimeToMinutes(stop.customTime);
-                                  if (customMin > currentTime) {
-                                    const idleMin = customMin - currentTime;
-                                    preBufferPill = (
-                                      <BufferPill
-                                        key={`buffer-${stop.id}`}
-                                        minutes={idleMin}
-                                        label={`${idleMin} min free time before reservation`}
-                                        isReservation
-                                        showLine={!isFirst}
-                                      />
-                                    );
-                                    currentTime = customMin;
-                                  }
-                                }
+                              setAddBufferDayIndex(i);
+                              setNewBufferDuration(30);
+                              setNewBufferLabel("Rest Break");
+                            }
+                          }}
+                          className={`p-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs ${
+                            addBufferDayIndex === i
+                              ? "bg-amber-600 text-white border-amber-600 shadow-amber-500/20"
+                              : "bg-white dark:bg-surface-700 border-surface-200 dark:border-surface-600 text-surface-700 dark:text-surface-200 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                          }`}
+                          title="Add custom buffer or break to this day"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Buffer</span>
+                        </button>
 
+                        {/* Add Buffer Popover */}
+                        {addBufferDayIndex === i && (
+                          <div className="absolute top-10 right-0 z-50 w-72 bg-white dark:bg-surface-800 rounded-xl shadow-2xl border border-surface-200 dark:border-surface-700 p-3.5 space-y-3 animate-in fade-in zoom-in-95 duration-150 text-left">
+                            <div className="flex items-center justify-between pb-1 border-b border-surface-100 dark:border-surface-700">
+                              <span className="text-xs font-bold text-surface-900 dark:text-white flex items-center gap-1.5">
+                                <Coffee className="w-3.5 h-3.5 text-amber-500" />
+                                Add Day {i + 1} Buffer
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setAddBufferDayIndex(null)}
+                                className="text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 p-0.5"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {/* Label input */}
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-surface-500 uppercase">
+                                Activity / Label:
+                              </label>
+                              <input
+                                type="text"
+                                value={newBufferLabel}
+                                onChange={(e) => setNewBufferLabel(e.target.value)}
+                                placeholder="e.g. Lunch Break, Coffee Stop..."
+                                className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                              />
+                              <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                                {["Rest Break", "Coffee / Snack", "Lunch Break", "Buffer Time"].map((chip) => (
+                                  <button
+                                    key={chip}
+                                    type="button"
+                                    onClick={() => setNewBufferLabel(chip)}
+                                    className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300 border border-surface-200 dark:border-surface-600 hover:border-amber-400 transition-colors"
+                                  >
+                                    {chip}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Duration input */}
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-surface-500 uppercase">
+                                Duration:
+                              </label>
+                              <div className="flex items-center border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden bg-surface-50 dark:bg-surface-900">
+                                <button
+                                  type="button"
+                                  onClick={() => setNewBufferDuration((m) => Math.max(5, m - 15))}
+                                  className="px-2.5 py-1.5 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-600 dark:text-surface-300 text-xs font-bold transition-colors"
+                                >
+                                  -15
+                                </button>
+                                <input
+                                  type="number"
+                                  min="5"
+                                  max="480"
+                                  step="5"
+                                  value={newBufferDuration}
+                                  onChange={(e) => setNewBufferDuration(Math.max(5, parseInt(e.target.value) || 5))}
+                                  className="flex-1 min-w-0 bg-transparent text-center text-xs font-bold text-surface-900 dark:text-white py-1 focus:outline-none"
+                                />
+                                <span className="text-[10px] text-surface-400 dark:text-surface-500 pr-2 font-medium">
+                                  min
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewBufferDuration((m) => m + 15)}
+                                  className="px-2.5 py-1.5 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-600 dark:text-surface-300 text-xs font-bold transition-colors"
+                                >
+                                  +15
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {[15, 30, 45, 60, 90].map((preset) => (
+                                  <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => setNewBufferDuration(preset)}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                                      newBufferDuration === preset
+                                        ? "bg-amber-600 text-white border-amber-600"
+                                        : "bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-600"
+                                    }`}
+                                  >
+                                    {preset}m
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-surface-100 dark:border-surface-700">
+                              <button
+                                type="button"
+                                onClick={() => setAddBufferDayIndex(null)}
+                                className="px-2.5 py-1 text-xs font-semibold text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 rounded-md"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  addCustomBuffer(i, newBufferDuration, newBufferLabel || "Custom Buffer");
+                                  toast.success(`Added ${newBufferDuration}m buffer to Day ${i + 1}`);
+                                  setAddBufferDayIndex(null);
+                                }}
+                                className="px-3 py-1 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-md shadow-2xs transition-colors"
+                              >
+                                Add Buffer
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {route.stops.length > 1 && (
+                          <button
+                            onClick={() => handleOptimizeSingleDay(i)}
+                            disabled={optimizingDayIndex !== null}
+                            className="p-1.5 rounded-lg bg-white dark:bg-surface-700 border border-surface-200 dark:border-surface-600 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-all disabled:opacity-50"
+                            title="Optimize this day's route"
+                          >
+                            {optimizingDayIndex === i ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
+                            ) : (
+                              <Wand2 className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 text-[10px] font-bold text-surface-500 uppercase tracking-tight flex-wrap">
+                        <span className="flex items-center gap-1.5 bg-surface-100 dark:bg-surface-700/50 px-2 py-0.5 rounded-full">
+                          <Timer className="w-3 h-3 text-primary-500" />
+                          <span className="text-surface-400">Visit:</span>
+                          <span className="text-surface-600 dark:text-surface-300">
+                            {visitMin > 60
+                              ? `${Math.floor(visitMin / 60)}h ${visitMin % 60}m`
+                              : `${visitMin}m`}
+                          </span>
+                        </span>
+                        <span className="flex items-center gap-1.5 bg-surface-100 dark:bg-surface-700/50 px-2 py-0.5 rounded-full">
+                          <Clock className="w-3 h-3 text-primary-500" />
+                          <span className="text-surface-400">Travel:</span>
+                          <span className="text-surface-600 dark:text-surface-300">
+                            {travelMin > 60
+                              ? `${Math.floor(travelMin / 60)}h ${travelMin % 60}m`
+                              : `${travelMin}m`}
+                          </span>
+                          {dayHasHeuristicTransit && (
+                            <span
+                              className="inline-flex items-center gap-0.5 text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 border border-amber-300 dark:border-amber-700/80 px-1 py-0.2 rounded"
+                              title="Day travel duration contains heuristic transit estimates"
+                            >
+                              <AlertTriangle className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                              <span>~Heuristic</span>
+                            </span>
+                          )}
+                        </span>
+                        {bufferMin > 0 && (
+                          <span className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800/50">
+                            <Coffee className="w-3 h-3 text-amber-500" />
+                            <span className="text-surface-400 dark:text-amber-400/70">Buffer:</span>
+                            <span>
+                              {bufferMin > 60
+                                ? `${Math.floor(bufferMin / 60)}h ${bufferMin % 60}m`
+                                : `${bufferMin}m`}
+                            </span>
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className={`text-[10px] font-black px-1.5 py-0.5 rounded ${isOverBudget ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}
+                      >
+                        {isOverBudget
+                          ? "OVER BUDGET"
+                          : remainingTime >= 60
+                            ? `${Math.floor(remainingTime / 60)}h ${remainingTime % 60}m left`
+                            : `${remainingTime}m left`}
+                      </div>
+                    </div>
+
+                    {/* Budget bar */}
+                    <div className="w-full bg-surface-100 dark:bg-surface-700 rounded-full h-1 mt-3 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${isOverBudget ? "bg-red-500" : "bg-primary-500"}`}
+                        style={{ width: `${budgetPct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pl-8 pr-4 py-4 space-y-0 relative smooth-scroll-container">
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={(event) => {
+                        const { active, over } = event;
+                        if (over && active.id !== over.id) {
+                          reorderDayStops(
+                            i,
+                            active.id as string,
+                            over.id as string,
+                          );
+                        }
+                      }}
+                    >
+                      <SortableContext
+                        items={dayItems}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="flex flex-col relative">
+                          {(() => {
+                            let physicalSegmentIndex = 0;
+
+                            return dayItems.map((itemId, idx) => {
+                              const isFirst = idx === 0;
+                              const isLast = idx === dayItems.length - 1;
+
+                              let element = null;
+                              let itemDuration = 0;
+                              let preBufferPill = null;
+
+                              if (itemId === "arrival" && arrivalFlight) {
+                                const arrMin = parseTimeToMinutes(arrivalFlight.time);
+                                const arrBuffer = arrivalFlight.buffer ?? 30;
                                 element = (
+                                  <SortableAnchor
+                                    key="arrival"
+                                    id="arrival"
+                                    type="arrival"
+                                    name={
+                                      arrivalFlight.location
+                                        ? arrivalFlight.location.name
+                                        : "Flight Arrival"
+                                    }
+                                    time={arrivalFlight.time}
+                                    buffer={arrBuffer}
+                                    bufferStartTime={arrMin}
+                                    isFirst={isFirst}
+                                    isLast={isLast}
+                                    onUpdateBuffer={(newBuffer) => {
+                                      setArrivalFlight({ ...arrivalFlight, buffer: newBuffer });
+                                      toast.success(`Arrival buffer updated to ${newBuffer}m.`);
+                                    }}
+                                  />
+                                );
+                                itemDuration = arrBuffer;
+                              } else if (
+                                itemId === "departure" &&
+                                departureFlight
+                              ) {
+                                const depMin = parseTimeToMinutes(departureFlight.time);
+                                const depBuffer = departureFlight.buffer ?? 90;
+                                const depBufferStart = depMin - depBuffer;
+                                element = (
+                                  <SortableAnchor
+                                    key="departure"
+                                    id="departure"
+                                    type="departure"
+                                    name={
+                                      departureFlight.location
+                                        ? departureFlight.location.name
+                                        : "Flight Departure"
+                                    }
+                                    time={departureFlight.time}
+                                    buffer={depBuffer}
+                                    bufferStartTime={depBufferStart}
+                                    isFirst={isFirst}
+                                    isLast={isLast}
+                                    onUpdateBuffer={(newBuffer) => {
+                                      setDepartureFlight({ ...departureFlight, buffer: newBuffer });
+                                      toast.success(`Departure buffer updated to ${newBuffer}m.`);
+                                    }}
+                                  />
+                                );
+                                itemDuration = depBuffer;
+                              } else if (
+                                itemId === "start-hotel" &&
+                                route.startHotel
+                              ) {
+                                element = (
+                                  <SortableAnchor
+                                    key="start-hotel"
+                                    id="start-hotel"
+                                    name={route.startHotel.name}
+                                    type="start-hotel"
+                                    calculatedTime={currentTime}
+                                    isFirst={isFirst}
+                                    isLast={isLast}
+                                  />
+                                );
+                              } else if (
+                                itemId === "end-hotel" &&
+                                route.endHotel &&
+                                !isLastDay
+                              ) {
+                                element = (
+                                  <SortableAnchor
+                                    key="end-hotel"
+                                    id="end-hotel"
+                                    name={route.endHotel.name}
+                                    type="end-hotel"
+                                    calculatedTime={currentTime}
+                                    isFirst={isFirst}
+                                    isLast={isLast}
+                                  />
+                                );
+                              } else if (itemId.startsWith("custom-buffer-")) {
+                                const customBuf = customBuffers.find((b) => b.id === itemId);
+                                if (customBuf) {
+                                  element = (
+                                    <SortableCustomBuffer
+                                      key={customBuf.id}
+                                      buffer={customBuf}
+                                      startTime={currentTime}
+                                      isFirst={isFirst}
+                                      isLast={isLast}
+                                      onUpdate={(updates) => updateCustomBuffer(customBuf.id, updates)}
+                                      onDelete={() => {
+                                        deleteCustomBuffer(customBuf.id);
+                                        toast.success("Buffer removed");
+                                      }}
+                                    />
+                                  );
+                                  itemDuration = customBuf.duration;
+                                }
+                              } else {
+                                const stop = route.stops.find(
+                                  (s) => s.id === itemId,
+                                );
+                                if (stop) {
+                                  let stopArrivalTime = currentTime;
+                                  if (stop.customTime) {
+                                    const customMin = parseTimeToMinutes(stop.customTime);
+                                    if (customMin > currentTime) {
+                                      const idleMin = customMin - currentTime;
+                                      preBufferPill = (
+                                        <BufferPill
+                                          key={`buffer-${stop.id}`}
+                                          minutes={idleMin}
+                                          startTime={currentTime}
+                                          label={`${idleMin} min free time before reservation`}
+                                          isReservation
+                                          showLine={!isFirst}
+                                          type="reservation"
+                                          stopName={stop.name}
+                                          reservationTime={stop.customTime}
+                                          onSaveReservationTime={async (newTime) => {
+                                            updatePlace(stop.id, { customTime: newTime });
+                                            toast.success(`Updated ${stop.name} reservation to ${formatTimeString(newTime)}`);
+                                            try {
+                                              await useRouteStore.getState().optimizeDay(i);
+                                            } catch (e) {
+                                              console.error("Failed to re-optimize day after setting custom time", e);
+                                            }
+                                          }}
+                                        />
+                                      );
+                                      currentTime = customMin;
+                                    }
+                                  }
+
+                                  element = (
                                     <SortableStop
                                       key={stop.id}
                                       stop={stop}
@@ -1259,55 +1906,202 @@ export const DailySchedule: React.FC = () => {
                                       onEdit={handleEditPlace}
                                     />
                                   );
-                                itemDuration = stop.estimatedDuration || 0;
+                                  itemDuration = stop.estimatedDuration || 0;
+                                }
                               }
-                            }
 
-                            if (!element) return null;
+                              if (!element) return null;
 
-                            currentTime += itemDuration;
+                              currentTime += itemDuration;
 
-                            // After item, render segment if not last
-                            const segmentElement =
-                              idx < items.length - 1 &&
-                                idx < route.segments.length ? (
-                                <div
-                                  className="mt-[-4px]"
-                                  key={`seg-${itemId}`}
-                                >
-                                  <SegmentPill
-                                    segment={route.segments[idx]}
-                                    dayIndex={i}
-                                    segmentIndex={idx}
-                                  />
-                                  {(() => {
-                                    currentTime += Math.round(
-                                      route.segments[idx].time / 60,
-                                    );
-                                    return null;
-                                  })()}
-                                </div>
-                              ) : null;
+                              // Segment should render right before the next physical stop
+                              const nextPhysicalIdx = dayItems.slice(idx + 1).findIndex((id) => !id.startsWith("custom-buffer-"));
+                              const hasPrevPhysical = dayItems.slice(0, idx + 1).some((id) => !id.startsWith("custom-buffer-"));
 
-                            return (
-                              <React.Fragment key={`group-${itemId}`}>
-                                {preBufferPill}
-                                {element}
-                                {segmentElement}
-                              </React.Fragment>
-                            );
-                          });
-                        })()}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
+                              let segmentElement = null;
+                              if (hasPrevPhysical && nextPhysicalIdx === 0 && physicalSegmentIndex < route.segments.length) {
+                                const currentSeg = route.segments[physicalSegmentIndex];
+                                const segIdx = physicalSegmentIndex;
+                                physicalSegmentIndex++;
+                                segmentElement = (
+                                  <div
+                                    className="mt-[-4px]"
+                                    key={`seg-${itemId}-${segIdx}`}
+                                  >
+                                    <SegmentPill
+                                      segment={currentSeg}
+                                      dayIndex={i}
+                                      segmentIndex={segIdx}
+                                    />
+                                    {(() => {
+                                      currentTime += Math.round(
+                                        currentSeg.time / 60,
+                                      );
+                                      return null;
+                                    })()}
+                                  </div>
+                                );
+                              }
+
+                              // Inline "Add Buffer" divider between items
+                              const showInlineDivider = !isLast && !itemId.startsWith("custom-buffer-") && itemId !== "arrival" && itemId !== "start-hotel";
+                              const isInlineOpen = inlineBufferAfter?.dayIndex === i && inlineBufferAfter?.afterId === itemId;
+
+                              return (
+                                <React.Fragment key={`group-${itemId}`}>
+                                  {preBufferPill}
+                                  {element}
+                                  {segmentElement}
+                                  {showInlineDivider && (
+                                    <div className="relative group/add-buf py-0.5 -my-0.5 z-10">
+                                      {/* Vertical line connector */}
+                                      <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-surface-200 dark:bg-surface-700/50" />
+
+                                      {!isInlineOpen ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setInlineBufferAfter({ dayIndex: i, afterId: itemId });
+                                            setInlineDuration(30);
+                                            setInlineLabel("Rest Break");
+                                          }}
+                                          className="relative flex items-center gap-1.5 ml-[14px] py-1 opacity-0 group-hover/add-buf:opacity-100 focus:opacity-100 transition-opacity duration-150"
+                                          title="Insert buffer here"
+                                        >
+                                          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-800/60 transition-colors shadow-sm">
+                                            <Plus className="w-3 h-3" />
+                                          </span>
+                                          <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                            Insert buffer
+                                          </span>
+                                        </button>
+                                      ) : (
+                                        <div className="relative ml-8 mr-2 my-1 bg-white dark:bg-surface-800 rounded-xl shadow-2xl border border-amber-300 dark:border-amber-700 p-3 space-y-2.5 animate-in fade-in zoom-in-95 duration-150 z-50">
+                                          <div className="flex items-center justify-between pb-1 border-b border-surface-100 dark:border-surface-700">
+                                            <span className="text-[10px] font-bold text-surface-900 dark:text-white flex items-center gap-1.5">
+                                              <Coffee className="w-3 h-3 text-amber-500" />
+                                              Insert Buffer
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() => setInlineBufferAfter(null)}
+                                              className="text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 p-0.5"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          </div>
+
+                                          {/* Quick label chips */}
+                                          <div className="flex items-center gap-1 flex-wrap">
+                                            {["Rest Break", "Coffee / Snack", "Lunch Break", "Buffer Time"].map((chip) => (
+                                              <button
+                                                key={chip}
+                                                type="button"
+                                                onClick={() => setInlineLabel(chip)}
+                                                className={`px-1.5 py-0.5 rounded text-[9px] font-medium border transition-colors ${
+                                                  inlineLabel === chip
+                                                    ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-400 dark:border-amber-600"
+                                                    : "bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-600 hover:border-amber-400"
+                                                }`}
+                                              >
+                                                {chip}
+                                              </button>
+                                            ))}
+                                          </div>
+
+                                          {/* Custom label input */}
+                                          <input
+                                            type="text"
+                                            value={inlineLabel}
+                                            onChange={(e) => setInlineLabel(e.target.value)}
+                                            placeholder="Custom label..."
+                                            className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-2 py-1 text-[11px] font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                          />
+
+                                          {/* Duration row */}
+                                          <div className="flex items-center gap-1.5">
+                                            <div className="flex items-center border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden bg-surface-50 dark:bg-surface-900 flex-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => setInlineDuration((m) => Math.max(5, m - 15))}
+                                                className="px-2 py-1 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-600 dark:text-surface-300 text-[10px] font-bold transition-colors"
+                                              >
+                                                -15
+                                              </button>
+                                              <input
+                                                type="number"
+                                                min="5"
+                                                max="480"
+                                                step="5"
+                                                value={inlineDuration}
+                                                onChange={(e) => setInlineDuration(Math.max(5, parseInt(e.target.value) || 5))}
+                                                className="flex-1 min-w-0 bg-transparent text-center text-[11px] font-bold text-surface-900 dark:text-white py-1 focus:outline-none"
+                                              />
+                                              <span className="text-[9px] text-surface-400 pr-1.5 font-medium">min</span>
+                                              <button
+                                                type="button"
+                                                onClick={() => setInlineDuration((m) => m + 15)}
+                                                className="px-2 py-1 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-600 dark:text-surface-300 text-[10px] font-bold transition-colors"
+                                              >
+                                                +15
+                                              </button>
+                                            </div>
+                                            {/* Quick duration presets */}
+                                            {[15, 30, 60].map((preset) => (
+                                              <button
+                                                key={preset}
+                                                type="button"
+                                                onClick={() => setInlineDuration(preset)}
+                                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${
+                                                  inlineDuration === preset
+                                                    ? "bg-amber-600 text-white border-amber-600"
+                                                    : "bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-600"
+                                                }`}
+                                              >
+                                                {preset}m
+                                              </button>
+                                            ))}
+                                          </div>
+
+                                          {/* Actions */}
+                                          <div className="flex items-center justify-end gap-2 pt-1 border-t border-surface-100 dark:border-surface-700">
+                                            <button
+                                              type="button"
+                                              onClick={() => setInlineBufferAfter(null)}
+                                              className="px-2 py-0.5 text-[10px] font-semibold text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 rounded-md"
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                addCustomBuffer(i, inlineDuration, inlineLabel || "Custom Buffer", itemId);
+                                                toast.success(`Added ${inlineDuration}m buffer`);
+                                                setInlineBufferAfter(null);
+                                              }}
+                                              className="px-2.5 py-0.5 text-[10px] font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-md shadow-2xs transition-colors"
+                                            >
+                                              Add
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </React.Fragment>
+                              );
+                            });
+                          })()}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
       {editingPlaceId && (
         <React.Suspense fallback={null}>
           <EditPlaceModal

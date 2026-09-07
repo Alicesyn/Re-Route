@@ -18,6 +18,7 @@ import { useRouteStore } from "../../store/useRouteStore";
 import { TravelMode } from "../../types";
 import { MOCK_HOTELS } from "../../services/mockData";
 import { HotelSearchInput } from "./HotelSearchInput";
+import { toast } from "../../services/toastService";
 
 import { DatePicker } from "../ui/DatePicker";
 import { format, addDays } from "date-fns";
@@ -96,6 +97,9 @@ export const TripSettings: React.FC = React.memo(() => {
   const [daysInput, setDaysInput] = useState(days.toString());
   const [openPicker, setOpenPicker] = useState<"start" | "end" | null>(null);
   const [stayBoundaries, setStayBoundaries] = useState<number[]>([]);
+  const [arrBufInput, setArrBufInput] = useState(String(arrivalFlight?.buffer ?? 30));
+  const [depBufInput, setDepBufInput] = useState(String(departureFlight?.buffer ?? 90));
+
 
   // Sync internal input state with store days
   useEffect(() => {
@@ -121,7 +125,7 @@ export const TripSettings: React.FC = React.memo(() => {
   ) => {
     const current = arrivalFlight || {
       time: "12:00",
-      buffer: 60,
+      buffer: 30,
       location: null,
     };
     setArrivalFlight({ ...current, ...updates });
@@ -132,7 +136,7 @@ export const TripSettings: React.FC = React.memo(() => {
   ) => {
     const current = departureFlight || {
       time: "12:00",
-      buffer: 60,
+      buffer: 90,
       location: null,
     };
     setDepartureFlight({ ...current, ...updates });
@@ -539,10 +543,15 @@ export const TripSettings: React.FC = React.memo(() => {
         {/* Flight & Travel Section */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-bold text-surface-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-              <Plane className="w-3.5 h-3.5" />
-              Flight & Travel
-            </h3>
+            <div>
+              <h3 className="text-xs font-bold text-surface-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <Plane className="w-3.5 h-3.5" />
+                Flight & Buffer Times
+              </h3>
+              <p className="text-[10px] text-surface-500">
+                Configure airport transit & schedule buffer times
+              </p>
+            </div>
             <button
               onClick={() => setShowFlights(!showFlights)}
               className={`relative inline-flex h-5 w-10 items-center rounded-full transition-all duration-300 focus:outline-none ring-2 ring-offset-2 ring-offset-white dark:ring-offset-surface-800 ring-transparent focus:ring-primary-500/50 ${showFlights ? "bg-primary-500 shadow-[0_0_10px_rgba(var(--primary-500-rgb),0.4)]" : "bg-surface-300 dark:bg-surface-600"}`}
@@ -552,6 +561,19 @@ export const TripSettings: React.FC = React.memo(() => {
               />
             </button>
           </div>
+
+          {!showFlights && (
+            <div className="p-3 rounded-xl border border-dashed border-surface-200 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/30 text-[11px] text-surface-500 flex items-center justify-between gap-2">
+              <span>Flight & airport buffer times are currently disabled.</span>
+              <button
+                type="button"
+                onClick={() => setShowFlights(true)}
+                className="text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline shrink-0"
+              >
+                Enable
+              </button>
+            </div>
+          )}
 
           {showFlights && (
             <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
@@ -575,7 +597,7 @@ export const TripSettings: React.FC = React.memo(() => {
                       onSelect={(loc) => handleArrivalChange({ location: loc })}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1 ml-0.5">
                         Land Time
@@ -593,21 +615,78 @@ export const TripSettings: React.FC = React.memo(() => {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1 ml-0.5">
-                        Buffer (Min)
-                      </label>
-                      <div className="relative">
-                        <Timer className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
-                        <input
-                          type="number"
-                          value={arrivalFlight?.buffer || 60}
-                          onChange={(e) =>
+                      <div className="flex items-center justify-between mb-1 ml-0.5">
+                        <label className="text-[10px] font-bold text-surface-400 uppercase">
+                          Post-Landing Buffer
+                        </label>
+                        <span className="text-[9px] text-surface-400">Customs & exit</span>
+                      </div>
+                      <div className="relative flex items-center border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden bg-white dark:bg-surface-800">
+                        <button
+                          type="button"
+                          onClick={() => {
                             handleArrivalChange({
-                              buffer: parseInt(e.target.value) || 0,
-                            })
-                          }
-                          className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg py-2 pl-8 pr-3 text-xs font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
+                              buffer: Math.max(0, (arrivalFlight?.buffer ?? 30) - 15),
+                            });
+                            setArrBufInput(String(Math.max(0, (arrivalFlight?.buffer ?? 30) - 15)));
+                          }}
+                          className="px-2.5 py-2 hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-600 dark:text-surface-300 text-xs font-bold transition-colors shrink-0"
+                          title="-15 minutes"
+                        >
+                          -15
+                        </button>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={arrBufInput}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/[^0-9]/g, '');
+                            setArrBufInput(v);
+                            if (v !== '') {
+                              handleArrivalChange({ buffer: Math.min(480, Math.max(0, parseInt(v))) });
+                            }
+                          }}
+                          onBlur={() => {
+                            const num = Math.min(480, Math.max(0, parseInt(arrBufInput) || 0));
+                            handleArrivalChange({ buffer: num });
+                            setArrBufInput(String(num));
+                          }}
+                          className="w-full bg-transparent text-center text-xs font-bold text-surface-900 dark:text-white py-2 focus:outline-none"
                         />
+                        <span className="text-[10px] text-surface-400 dark:text-surface-500 font-medium pr-1 shrink-0">
+                          min
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleArrivalChange({
+                              buffer: (arrivalFlight?.buffer ?? 30) + 15,
+                            });
+                            setArrBufInput(String((arrivalFlight?.buffer ?? 30) + 15));
+                          }}
+                          className="px-2.5 py-2 hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-600 dark:text-surface-300 text-xs font-bold transition-colors shrink-0"
+                          title="+15 minutes"
+                        >
+                          +15
+                        </button>
+                      </div>
+                      {/* Presets */}
+                      <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                        {[15, 30, 45, 60, 90, 120].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => { handleArrivalChange({ buffer: preset }); setArrBufInput(String(preset)); }}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${
+                              (arrivalFlight?.buffer ?? 30) === preset
+                                ? "bg-primary-600 text-white border-primary-600 shadow-2xs"
+                                : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700 hover:bg-surface-200 dark:hover:bg-surface-700"
+                            }`}
+                          >
+                            {preset}m
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -634,7 +713,7 @@ export const TripSettings: React.FC = React.memo(() => {
                       onSelect={(loc) => handleDepartureChange({ location: loc })}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1 ml-0.5">
                         Takeoff Time
@@ -652,21 +731,78 @@ export const TripSettings: React.FC = React.memo(() => {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-surface-400 uppercase mb-1 ml-0.5">
-                        Buffer (Min)
-                      </label>
-                      <div className="relative">
-                        <Timer className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
-                        <input
-                          type="number"
-                          value={departureFlight?.buffer || 60}
-                          onChange={(e) =>
+                      <div className="flex items-center justify-between mb-1 ml-0.5">
+                        <label className="text-[10px] font-bold text-surface-400 uppercase">
+                          Pre-Flight Buffer
+                        </label>
+                        <span className="text-[9px] text-surface-400">Security & gates</span>
+                      </div>
+                      <div className="relative flex items-center border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden bg-white dark:bg-surface-800">
+                        <button
+                          type="button"
+                          onClick={() => {
                             handleDepartureChange({
-                              buffer: parseInt(e.target.value) || 0,
-                            })
-                          }
-                          className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg py-2 pl-8 pr-3 text-xs font-bold text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
+                              buffer: Math.max(0, (departureFlight?.buffer ?? 90) - 15),
+                            });
+                            setDepBufInput(String(Math.max(0, (departureFlight?.buffer ?? 90) - 15)));
+                          }}
+                          className="px-2.5 py-2 hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-500 text-xs font-bold transition-colors shrink-0"
+                          title="-15 minutes"
+                        >
+                          -15
+                        </button>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={depBufInput}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/[^0-9]/g, '');
+                            setDepBufInput(v);
+                            if (v !== '') {
+                              handleDepartureChange({ buffer: Math.min(480, Math.max(0, parseInt(v))) });
+                            }
+                          }}
+                          onBlur={() => {
+                            const num = Math.min(480, Math.max(0, parseInt(depBufInput) || 0));
+                            handleDepartureChange({ buffer: num });
+                            setDepBufInput(String(num));
+                          }}
+                          className="w-full bg-transparent text-center text-xs font-bold text-surface-900 dark:text-white py-2 focus:outline-none"
                         />
+                        <span className="text-[10px] text-surface-400 dark:text-surface-500 font-medium pr-1 shrink-0">
+                          min
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleDepartureChange({
+                              buffer: (departureFlight?.buffer ?? 90) + 15,
+                            });
+                            setDepBufInput(String((departureFlight?.buffer ?? 90) + 15));
+                          }}
+                          className="px-2.5 py-2 hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-500 text-xs font-bold transition-colors shrink-0"
+                          title="+15 minutes"
+                        >
+                          +15
+                        </button>
+                      </div>
+                      {/* Presets */}
+                      <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                        {[30, 45, 60, 90, 120, 180].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => { handleDepartureChange({ buffer: preset }); setDepBufInput(String(preset)); }}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${
+                              (departureFlight?.buffer ?? 90) === preset
+                                ? "bg-red-600 text-white border-red-600 shadow-2xs"
+                                : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700 hover:bg-surface-200 dark:hover:bg-surface-700"
+                            }`}
+                          >
+                            {preset}m
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -675,6 +811,7 @@ export const TripSettings: React.FC = React.memo(() => {
             </div>
           )}
         </div>
+
       </div>
     </div>
   );

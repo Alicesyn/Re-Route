@@ -547,12 +547,14 @@ function buildDayRoute(
   dayStartTime: string = "09:00",
   startDateISO: string = new Date().toISOString(),
   avoidClosedHours: boolean = true,
+  isLastDay: boolean = false,
 ): DayRoute {
-  const endHotelRaw = hotels.find((h) => h.dayIndex === dayIndex) || null;
+  // On the last day, travelers check out in the morning, so there is no Day End / Hotel
+  const endHotelRaw = (!isLastDay && (hotels.find((h) => h.dayIndex === dayIndex) || null)) || null;
   const startHotelRaw =
     dayIndex > 0
       ? hotels.find((h) => h.dayIndex === dayIndex - 1) || null
-      : endHotelRaw;
+      : (hotels.find((h) => h.dayIndex === 0) || null);
 
   // Sanitize locations to avoid "Null Island" (0,0) bug
   const sanitize = (loc: any) =>
@@ -582,18 +584,19 @@ function buildDayRoute(
 
   const rawPoints: (Place | Hotel)[] = [];
   const ids = manualSequence && manualSequence.length > 0 
-    ? manualSequence 
+    ? (isLastDay ? manualSequence.filter(id => id !== "end-hotel") : manualSequence)
     : (() => {
         const defaultIds: string[] = [];
         if (arrivalLocation) defaultIds.push("arrival");
         if (startHotel) defaultIds.push("start-hotel");
         optimizedPlaces.forEach((p) => defaultIds.push(p.id));
-        if (endHotel) defaultIds.push("end-hotel");
+        if (endHotel && !isLastDay) defaultIds.push("end-hotel");
         if (departureLocation) defaultIds.push("departure");
         return defaultIds;
       })();
 
   ids.forEach((id) => {
+    if (id.startsWith("custom-buffer-")) return;
     let loc = null;
     if (id === "arrival") loc = arrivalLoc;
     else if (id === "start-hotel") loc = startHotel;
@@ -630,7 +633,8 @@ function buildDayRoute(
         (p as Place).id !== "arrival" &&
         (p as Place).id !== "departure" &&
         (p as Place).id !== "start-hotel" &&
-        (p as Place).id !== "end-hotel",
+        (p as Place).id !== "end-hotel" &&
+        !(p as Place).id?.startsWith("custom-buffer-"),
     ) as Place[];
   }
 
@@ -664,13 +668,13 @@ function buildDayRoute(
   return {
     day: dayIndex,
     startHotel,
-    endHotel,
+    endHotel: isLastDay ? null : endHotel,
     stops: optimizedPlaces,
     segments,
     totalDistance: dayDist,
     totalTime: dayTravelTime,
     totalVisitTime: dayVisitTime,
-    manualSequence,
+    manualSequence: isLastDay && manualSequence ? manualSequence.filter(id => id !== "end-hotel") : manualSequence,
   };
 }
 
@@ -783,6 +787,7 @@ export async function solveSingleDay(
   startDateISO: string = new Date().toISOString(),
   dayStartTime: string = "09:00",
   avoidClosedHours: boolean = true,
+  isLastDay: boolean = false,
 ): Promise<DayRoute> {
   const route = buildDayRoute(
     dayPlaces,
@@ -796,6 +801,7 @@ export async function solveSingleDay(
     dayStartTime,
     startDateISO,
     avoidClosedHours,
+    isLastDay,
   );
   return await fetchAccurateRouteTimes(route, startDateISO, dayStartTime);
 }
@@ -837,6 +843,7 @@ export async function solveTSP(
   let totalTripTime = 0;
 
   for (let d = 0; d < days; d++) {
+    const isLastDay = d === days - 1;
     let dayPlaces = clusteredPlaces.filter((p) => p.dayIndex === d);
     let route = buildDayRoute(
       dayPlaces,
@@ -844,12 +851,13 @@ export async function solveTSP(
       d,
       travelMode,
       d === 0 ? arrivalLocation : null,
-      d === days - 1 ? departureLocation : null,
+      isLastDay ? departureLocation : null,
       false,
       undefined,
       dayStartTime,
       startDateISO,
       avoidClosedHours,
+      isLastDay,
     );
 
     const limit = dailyBudgets[d];
@@ -897,12 +905,13 @@ export async function solveTSP(
           d,
           travelMode,
           d === 0 ? arrivalLocation : null,
-          d === days - 1 ? departureLocation : null,
+          isLastDay ? departureLocation : null,
           false,
           undefined,
           dayStartTime,
           startDateISO,
           avoidClosedHours,
+          isLastDay,
         );
 
         // Recalculate totalDayMin

@@ -9,6 +9,7 @@ import {
   ItinerarySnapshot,
   TripExportFile,
   CategoryConfig,
+  CustomBuffer,
 } from "../types";
 import { solveSingleDay } from "../services/tspSolver";
 import { estimateTime } from "../utils/distance";
@@ -54,6 +55,7 @@ interface RouteState extends ModeData {
   timeFormat: "12h" | "24h";
   categoryDurations: Record<PlaceCategory, number>;
   categoryConfigs: Record<PlaceCategory, CategoryConfig>;
+  customBuffers: CustomBuffer[];
   optimizedRoutes: DayRoute[];
   savedTrips: ItinerarySnapshot[];
   isCalculating: boolean;
@@ -88,6 +90,14 @@ interface RouteState extends ModeData {
   setTimeFormat: (format: "12h" | "24h") => void;
   setCategoryDuration: (category: PlaceCategory, duration: number) => void;
   setCategoryConfig: (category: PlaceCategory, config: Partial<CategoryConfig>) => void;
+  addCustomBuffer: (
+    dayIndex: number,
+    duration?: number,
+    label?: string,
+    insertAfterId?: string,
+  ) => void;
+  updateCustomBuffer: (id: string, updates: Partial<CustomBuffer>) => void;
+  deleteCustomBuffer: (id: string) => void;
 
   // Places
   addPlace: (
@@ -223,6 +233,7 @@ export const useRouteStore = create<RouteState>()(
         }),
         {} as Record<PlaceCategory, CategoryConfig>,
       ),
+      customBuffers: [],
       optimizedRoutes: [],
       savedTrips: [],
       isCalculating: false,
@@ -297,13 +308,99 @@ export const useRouteStore = create<RouteState>()(
       setDateMode: (dateMode) => set({ dateMode }),
       setDayTimes: (dayStartTime, dayEndTime) =>
         set({ dayStartTime, dayEndTime }),
-      setShowFlights: (showFlights) => set({ showFlights }),
+      setShowFlights: (showFlights) =>
+        set((state) => ({
+          showFlights,
+          arrivalFlight:
+            showFlights && !state.arrivalFlight
+              ? { time: "12:00", buffer: 30, location: null }
+              : state.arrivalFlight,
+          departureFlight:
+            showFlights && !state.departureFlight
+              ? { time: "18:00", buffer: 90, location: null }
+              : state.departureFlight,
+        })),
       setArrivalFlight: (arrivalFlight) => set({ arrivalFlight }),
       setDepartureFlight: (departureFlight) => set({ departureFlight }),
       setTravelMode: (travelMode) => set({ travelMode }),
       setDailyBudget: (dailyBudget) => set({ dailyBudget }),
       setStrictBudget: (strictBudget) => set({ strictBudget }),
       setAvoidClosedHours: (avoidClosedHours) => set({ avoidClosedHours }),
+
+      addCustomBuffer: (dayIndex, duration = 30, label = "Custom Buffer", insertAfterId) =>
+        set((state) => {
+          const newId = `custom-buffer-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+          const newBuffer: CustomBuffer = {
+            id: newId,
+            dayIndex,
+            duration: Math.max(0, duration),
+            label,
+          };
+
+          const newCustomBuffers = [...state.customBuffers, newBuffer];
+
+          const routes = [...state.optimizedRoutes];
+          const routeIdx = routes.findIndex((r) => r.day === dayIndex);
+          if (routeIdx >= 0) {
+            const route = routes[routeIdx];
+            let seq: string[] = [];
+            if (route.manualSequence && route.manualSequence.length > 0) {
+              seq = [...route.manualSequence];
+            } else {
+              if (dayIndex === 0 && state.showFlights && state.arrivalFlight) seq.push("arrival");
+              if (route.startHotel) seq.push("start-hotel");
+              route.stops.forEach((s) => seq.push(s.id));
+              if (route.endHotel && dayIndex < state.days - 1) seq.push("end-hotel");
+              if (dayIndex === state.days - 1 && state.showFlights && state.departureFlight) seq.push("departure");
+            }
+
+            if (insertAfterId) {
+              const insertIdx = seq.indexOf(insertAfterId);
+              if (insertIdx >= 0) {
+                seq.splice(insertIdx + 1, 0, newId);
+              } else {
+                seq.push(newId);
+              }
+            } else {
+              const endIdx = seq.findIndex((id) => id === "end-hotel" || id === "departure");
+              if (endIdx >= 0) {
+                seq.splice(endIdx, 0, newId);
+              } else {
+                seq.push(newId);
+              }
+            }
+
+            routes[routeIdx] = {
+              ...route,
+              manualSequence: seq,
+            };
+          }
+
+          return {
+            customBuffers: newCustomBuffers,
+            optimizedRoutes: routes,
+          };
+        }),
+
+      updateCustomBuffer: (id, updates) =>
+        set((state) => ({
+          customBuffers: state.customBuffers.map((b) =>
+            b.id === id ? { ...b, ...updates, duration: updates.duration !== undefined ? Math.max(0, updates.duration) : b.duration } : b,
+          ),
+        })),
+
+      deleteCustomBuffer: (id) =>
+        set((state) => {
+          const newCustomBuffers = state.customBuffers.filter((b) => b.id !== id);
+          const routes = state.optimizedRoutes.map((r) => ({
+            ...r,
+            manualSequence: r.manualSequence ? r.manualSequence.filter((seqId) => seqId !== id) : undefined,
+          }));
+          return {
+            customBuffers: newCustomBuffers,
+            optimizedRoutes: routes,
+          };
+        }),
       setAppMode: (newMode) =>
         set((state) => {
           const oldMode = state.appMode;
@@ -439,7 +536,8 @@ export const useRouteStore = create<RouteState>()(
                 manualSequence,
                 state.startDate,
                 state.dayStartTime,
-                state.avoidClosedHours
+                state.avoidClosedHours,
+                dayIndex === state.days - 1
               );
               if (idx >= 0) newRoutes[idx] = result;
               set({ places: newPlaces, optimizedRoutes: newRoutes, isCalculating: false });
@@ -507,7 +605,8 @@ export const useRouteStore = create<RouteState>()(
                   manualSequence,
                   state.startDate,
                   state.dayStartTime,
-                  state.avoidClosedHours
+                  state.avoidClosedHours,
+                  dayIndex === state.days - 1
                 );
                 if (idx >= 0) newRoutes[idx] = result;
               }
@@ -646,7 +745,8 @@ export const useRouteStore = create<RouteState>()(
             manualSequence,
             state.startDate,
             state.dayStartTime,
-            state.avoidClosedHours
+            state.avoidClosedHours,
+            dayIndex === state.days - 1
           );
           
           if (idx >= 0) {
@@ -701,7 +801,8 @@ export const useRouteStore = create<RouteState>()(
               manualSequence,
               state.startDate,
               state.dayStartTime,
-              state.avoidClosedHours
+              state.avoidClosedHours,
+              dayIndex === state.days - 1
             );
             if (idx >= 0) newRoutes[idx] = result;
           }
@@ -799,7 +900,8 @@ export const useRouteStore = create<RouteState>()(
             undefined,
             state.startDate,
             state.dayStartTime,
-            state.avoidClosedHours
+            state.avoidClosedHours,
+            dayIndex === state.days - 1
           );
 
           const newRoutes = [...state.optimizedRoutes];
@@ -839,13 +941,15 @@ export const useRouteStore = create<RouteState>()(
 
           let currentOrder: string[] = [];
           if (route.manualSequence) {
-            currentOrder = [...route.manualSequence];
+            currentOrder = dayIndex === state.days - 1
+              ? route.manualSequence.filter((id) => id !== "end-hotel")
+              : [...route.manualSequence];
           } else {
             if (dayIndex === 0 && state.showFlights && state.arrivalFlight)
               currentOrder.push("arrival");
             if (route.startHotel) currentOrder.push("start-hotel");
             route.stops.forEach((s) => currentOrder.push(s.id));
-            if (route.endHotel) currentOrder.push("end-hotel");
+            if (route.endHotel && dayIndex < state.days - 1) currentOrder.push("end-hotel");
             if (
               dayIndex === state.days - 1 &&
               state.showFlights &&
@@ -853,6 +957,18 @@ export const useRouteStore = create<RouteState>()(
             )
               currentOrder.push("departure");
           }
+
+          const dayCustomBuffers = (state.customBuffers || []).filter((b) => b.dayIndex === dayIndex);
+          dayCustomBuffers.forEach((b) => {
+            if (!currentOrder.includes(b.id)) {
+              const endIdx = currentOrder.findIndex((id) => id === "end-hotel" || id === "departure");
+              if (endIdx >= 0) {
+                currentOrder.splice(endIdx, 0, b.id);
+              } else {
+                currentOrder.push(b.id);
+              }
+            }
+          });
 
           const oldIndex = currentOrder.findIndex((id) => String(id) === String(activeId));
           const newIndex = currentOrder.findIndex((id) => String(id) === String(overId));
@@ -893,7 +1009,8 @@ export const useRouteStore = create<RouteState>()(
             newSequence,
             state.startDate,
             state.dayStartTime,
-            state.avoidClosedHours
+            state.avoidClosedHours,
+            dayIndex === state.days - 1
           );
 
           routes[routeIdx] = result;
@@ -936,6 +1053,7 @@ export const useRouteStore = create<RouteState>()(
             missingPlaces: state.missingPlaces,
             categoryDurations: state.categoryDurations,
             categoryConfigs: state.categoryConfigs,
+            customBuffers: state.customBuffers,
             optimizedRoutes: state.optimizedRoutes,
             savedAt: Date.now(),
           };
@@ -978,6 +1096,7 @@ export const useRouteStore = create<RouteState>()(
             missingPlaces: trip.missingPlaces || [],
             categoryDurations: trip.categoryDurations || state.categoryDurations,
             categoryConfigs: trip.categoryConfigs || state.categoryConfigs,
+            customBuffers: trip.customBuffers || [],
             optimizedRoutes: trip.optimizedRoutes || [],
           };
         }),
@@ -1019,6 +1138,7 @@ export const useRouteStore = create<RouteState>()(
             missingPlaces: trip.missingPlaces || [],
             categoryDurations: trip.categoryDurations || state.categoryDurations,
             categoryConfigs: trip.categoryConfigs || state.categoryConfigs,
+            customBuffers: trip.customBuffers || [],
             optimizedRoutes: trip.optimizedRoutes || [],
             savedTrips: newSavedTrips,
           };
@@ -1053,6 +1173,7 @@ export const useRouteStore = create<RouteState>()(
             missingPlaces: state.missingPlaces,
             categoryDurations: state.categoryDurations,
             categoryConfigs: state.categoryConfigs,
+            customBuffers: state.customBuffers,
             optimizedRoutes: state.optimizedRoutes,
             savedAt: Date.now(),
           };
@@ -1139,6 +1260,7 @@ export const useRouteStore = create<RouteState>()(
                 }),
                 {} as Record<PlaceCategory, CategoryConfig>,
               ),
+            customBuffers: Array.isArray(trip.customBuffers) ? trip.customBuffers : [],
             optimizedRoutes: Array.isArray(trip.optimizedRoutes)
               ? trip.optimizedRoutes
               : [],

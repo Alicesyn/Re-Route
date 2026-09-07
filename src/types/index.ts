@@ -78,6 +78,13 @@ export interface Hotel {
 
 export type TravelMode = "walking" | "transit" | "driving";
 
+export interface CustomBuffer {
+  id: string; // e.g. "custom-buffer-1712345678"
+  dayIndex: number;
+  duration: number; // in minutes
+  label?: string;
+}
+
 export interface RouteSegment {
   distance: number;
   time: number;
@@ -135,6 +142,7 @@ export interface ItinerarySnapshot {
   missingPlaces?: string[];
   categoryDurations?: Record<PlaceCategory, number>;
   categoryConfigs?: Record<PlaceCategory, CategoryConfig>;
+  customBuffers?: CustomBuffer[];
   optimizedRoutes: DayRoute[];
   savedAt: number;
 }
