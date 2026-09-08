@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, MapPin, Pin, Clock, Timer, AlertCircle, Sparkles, Loader2, ExternalLink, Eye, EyeOff, Coins } from "lucide-react";
+import { GripVertical, Trash2, MapPin, Pin, Clock, Timer, AlertCircle, Sparkles, Loader2, ExternalLink, Eye, EyeOff, Coins, Star } from "lucide-react";
 import { Place, PlaceCategory } from "../../types";
 import { useRouteStore } from "../../store/useRouteStore";
 import {
@@ -264,6 +264,33 @@ export const PlaceItem: React.FC<PlaceItemProps> = React.memo(({ place }) => {
 
             {/* Top Right Actions */}
             <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+              {/* Star / Must-Visit Priority Toggle Button */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updatePlace(place.id, { isStarred: !place.isStarred });
+                }}
+                className={`p-1.5 rounded-lg border transition-all flex items-center gap-1 text-xs font-semibold ${
+                  place.isStarred
+                    ? "bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-200 dark:hover:bg-amber-900/60 shadow-sm"
+                    : "bg-surface-50 dark:bg-surface-800 text-surface-400 dark:text-surface-500 border-surface-200 dark:border-surface-700 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                }`}
+                title={
+                  place.isStarred
+                    ? "Must-visit (Starred). Optimizer will prioritize and never leave unassigned. Click to unstar."
+                    : "Star as Must-Visit (optimizer prioritizes and guarantees this place into your itinerary)."
+                }
+                aria-label={place.isStarred ? "Unstar place" : "Star place as must-visit"}
+              >
+                <Star
+                  className={`w-3.5 h-3.5 ${
+                    place.isStarred ? "fill-amber-400 text-amber-500" : ""
+                  }`}
+                />
+                {place.isStarred && <span className="text-[10px]">Must-Visit</span>}
+              </button>
+
               {/* Exclude / Include Toggle Button */}
               <button
                 type="button"

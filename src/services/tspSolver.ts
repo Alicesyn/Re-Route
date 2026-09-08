@@ -133,10 +133,13 @@ function clusterPlaces(
     });
   }
 
-  // Sort by longest duration first (greedy: schedule big items first for better packing)
-  toAssign.sort(
-    (a, b) => (b.estimatedDuration ?? 60) - (a.estimatedDuration ?? 60),
-  );
+  // Sort starred places first (must-visit priority), then by longest duration (greedy packing)
+  toAssign.sort((a, b) => {
+    const aStarred = a.isStarred ? 1 : 0;
+    const bStarred = b.isStarred ? 1 : 0;
+    if (aStarred !== bStarred) return bStarred - aStarred; // starred first
+    return (b.estimatedDuration ?? 60) - (a.estimatedDuration ?? 60);
+  });
 
   // Initialize category counts per day (using pinned places)
   const categoryCounts: Record<number, Record<string, number>> = {};
@@ -249,26 +252,60 @@ function clusterPlaces(
       if (!categoryCounts[bestDay]) categoryCounts[bestDay] = {};
       categoryCounts[bestDay][place.category] = (categoryCounts[bestDay][place.category] || 0) + 1;
     } else {
-      place.dayIndex = null;
-      let reason = "Exceeds daily time budget or category limits.";
-      if (avoidClosedHours && place.openingHours && place.openingHours.length > 0) {
-        let allClosed = true;
+      // Starred places must be scheduled — force-assign to the day with the most remaining budget
+      if (place.isStarred) {
+        let forceBestDay = 0;
+        let forceMaxRemaining = -Infinity;
         for (let d = 0; d < days; d++) {
-          const dayDate = addDays(parseISO(startDateISO), d);
-          const dayHours = getPlaceDayHours(place.openingHours, dayDate);
-          if (dayHours !== "closed") {
-            allClosed = false;
-            break;
+          const remaining = dailyBudgets[d] - dayTimeUsed[d];
+          // If avoidClosedHours, prefer days where the place is actually open
+          if (avoidClosedHours && place.openingHours && place.openingHours.length > 0) {
+            const dayDate = addDays(parseISO(startDateISO), d);
+            const dayHours = getPlaceDayHours(place.openingHours, dayDate);
+            if (dayHours === "closed") {
+              // Only skip closed days if there are open alternatives
+              if (remaining <= forceMaxRemaining) continue;
+              // Still consider closed days as last resort below
+            }
+          }
+          if (remaining > forceMaxRemaining) {
+            forceMaxRemaining = remaining;
+            forceBestDay = d;
           }
         }
-        if (allClosed) {
-          reason = "Closed on all trip days.";
-        } else {
-          reason = "Cannot be scheduled during open hours or exceeds daily budget.";
+        place.dayIndex = forceBestDay;
+        place.unfeasibleReason = undefined;
+        const hotel = hotels.find((h) => h.dayIndex === forceBestDay);
+        let travelMin = 0;
+        if (hotel) {
+          const dist = getDistance(place.lat, place.lng, hotel.lat, hotel.lng);
+          travelMin = estimateTime(dist, travelMode) / 60;
         }
+        dayTimeUsed[forceBestDay] += (place.estimatedDuration ?? 60) + travelMin;
+        if (!categoryCounts[forceBestDay]) categoryCounts[forceBestDay] = {};
+        categoryCounts[forceBestDay][place.category] = (categoryCounts[forceBestDay][place.category] || 0) + 1;
+      } else {
+        place.dayIndex = null;
+        let reason = "Exceeds daily time budget or category limits.";
+        if (avoidClosedHours && place.openingHours && place.openingHours.length > 0) {
+          let allClosed = true;
+          for (let d = 0; d < days; d++) {
+            const dayDate = addDays(parseISO(startDateISO), d);
+            const dayHours = getPlaceDayHours(place.openingHours, dayDate);
+            if (dayHours !== "closed") {
+              allClosed = false;
+              break;
+            }
+          }
+          if (allClosed) {
+            reason = "Closed on all trip days.";
+          } else {
+            reason = "Cannot be scheduled during open hours or exceeds daily budget.";
+          }
+        }
+        place.unfeasibleReason = reason;
+        rejectedUnassigned.push(place);
       }
-      place.unfeasibleReason = reason;
-      rejectedUnassigned.push(place);
     }
   }
 
@@ -826,7 +863,8 @@ function evictClosedHourConflicts(
       }
       currTime += travelMin;
 
-      const isPinnedOrCustom = stop.pinnedToDay || !!stop.customTime;
+      const isPinnedOrCustom = stop.pinnedToDay || !!stop.customTime || !!stop.isStarred;
+
       const conflict = checkTimeConflict(
         currTime,
         stop.estimatedDuration || 60,
@@ -1146,8 +1184,8 @@ export async function solveTSP(
 
       while (dayPlaces.length > 0 && totalDayMin > limit) {
         const evictable = flightConstrained
-          ? (dayPlaces.filter((p) => !p.customTime).length > 0 ? dayPlaces.filter((p) => !p.customTime) : dayPlaces)
-          : dayPlaces.filter((p) => !p.pinnedToDay && !p.customTime);
+          ? (dayPlaces.filter((p) => !p.customTime && !p.isStarred).length > 0 ? dayPlaces.filter((p) => !p.customTime && !p.isStarred) : dayPlaces.filter((p) => !p.isStarred).length > 0 ? dayPlaces.filter((p) => !p.isStarred) : dayPlaces)
+          : dayPlaces.filter((p) => !p.pinnedToDay && !p.customTime && !p.isStarred);
         if (evictable.length === 0) {
           break; // only pinned places left and not a flight day
         }

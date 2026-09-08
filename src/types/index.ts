@@ -66,6 +66,7 @@ export interface Place {
   priceEstimate?: string; // Estimated cost per person or admission (e.g. "Free", "$15 - $25", "¥800")
   reservation?: ReservationInfo; // Reservation requirements and advance booking timing
   customTime?: string; // Optional locked arrival/reservation time in "HH:mm" format (e.g. "13:30", "19:00")
+  isStarred?: boolean; // If true, optimizer will force this place into the schedule (never leave unassigned)
 }
 
 export interface Hotel {

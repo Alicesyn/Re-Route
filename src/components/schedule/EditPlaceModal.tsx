@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, MapPin, Timer, Sparkles, Loader2, ExternalLink, Coins, CalendarClock, Lock } from "lucide-react";
+import { X, MapPin, Timer, Sparkles, Loader2, ExternalLink, Coins, CalendarClock, Lock, Star } from "lucide-react";
 import { useRouteStore } from "../../store/useRouteStore";
 import { ALL_CATEGORIES, getCategoryEmoji, getCategoryLabel, getDefaultDuration } from "../../utils/categoryUtils";
 import { PlaceCategory, ReservationInfo, ReservationRequirement } from "../../types";
@@ -31,6 +31,7 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
   const [reservationAdvance, setReservationAdvance] = useState("");
   const [reservationNotes, setReservationNotes] = useState("");
   const [customTimeVal, setCustomTimeVal] = useState("");
+  const [isStarred, setIsStarred] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
       setReservationAdvance(place.reservation?.advanceTime || "");
       setReservationNotes(place.reservation?.notes || "");
       setCustomTimeVal(place.customTime || "");
+      setIsStarred(!!place.isStarred);
     }
   }, [place]);
 
@@ -88,6 +90,7 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
       reservation: finalReservation,
       customTime: trimmedCustomTime || undefined,
       pinnedToDay: trimmedCustomTime ? true : place.pinnedToDay,
+      isStarred,
     });
     onClose();
 
@@ -361,6 +364,33 @@ export const EditPlaceModal: React.FC<Props> = ({ placeId, onClose }) => {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Starred / Must-Visit Priority Toggle */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40">
+            <div className="flex items-center gap-2.5">
+              <div className={`p-2 rounded-lg ${isStarred ? "bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400" : "bg-surface-100 dark:bg-surface-800 text-surface-400 dark:text-surface-500"}`}>
+                <Star className={`w-4 h-4 ${isStarred ? "fill-amber-400 text-amber-500" : ""}`} />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-surface-900 dark:text-white flex items-center gap-1.5">
+                  Must-Visit Place (Priority Star)
+                </span>
+                <p className="text-[10px] text-surface-500 dark:text-surface-400">
+                  Optimizer will prioritize this place and guarantee it is never left unassigned or dropped.
+                </p>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer ml-3 shrink-0">
+              <input
+                type="checkbox"
+                checked={isStarred}
+                onChange={(e) => setIsStarred(e.target.checked)}
+                className="sr-only peer"
+                aria-label="Must-visit place"
+              />
+              <div className="w-9 h-5 bg-surface-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-surface-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:bg-surface-700 peer-checked:bg-amber-500"></div>
+            </label>
           </div>
         </div>
         

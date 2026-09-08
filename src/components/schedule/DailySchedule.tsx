@@ -22,6 +22,7 @@ import {
   Plus,
   Trash2,
   Coffee,
+  Star,
 } from "lucide-react";
 import { toast } from "../../services/toastService";
 import { TravelMode, RouteSegment, CustomBuffer } from "../../types";
@@ -671,6 +672,22 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(
                     <span className="hidden sm:inline">Closed</span>
                   </div>
                 )}
+                {/* Star / Must-Visit Priority Toggle Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updatePlace(stop.id, { isStarred: !stop.isStarred });
+                  }}
+                  className={`p-1 rounded transition-colors ${stop.isStarred
+                    ? "bg-amber-50 dark:bg-amber-900/30 text-amber-500 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                    : "text-surface-300 dark:text-surface-600 hover:text-amber-500 dark:hover:text-amber-400 opacity-0 group-hover:opacity-100 hover:bg-surface-100 dark:hover:bg-surface-700"
+                    }`}
+                  title={stop.isStarred ? "Must-visit (Starred). Optimizer prioritizes and will never drop this stop." : "Star as Must-Visit (optimizer prioritizes and guarantees this place)"}
+                  aria-label={stop.isStarred ? "Unstar stop" : "Star stop as must-visit"}
+                >
+                  <Star className={`w-3.5 h-3.5 ${stop.isStarred ? "fill-amber-400 text-amber-500" : ""}`} />
+                </button>
                 {/* Pin Toggle Button */}
                 <button
                   type="button"
@@ -1166,41 +1183,20 @@ export const DailySchedule: React.FC = () => {
     setEditingPlaceId(id);
   }, []);
 
-  // Smooth mouse-wheel to horizontal scroll translation on desktop
+  // Prevent mouse wheel controls from scrolling the horizontal schedule;
+  // it can now only be moved by dragging/clicking the horizontal scrollbar or using Jump-to buttons.
   React.useEffect(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
 
     const handleWheel = (e: WheelEvent) => {
-      // If user holds Shift or is already scrolling horizontally (trackpad deltaX), let browser handle it
-      if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-
-      // Check if mouse is over an inner vertically scrollable stops container
-      let target = e.target as HTMLElement | null;
-      let isOverActiveVerticalScroll = false;
-
-      while (target && target !== el) {
-        if (
-          target.classList.contains("overflow-y-auto") ||
-          target.classList.contains("custom-scrollbar")
-        ) {
-          const canScrollDown =
-            e.deltaY > 0 &&
-            target.scrollTop + target.clientHeight < target.scrollHeight - 1;
-          const canScrollUp = e.deltaY < 0 && target.scrollTop > 1;
-          if (canScrollDown || canScrollUp) {
-            isOverActiveVerticalScroll = true;
-            break;
-          }
-        }
-        target = target.parentElement;
-      }
-
-      // If not scrolling an inner vertical list that has scroll room, translate wheel to horizontal scrolling
-      if (!isOverActiveVerticalScroll) {
+      // Prevent horizontal wheel events (e.g. mouse tilt/thumb wheel, Shift + wheel)
+      // from scrolling this container horizontally so only the scrollbar moves it.
+      if (e.deltaX !== 0 || e.shiftKey) {
         e.preventDefault();
-        el.scrollLeft += e.deltaY;
       }
+      // Standard vertical mouse wheel (e.deltaY) is not intercepted,
+      // allowing it to scroll the page or inner stops list naturally.
     };
 
     el.addEventListener("wheel", handleWheel, { passive: false });
@@ -1379,7 +1375,7 @@ export const DailySchedule: React.FC = () => {
 
         <div
           ref={scrollContainerRef}
-          className="p-6 overflow-x-auto overflow-y-hidden custom-scrollbar flex gap-6 snap-x snap-proximity smooth-scroll-container"
+          className="p-6 overflow-x-auto overflow-y-hidden custom-scrollbar flex gap-6 snap-x snap-proximity overscroll-x-contain"
         >
           {optimizedRoutes.map((route, i) => {
             const currentDate = addDays(parseISO(startDate), i);
@@ -1505,9 +1501,6 @@ export const DailySchedule: React.FC = () => {
             const dayCustomBuffers = customBuffers.filter((b) => b.dayIndex === i);
             const bufferMin = dayCustomBuffers.reduce((acc, b) => acc + (b.duration || 0), 0) + autoWaitBufferMin;
             const travelMin = Math.round(route.totalTime / 60);
-            const dayHasHeuristicTransit = route.segments.some(
-              (s) => s.travelMode === "transit" && s.isHeuristic !== false
-            );
             const totalDayMin = visitMin + travelMin + bufferMin;
             const remainingTime = Math.max(0, dayAvailableMinutes - totalDayMin);
             const isOverBudget = totalDayMin > dayAvailableMinutes;
