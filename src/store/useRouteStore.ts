@@ -460,7 +460,7 @@ export const useRouteStore = create<RouteState>()(
             orderInDay:
               targetDayIndex !== undefined
                 ? state.places.filter((p) => p.dayIndex === targetDayIndex)
-                    .length
+                  .length
                 : null,
             pinnedToDay: targetDayIndex !== undefined,
           };
@@ -713,25 +713,25 @@ export const useRouteStore = create<RouteState>()(
           const newPlaces = state.places.map((p) =>
             p.id === placeId
               ? {
-                  ...p,
-                  isDisabled: false, // Auto-enable if explicitly assigned to a day
-                  dayIndex,
-                  orderInDay: state.places.filter(
-                    (pl) => pl.dayIndex === dayIndex && !pl.isDisabled,
-                  ).length,
-                  pinnedToDay: true,
-                }
+                ...p,
+                isDisabled: false, // Auto-enable if explicitly assigned to a day
+                dayIndex,
+                orderInDay: state.places.filter(
+                  (pl) => pl.dayIndex === dayIndex && !pl.isDisabled,
+                ).length,
+                pinnedToDay: true,
+              }
               : p,
           );
 
           let newRoutes = [...state.optimizedRoutes];
           const dayPlaces = newPlaces.filter((p) => p.dayIndex === dayIndex && !p.isDisabled);
-          
+
           const idx = newRoutes.findIndex((r) => r.day === dayIndex);
           let manualSequence: string[] | undefined = undefined;
 
           if (idx >= 0 && newRoutes[idx].manualSequence) {
-             manualSequence = [...newRoutes[idx].manualSequence, placeId];
+            manualSequence = [...newRoutes[idx].manualSequence, placeId];
           }
 
           const result = await solveSingleDay(
@@ -748,12 +748,12 @@ export const useRouteStore = create<RouteState>()(
             state.avoidClosedHours,
             dayIndex === state.days - 1
           );
-          
+
           if (idx >= 0) {
-             newRoutes[idx] = result;
+            newRoutes[idx] = result;
           } else {
-             newRoutes.push(result);
-             newRoutes.sort((a, b) => a.day - b.day);
+            newRoutes.push(result);
+            newRoutes.sort((a, b) => a.day - b.day);
           }
 
           set({ places: newPlaces, optimizedRoutes: newRoutes, isCalculating: false });
@@ -779,11 +779,11 @@ export const useRouteStore = create<RouteState>()(
           let newRoutes = [...state.optimizedRoutes];
           if (dayIndex !== null && dayIndex !== undefined) {
             const dayPlaces = newPlaces.filter((p) => p.dayIndex === dayIndex && !p.isDisabled);
-            
+
             const idx = newRoutes.findIndex((r) => r.day === dayIndex);
             let manualSequence: string[] | undefined = undefined;
             if (idx >= 0 && newRoutes[idx].manualSequence) {
-               manualSequence = newRoutes[idx].manualSequence.filter(id => id !== placeId);
+              manualSequence = newRoutes[idx].manualSequence.filter(id => id !== placeId);
             }
 
             const result = await solveSingleDay(

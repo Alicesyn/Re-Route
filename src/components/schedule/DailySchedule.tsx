@@ -166,17 +166,15 @@ const BufferPill: React.FC<BufferPillProps> = ({
             setIsOpen((prev) => !prev);
           }}
           disabled={!isEditable}
-          className={`travel-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border shadow-2xs transition-all ${
-            isEditable
-              ? "cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:shadow-xs hover:scale-[1.02] active:scale-[0.98]"
-              : "cursor-default"
-          } ${
-            isReservation
+          className={`travel-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border shadow-2xs transition-all ${isEditable
+            ? "cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 hover:shadow-xs hover:scale-[1.02] active:scale-[0.98]"
+            : "cursor-default"
+            } ${isReservation
               ? "bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300"
               : type === "custom"
                 ? "bg-amber-50/80 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200"
                 : "bg-surface-50 dark:bg-surface-800 border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300"
-          }`}
+            }`}
           title={isEditable ? `Click to edit buffer (${minutes}m)` : undefined}
         >
           {isReservation ? (
@@ -329,11 +327,10 @@ const BufferPill: React.FC<BufferPillProps> = ({
                         key={preset}
                         type="button"
                         onClick={() => setTempMinutes(preset)}
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${
-                          tempMinutes === preset
-                            ? "bg-primary-600 text-white border-primary-600"
-                            : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700 hover:bg-surface-200 dark:hover:bg-surface-700"
-                        }`}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${tempMinutes === preset
+                          ? "bg-primary-600 text-white border-primary-600"
+                          : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700 hover:bg-surface-200 dark:hover:bg-surface-700"
+                          }`}
                       >
                         {preset}m
                       </button>
@@ -678,8 +675,8 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(
                     updatePlace(stop.id, { pinnedToDay: !stop.pinnedToDay });
                   }}
                   className={`p-1 rounded transition-colors ${stop.pinnedToDay
-                      ? "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50"
-                      : "text-surface-300 dark:text-surface-600 hover:text-amber-600 dark:hover:text-amber-400 opacity-0 group-hover:opacity-100 hover:bg-surface-100 dark:hover:bg-surface-700"
+                    ? "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                    : "text-surface-300 dark:text-surface-600 hover:text-amber-600 dark:hover:text-amber-400 opacity-0 group-hover:opacity-100 hover:bg-surface-100 dark:hover:bg-surface-700"
                     }`}
                   title={stop.pinnedToDay ? "Pinned to this day (click to unpin)" : "Pin to this day (prevent optimizer from moving)"}
                   aria-label={stop.pinnedToDay ? "Unpin stop from this day" : "Pin stop to this day"}
@@ -710,8 +707,8 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(
                       setIsTimeModalOpen((prev) => !prev);
                     }}
                     className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded flex items-center gap-1 transition-all border shadow-2xs ${isCustomTime
-                        ? "bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700/80 hover:bg-purple-200/80 dark:hover:bg-purple-900/60"
-                        : "bg-surface-100 dark:bg-surface-800 text-surface-800 dark:text-surface-100 border-surface-200 dark:border-surface-700 hover:border-primary-400 dark:hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-300"
+                      ? "bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700/80 hover:bg-purple-200/80 dark:hover:bg-purple-900/60"
+                      : "bg-surface-100 dark:bg-surface-800 text-surface-800 dark:text-surface-100 border-surface-200 dark:border-surface-700 hover:border-primary-400 dark:hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-300"
                       }`}
                     title={
                       isCustomTime
@@ -841,8 +838,8 @@ const SortableStop: React.FC<SortableStopProps> = React.memo(
               {stop.priceEstimate && (
                 <span
                   className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 border ${stop.priceEstimate.toLowerCase().includes("free")
-                      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                      : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700"
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                    : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700"
                     }`}
                   title={`Estimated price: ${stop.priceEstimate}`}
                 >
@@ -947,15 +944,14 @@ const SortableAnchor: React.FC<{
 
       {/* Line connector */}
       <div
-        className={`absolute left-5 w-0.5 bg-surface-200 dark:bg-surface-700/50 ${
-          type === "departure"
-            ? "top-0 bottom-6"
-            : isFirst
-              ? "top-5"
-              : isLast
-                ? "h-5"
-                : "bottom-0"
-        }`}
+        className={`absolute left-5 w-0.5 bg-surface-200 dark:bg-surface-700/50 ${type === "departure"
+          ? "top-0 bottom-6"
+          : isFirst
+            ? "top-5"
+            : isLast
+              ? "h-5"
+              : "bottom-0"
+          }`}
       />
 
       {/* Pre-flight Departure Buffer rendered BEFORE Trip Departure icon */}
@@ -1072,8 +1068,8 @@ const SegmentPill: React.FC<{
       <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-surface-200 dark:bg-surface-700/50" />
       <div
         className={`travel-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer relative overflow-hidden shadow-2xs ${isHeuristicTransit
-            ? "bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-600/70 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/60"
-            : "bg-surface-50 hover:bg-surface-100 dark:bg-surface-700/90 dark:hover:bg-surface-600 border border-surface-200 dark:border-surface-600 text-surface-700 dark:text-surface-100"
+          ? "bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-600/70 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/60"
+          : "bg-surface-50 hover:bg-surface-100 dark:bg-surface-700/90 dark:hover:bg-surface-600 border border-surface-200 dark:border-surface-600 text-surface-700 dark:text-surface-100"
           }`}
         title={
           isHeuristicTransit
@@ -1273,8 +1269,8 @@ export const DailySchedule: React.FC = () => {
               <button
                 onClick={() => setIsBannerDismissed((prev) => !prev)}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${!isBannerDismissed
-                    ? "bg-amber-100/90 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700/80 shadow-2xs hover:bg-amber-200/80 dark:hover:bg-amber-900/70"
-                    : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700/80 hover:bg-amber-100/80 dark:hover:bg-amber-900/60 shadow-2xs"
+                  ? "bg-amber-100/90 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700/80 shadow-2xs hover:bg-amber-200/80 dark:hover:bg-amber-900/70"
+                  : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700/80 hover:bg-amber-100/80 dark:hover:bg-amber-900/60 shadow-2xs"
                   }`}
                 title={
                   isBannerDismissed
@@ -1514,11 +1510,10 @@ export const DailySchedule: React.FC = () => {
                               setNewBufferLabel("Rest Break");
                             }
                           }}
-                          className={`p-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs ${
-                            addBufferDayIndex === i
-                              ? "bg-amber-600 text-white border-amber-600 shadow-amber-500/20"
-                              : "bg-white dark:bg-surface-700 border-surface-200 dark:border-surface-600 text-surface-700 dark:text-surface-200 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20"
-                          }`}
+                          className={`p-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs ${addBufferDayIndex === i
+                            ? "bg-amber-600 text-white border-amber-600 shadow-amber-500/20"
+                            : "bg-white dark:bg-surface-700 border-surface-200 dark:border-surface-600 text-surface-700 dark:text-surface-200 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                            }`}
                           title="Add custom buffer or break to this day"
                         >
                           <Plus className="w-3.5 h-3.5 text-amber-500" />
@@ -1607,11 +1602,10 @@ export const DailySchedule: React.FC = () => {
                                     key={preset}
                                     type="button"
                                     onClick={() => setNewBufferDuration(preset)}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${
-                                      newBufferDuration === preset
-                                        ? "bg-amber-600 text-white border-amber-600"
-                                        : "bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-600"
-                                    }`}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${newBufferDuration === preset
+                                      ? "bg-amber-600 text-white border-amber-600"
+                                      : "bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-600"
+                                      }`}
                                   >
                                     {preset}m
                                   </button>
@@ -1998,11 +1992,10 @@ export const DailySchedule: React.FC = () => {
                                                 key={chip}
                                                 type="button"
                                                 onClick={() => setInlineLabel(chip)}
-                                                className={`px-1.5 py-0.5 rounded text-[9px] font-medium border transition-colors ${
-                                                  inlineLabel === chip
-                                                    ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-400 dark:border-amber-600"
-                                                    : "bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-600 hover:border-amber-400"
-                                                }`}
+                                                className={`px-1.5 py-0.5 rounded text-[9px] font-medium border transition-colors ${inlineLabel === chip
+                                                  ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-400 dark:border-amber-600"
+                                                  : "bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-600 hover:border-amber-400"
+                                                  }`}
                                               >
                                                 {chip}
                                               </button>
@@ -2052,11 +2045,10 @@ export const DailySchedule: React.FC = () => {
                                                 key={preset}
                                                 type="button"
                                                 onClick={() => setInlineDuration(preset)}
-                                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${
-                                                  inlineDuration === preset
-                                                    ? "bg-amber-600 text-white border-amber-600"
-                                                    : "bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-600"
-                                                }`}
+                                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${inlineDuration === preset
+                                                  ? "bg-amber-600 text-white border-amber-600"
+                                                  : "bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-600"
+                                                  }`}
                                               >
                                                 {preset}m
                                               </button>

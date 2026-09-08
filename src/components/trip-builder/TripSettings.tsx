@@ -18,7 +18,6 @@ import { useRouteStore } from "../../store/useRouteStore";
 import { TravelMode } from "../../types";
 import { MOCK_HOTELS } from "../../services/mockData";
 import { HotelSearchInput } from "./HotelSearchInput";
-import { toast } from "../../services/toastService";
 
 import { DatePicker } from "../ui/DatePicker";
 import { format, addDays } from "date-fns";
@@ -26,21 +25,21 @@ import { format, addDays } from "date-fns";
 const deriveStaysFromHotels = (hotels: any[], totalDays: number, stayBoundaries: number[]) => {
   if (totalDays === 0) return [];
   const stays: { startDay: number; endDay: number; hotel: any; id: string }[] = [];
-  
+
   let currentStart = 0;
   let currentHotel = hotels.find((h) => h.dayIndex === 0) || null;
 
   for (let i = 1; i < totalDays; i++) {
     const dayHotel = hotels.find((h) => h.dayIndex === i) || null;
-    
+
     const isSame =
       !stayBoundaries.includes(i - 1) &&
       ((!currentHotel && !dayHotel) ||
-      (currentHotel &&
-        dayHotel &&
-        currentHotel.name === dayHotel.name &&
-        currentHotel.lat === dayHotel.lat &&
-        currentHotel.lng === dayHotel.lng));
+        (currentHotel &&
+          dayHotel &&
+          currentHotel.name === dayHotel.name &&
+          currentHotel.lat === dayHotel.lat &&
+          currentHotel.lng === dayHotel.lng));
 
     if (!isSame) {
       stays.push({
@@ -177,233 +176,230 @@ export const TripSettings: React.FC = React.memo(() => {
       {/* Left Column: Itinerary Basics & Routine */}
       <div className="space-y-6">
         {/* Travel Mode */}
-      <div>
-        <h3 className="text-sm font-semibold text-surface-900 dark:text-white uppercase tracking-wider mb-3">
-          Global Travel Mode
-        </h3>
-        <div className="flex flex-wrap bg-surface-100 dark:bg-surface-900/50 p-1 rounded-lg gap-1">
-          {(["walking", "transit", "driving"] as TravelMode[]).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setTravelMode(mode)}
-              className={`flex-1 min-w-[80px] flex items-center justify-center gap-1 sm:gap-2 py-2 px-2 rounded-md text-xs sm:text-sm font-medium capitalize transition-all ${
-                travelMode === mode
+        <div>
+          <h3 className="text-sm font-semibold text-surface-900 dark:text-white uppercase tracking-wider mb-3">
+            Global Travel Mode
+          </h3>
+          <div className="flex flex-wrap bg-surface-100 dark:bg-surface-900/50 p-1 rounded-lg gap-1">
+            {(["walking", "transit", "driving"] as TravelMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setTravelMode(mode)}
+                className={`flex-1 min-w-[80px] flex items-center justify-center gap-1 sm:gap-2 py-2 px-2 rounded-md text-xs sm:text-sm font-medium capitalize transition-all ${travelMode === mode
                   ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm border border-surface-200/60 dark:border-surface-600"
                   : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
-              }`}
-            >
-              {mode === "walking" && (
-                <Footprints className="w-4 h-4 shrink-0" />
-              )}
-              {mode === "transit" && <Train className="w-4 h-4 shrink-0" />}
-              {mode === "driving" && <Car className="w-4 h-4 shrink-0" />}
-              <span className="truncate">{mode}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <hr className="border-surface-100 dark:border-surface-700" />
-
-      {/* Date Options */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-surface-900 dark:text-white uppercase tracking-wider">
-            Dates & Duration
-          </h3>
-          <div className="flex bg-surface-100 dark:bg-surface-900/80 p-0.5 rounded-md">
-            <button
-              onClick={() => setDateMode("duration")}
-              className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded transition-all ${
-                dateMode === "duration"
-                  ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm"
-                  : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
-              }`}
-            >
-              Duration
-            </button>
-            <button
-              onClick={() => setDateMode("fixed")}
-              className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded transition-all ${
-                dateMode === "fixed"
-                  ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm"
-                  : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
-              }`}
-            >
-              Exact Dates
-            </button>
+                  }`}
+              >
+                {mode === "walking" && (
+                  <Footprints className="w-4 h-4 shrink-0" />
+                )}
+                {mode === "transit" && <Train className="w-4 h-4 shrink-0" />}
+                {mode === "driving" && <Car className="w-4 h-4 shrink-0" />}
+                <span className="truncate">{mode}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4">
-          {dateMode === "duration" ? (
-            <div>
-              <label className="block text-xs font-bold text-surface-500 uppercase mb-2">
-                Trip Duration
-              </label>
-              <div
-                className="flex items-center justify-between text-sm text-surface-900 dark:text-white bg-white dark:bg-surface-800 px-3 py-2.5 rounded-xl border border-surface-200 dark:border-surface-700 shadow-sm focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:border-primary-500 transition-all cursor-pointer group"
-                onClick={(e) => {
-                  const input = e.currentTarget.querySelector("input");
-                  if (input) input.focus();
-                }}
+        <hr className="border-surface-100 dark:border-surface-700" />
+
+        {/* Date Options */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-surface-900 dark:text-white uppercase tracking-wider">
+              Dates & Duration
+            </h3>
+            <div className="flex bg-surface-100 dark:bg-surface-900/80 p-0.5 rounded-md">
+              <button
+                onClick={() => setDateMode("duration")}
+                className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded transition-all ${dateMode === "duration"
+                  ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm"
+                  : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
+                  }`}
               >
-                <div className="flex items-center gap-3">
-                  <input
-                    type="number"
-                    min={1}
-                    max={999}
-                    value={daysInput}
-                    onChange={handleDaysChange}
-                    onBlur={handleDaysBlur}
-                    className="w-12 bg-transparent font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                  <span className="text-surface-500 font-bold uppercase text-[10px] tracking-widest border-l border-surface-100 dark:border-surface-700 pl-3">
-                    Total Days
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDays(Math.max(1, days - 1));
-                      setDaysInput(String(Math.max(1, days - 1)));
-                    }}
-                    className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-400 hover:text-primary-600 transition-colors"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDays(days + 1);
-                      setDaysInput(String(days + 1));
-                    }}
-                    className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-400 hover:text-primary-600 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
+                Duration
+              </button>
+              <button
+                onClick={() => setDateMode("fixed")}
+                className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded transition-all ${dateMode === "fixed"
+                  ? "bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-300 shadow-sm"
+                  : "text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800"
+                  }`}
+              >
+                Exact Dates
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            {dateMode === "duration" ? (
+              <div>
+                <label className="block text-xs font-bold text-surface-500 uppercase mb-2">
+                  Trip Duration
+                </label>
+                <div
+                  className="flex items-center justify-between text-sm text-surface-900 dark:text-white bg-white dark:bg-surface-800 px-3 py-2.5 rounded-xl border border-surface-200 dark:border-surface-700 shadow-sm focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:border-primary-500 transition-all cursor-pointer group"
+                  onClick={(e) => {
+                    const input = e.currentTarget.querySelector("input");
+                    if (input) input.focus();
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min={1}
+                      max={999}
+                      value={daysInput}
+                      onChange={handleDaysChange}
+                      onBlur={handleDaysBlur}
+                      className="w-12 bg-transparent font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <span className="text-surface-500 font-bold uppercase text-[10px] tracking-widest border-l border-surface-100 dark:border-surface-700 pl-3">
+                      Total Days
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDays(Math.max(1, days - 1));
+                        setDaysInput(String(Math.max(1, days - 1)));
+                      }}
+                      className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-400 hover:text-primary-600 transition-colors"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDays(days + 1);
+                        setDaysInput(String(days + 1));
+                      }}
+                      className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-400 hover:text-primary-600 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <DatePicker
-                label="Start Date"
-                value={startDate}
-                onChange={(val) => {
-                  setStartDate(val);
-                  // Auto-switch to end date picker
-                  setOpenPicker("end");
-                }}
-                isOpen={openPicker === "start"}
-                onOpenChange={(open) => setOpenPicker(open ? "start" : null)}
-              />
-              <DatePicker
-                label="End Date"
-                value={endDate}
-                min={startDate}
-                onChange={(val) => {
-                  setEndDate(val);
-                  setOpenPicker(null);
-                }}
-                isOpen={openPicker === "end"}
-                onOpenChange={(open) => setOpenPicker(open ? "end" : null)}
-                highlight={openPicker === "end"}
-              />
-            </div>
-            <p className="mt-2 text-[10px] font-bold text-surface-400 uppercase text-right">
-              Total: <span className="text-primary-600">{days} days</span>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <DatePicker
+                    label="Start Date"
+                    value={startDate}
+                    onChange={(val) => {
+                      setStartDate(val);
+                      // Auto-switch to end date picker
+                      setOpenPicker("end");
+                    }}
+                    isOpen={openPicker === "start"}
+                    onOpenChange={(open) => setOpenPicker(open ? "start" : null)}
+                  />
+                  <DatePicker
+                    label="End Date"
+                    value={endDate}
+                    min={startDate}
+                    onChange={(val) => {
+                      setEndDate(val);
+                      setOpenPicker(null);
+                    }}
+                    isOpen={openPicker === "end"}
+                    onOpenChange={(open) => setOpenPicker(open ? "end" : null)}
+                    highlight={openPicker === "end"}
+                  />
+                </div>
+                <p className="mt-2 text-[10px] font-bold text-surface-400 uppercase text-right">
+                  Total: <span className="text-primary-600">{days} days</span>
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+
+        <hr className="border-surface-100 dark:border-surface-700" />
+
+        {/* Daily Routine */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-surface-900 dark:text-white uppercase tracking-wider">
+              Daily Routine
+            </h3>
+            <p className="text-[10px] text-surface-400 font-medium italic">
+              Local time
             </p>
-            </>
-          )}
-        </div>
-      </div>
-
-      <hr className="border-surface-100 dark:border-surface-700" />
-
-      {/* Daily Routine */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-surface-900 dark:text-white uppercase tracking-wider">
-            Daily Routine
-          </h3>
-          <p className="text-[10px] text-surface-400 font-medium italic">
-            Local time
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="relative">
-            <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
-            <input
-              type="time"
-              value={dayStartTime}
-              onChange={(e) => setDayTimes(e.target.value, dayEndTime)}
-              className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white text-sm rounded-lg pl-10 p-2.5 outline-none"
-            />
           </div>
-          <div className="relative">
-            <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
-            <input
-              type="time"
-              value={dayEndTime}
-              onChange={(e) => setDayTimes(dayStartTime, e.target.value)}
-              className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white text-sm rounded-lg pl-10 p-2.5 outline-none"
-            />
-          </div>
-        </div>
-
-        {/* Strict Budget Toggle */}
-        <div className="mt-4 flex flex-col gap-1.5 p-3 bg-surface-100 dark:bg-surface-800/50 rounded-xl border border-surface-200 dark:border-surface-700/50">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-semibold text-surface-900 dark:text-white flex items-center gap-1.5">
-              <Timer className="w-3.5 h-3.5 text-primary-500" />
-              Enforce Time Budget
-            </h4>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={strictBudget}
-              onClick={() => setStrictBudget(!strictBudget)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${strictBudget ? "bg-primary-500" : "bg-surface-300 dark:bg-surface-600"}`}
-            >
-              <span
-                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform`}
-                style={{ transform: strictBudget ? "translateX(18px)" : "translateX(4px)" }}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="relative">
+              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
+              <input
+                type="time"
+                value={dayStartTime}
+                onChange={(e) => setDayTimes(e.target.value, dayEndTime)}
+                className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white text-sm rounded-lg pl-10 p-2.5 outline-none"
               />
-            </button>
-          </div>
-          <p className="text-[10px] text-surface-500 dark:text-surface-400 pr-8">
-            If ON, the auto-scheduler will leave places Unassigned if they exceed your daily hours. If OFF, it will fit everything in.
-          </p>
-        </div>
-
-        {/* Avoid Closed Hours Toggle */}
-        <div className="mt-3 flex flex-col gap-1.5 p-3 bg-surface-100 dark:bg-surface-800/50 rounded-xl border border-surface-200 dark:border-surface-700/50">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-semibold text-surface-900 dark:text-white flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-primary-500" />
-              Avoid Closed Hours
-            </h4>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={avoidClosedHours}
-              onClick={() => setAvoidClosedHours(!avoidClosedHours)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${avoidClosedHours ? "bg-primary-500" : "bg-surface-300 dark:bg-surface-600"}`}
-            >
-              <span
-                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform`}
-                style={{ transform: avoidClosedHours ? "translateX(18px)" : "translateX(4px)" }}
+            </div>
+            <div className="relative">
+              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
+              <input
+                type="time"
+                value={dayEndTime}
+                onChange={(e) => setDayTimes(dayStartTime, e.target.value)}
+                className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white text-sm rounded-lg pl-10 p-2.5 outline-none"
               />
-            </button>
+            </div>
           </div>
-          <p className="text-[10px] text-surface-500 dark:text-surface-400 pr-8">
-            If ON, Optimize Route schedules places during their open hours and avoids days when places are closed.
-          </p>
+
+          {/* Strict Budget Toggle */}
+          <div className="mt-4 flex flex-col gap-1.5 p-3 bg-surface-100 dark:bg-surface-800/50 rounded-xl border border-surface-200 dark:border-surface-700/50">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-surface-900 dark:text-white flex items-center gap-1.5">
+                <Timer className="w-3.5 h-3.5 text-primary-500" />
+                Enforce Time Budget
+              </h4>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={strictBudget}
+                onClick={() => setStrictBudget(!strictBudget)}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${strictBudget ? "bg-primary-500" : "bg-surface-300 dark:bg-surface-600"}`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform`}
+                  style={{ transform: strictBudget ? "translateX(18px)" : "translateX(4px)" }}
+                />
+              </button>
+            </div>
+            <p className="text-[10px] text-surface-500 dark:text-surface-400 pr-8">
+              If ON, the auto-scheduler will leave places Unassigned if they exceed your daily hours. If OFF, it will fit everything in.
+            </p>
+          </div>
+
+          {/* Avoid Closed Hours Toggle */}
+          <div className="mt-3 flex flex-col gap-1.5 p-3 bg-surface-100 dark:bg-surface-800/50 rounded-xl border border-surface-200 dark:border-surface-700/50">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-surface-900 dark:text-white flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-primary-500" />
+                Avoid Closed Hours
+              </h4>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={avoidClosedHours}
+                onClick={() => setAvoidClosedHours(!avoidClosedHours)}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${avoidClosedHours ? "bg-primary-500" : "bg-surface-300 dark:bg-surface-600"}`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform`}
+                  style={{ transform: avoidClosedHours ? "translateX(18px)" : "translateX(4px)" }}
+                />
+              </button>
+            </div>
+            <p className="text-[10px] text-surface-500 dark:text-surface-400 pr-8">
+              If ON, Optimize Route schedules places during their open hours and avoids days when places are closed.
+            </p>
+          </div>
         </div>
-      </div>
 
       </div>
 
@@ -440,9 +436,9 @@ export const TripSettings: React.FC = React.memo(() => {
                       <span className="font-semibold text-surface-800 dark:text-surface-200 whitespace-nowrap">
                         {dateMode === "fixed" && startDate
                           ? format(
-                              addDays(new Date(startDate + "T12:00:00"), stay.startDay),
-                              "MMM d",
-                            )
+                            addDays(new Date(startDate + "T12:00:00"), stay.startDay),
+                            "MMM d",
+                          )
                           : `Day ${stay.startDay + 1}`}
                       </span>
                       <span className="text-surface-400 font-normal">→</span>
@@ -475,9 +471,9 @@ export const TripSettings: React.FC = React.memo(() => {
                               >
                                 {dateMode === "fixed" && startDate
                                   ? format(
-                                      addDays(new Date(startDate + "T12:00:00"), val),
-                                      "MMM d",
-                                    )
+                                    addDays(new Date(startDate + "T12:00:00"), val),
+                                    "MMM d",
+                                  )
                                   : `Day ${val + 1}`}
                               </option>
                             );
@@ -678,11 +674,10 @@ export const TripSettings: React.FC = React.memo(() => {
                             key={preset}
                             type="button"
                             onClick={() => { handleArrivalChange({ buffer: preset }); setArrBufInput(String(preset)); }}
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${
-                              (arrivalFlight?.buffer ?? 30) === preset
-                                ? "bg-primary-600 text-white border-primary-600 shadow-2xs"
-                                : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700 hover:bg-surface-200 dark:hover:bg-surface-700"
-                            }`}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${(arrivalFlight?.buffer ?? 30) === preset
+                              ? "bg-primary-600 text-white border-primary-600 shadow-2xs"
+                              : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700 hover:bg-surface-200 dark:hover:bg-surface-700"
+                              }`}
                           >
                             {preset}m
                           </button>
@@ -794,11 +789,10 @@ export const TripSettings: React.FC = React.memo(() => {
                             key={preset}
                             type="button"
                             onClick={() => { handleDepartureChange({ buffer: preset }); setDepBufInput(String(preset)); }}
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${
-                              (departureFlight?.buffer ?? 90) === preset
-                                ? "bg-red-600 text-white border-red-600 shadow-2xs"
-                                : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700 hover:bg-surface-200 dark:hover:bg-surface-700"
-                            }`}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${(departureFlight?.buffer ?? 90) === preset
+                              ? "bg-red-600 text-white border-red-600 shadow-2xs"
+                              : "bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700 hover:bg-surface-200 dark:hover:bg-surface-700"
+                              }`}
                           >
                             {preset}m
                           </button>

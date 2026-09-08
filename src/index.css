@@ -7,12 +7,14 @@
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
+
   body {
     @apply antialiased text-gray-900 bg-surface-50 dark:bg-surface-900 dark:text-gray-100;
   }
 }
 
 @layer components {
+
   /* UI Elements */
   .btn-primary {
     @apply bg-primary-600 hover:bg-primary-700 disabled:bg-surface-300 dark:disabled:bg-surface-700 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl shadow-sm transition-all;
@@ -68,12 +70,15 @@
     width: 4px;
     height: 4px;
   }
+
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
     @apply bg-surface-300 dark:bg-surface-600 rounded-full;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     @apply bg-surface-400 dark:bg-surface-500;
   }
@@ -81,6 +86,7 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -89,12 +95,15 @@
   .safe-pt {
     padding-top: env(safe-area-inset-top, 0px);
   }
+
   .safe-pb {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
+
   .safe-pl {
     padding-left: env(safe-area-inset-left, 0px);
   }
+
   .safe-pr {
     padding-right: env(safe-area-inset-right, 0px);
   }
@@ -122,6 +131,7 @@
     size: auto;
     margin: 10mm;
   }
+
   body,
   html,
   #root {
