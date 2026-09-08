@@ -537,7 +537,9 @@ export const useRouteStore = create<RouteState>()(
                 state.startDate,
                 state.dayStartTime,
                 state.avoidClosedHours,
-                dayIndex === state.days - 1
+                dayIndex === state.days - 1,
+                dayIndex === 0 && state.showFlights ? state.arrivalFlight : null,
+                dayIndex === state.days - 1 && state.showFlights ? state.departureFlight : null,
               );
               if (idx >= 0) newRoutes[idx] = result;
               set({ places: newPlaces, optimizedRoutes: newRoutes, isCalculating: false });
@@ -606,7 +608,9 @@ export const useRouteStore = create<RouteState>()(
                   state.startDate,
                   state.dayStartTime,
                   state.avoidClosedHours,
-                  dayIndex === state.days - 1
+                  dayIndex === state.days - 1,
+                  dayIndex === 0 && state.showFlights ? state.arrivalFlight : null,
+                  dayIndex === state.days - 1 && state.showFlights ? state.departureFlight : null,
                 );
                 if (idx >= 0) newRoutes[idx] = result;
               }
@@ -746,7 +750,9 @@ export const useRouteStore = create<RouteState>()(
             state.startDate,
             state.dayStartTime,
             state.avoidClosedHours,
-            dayIndex === state.days - 1
+            dayIndex === state.days - 1,
+            dayIndex === 0 && state.showFlights ? state.arrivalFlight : null,
+            dayIndex === state.days - 1 && state.showFlights ? state.departureFlight : null,
           );
 
           if (idx >= 0) {
@@ -802,7 +808,9 @@ export const useRouteStore = create<RouteState>()(
               state.startDate,
               state.dayStartTime,
               state.avoidClosedHours,
-              dayIndex === state.days - 1
+              dayIndex === state.days - 1,
+              dayIndex === 0 && state.showFlights ? state.arrivalFlight : null,
+              dayIndex === state.days - 1 && state.showFlights ? state.departureFlight : null,
             );
             if (idx >= 0) newRoutes[idx] = result;
           }
@@ -901,7 +909,9 @@ export const useRouteStore = create<RouteState>()(
             state.startDate,
             state.dayStartTime,
             state.avoidClosedHours,
-            dayIndex === state.days - 1
+            dayIndex === state.days - 1,
+            dayIndex === 0 && state.showFlights ? state.arrivalFlight : null,
+            dayIndex === state.days - 1 && state.showFlights ? state.departureFlight : null,
           );
 
           const newRoutes = [...state.optimizedRoutes];
@@ -916,7 +926,14 @@ export const useRouteStore = create<RouteState>()(
           const updatedPlaces = state.places.map((p) => {
             if (p.dayIndex !== dayIndex) return p;
             const stopIdx = result.stops.findIndex((s) => s.id === p.id);
-            return stopIdx >= 0 ? { ...p, orderInDay: stopIdx } : p;
+            return stopIdx >= 0
+              ? { ...p, orderInDay: stopIdx }
+              : {
+                  ...p,
+                  dayIndex: null,
+                  orderInDay: null,
+                  unfeasibleReason: "Closed during scheduled visiting hours.",
+                };
           });
 
           set({ optimizedRoutes: newRoutes, places: updatedPlaces, isCalculating: false });
@@ -1010,7 +1027,9 @@ export const useRouteStore = create<RouteState>()(
             state.startDate,
             state.dayStartTime,
             state.avoidClosedHours,
-            dayIndex === state.days - 1
+            dayIndex === state.days - 1,
+            dayIndex === 0 && state.showFlights ? state.arrivalFlight : null,
+            dayIndex === state.days - 1 && state.showFlights ? state.departureFlight : null,
           );
 
           routes[routeIdx] = result;

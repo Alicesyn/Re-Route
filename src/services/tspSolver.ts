@@ -14,6 +14,17 @@ import { parseISO, addDays, setHours, setMinutes } from "date-fns";
 import { checkTimeConflict, getPlaceDayHours } from "../utils/timeUtils";
 
 
+export interface FlightInfo {
+  time: string;
+  buffer?: number;
+  location?: Place | null;
+}
+
+function parseTimeToMinutes(timeStr: string): number {
+  const [h, m] = timeStr.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
 // Time-budget-aware clustering
 // Distributes places across days so no single day exceeds the budget
 // Respects pinnedToDay: pinned places stay on their assigned day
@@ -29,6 +40,10 @@ function clusterPlaces(
   categoryConfigs?: Partial<Record<PlaceCategory, CategoryConfig>>,
   startDateISO: string = new Date().toISOString(),
   avoidClosedHours: boolean = true,
+  dayStartTime: string = "09:00",
+  dayEndTime: string = "21:00",
+  arrivalFlight?: FlightInfo | null,
+  departureFlight?: FlightInfo | null,
 ): Place[] {
   const pinned = places.filter((p) => p.dayIndex !== null && (p.pinnedToDay || !!p.customTime));
   const unassigned = places.filter(
@@ -36,6 +51,29 @@ function clusterPlaces(
   );
 
   if (unassigned.length === 0) return places;
+
+  // Calculate base day operating window
+  const [baseStartH, baseStartM] = dayStartTime.split(":").map(Number);
+  const [baseEndH, baseEndM] = dayEndTime.split(":").map(Number);
+  const baseDayStartMin = (baseStartH || 0) * 60 + (baseStartM || 0);
+  let baseDayEndMin = (baseEndH || 0) * 60 + (baseEndM || 0);
+  if (baseDayEndMin === 0) baseDayEndMin = 24 * 60;
+  if (baseDayEndMin < baseDayStartMin) baseDayEndMin += 24 * 60;
+
+  const dayWindows: { start: number; end: number }[] = [];
+  for (let d = 0; d < days; d++) {
+    let dStart = baseDayStartMin;
+    let dEnd = baseDayEndMin;
+    if (d === 0 && arrivalFlight) {
+      const arrMin = parseTimeToMinutes(arrivalFlight.time) + (arrivalFlight.buffer ?? 30);
+      dStart = Math.max(baseDayStartMin, arrMin);
+    }
+    if (d === days - 1 && departureFlight) {
+      const depMin = parseTimeToMinutes(departureFlight.time) - (departureFlight.buffer ?? 90);
+      dEnd = Math.min(baseDayEndMin, depMin);
+    }
+    dayWindows.push({ start: dStart, end: dEnd });
+  }
 
   // Calculate already-committed time per day from pinned places
   const dayTimeUsed: number[] = Array(days).fill(0);
@@ -137,6 +175,30 @@ function clusterPlaces(
         }
       }
 
+      // 2. Strict Avoid Closed Hours Check:
+      // If avoidClosedHours is on, NEVER assign unpinned places to days they are closed,
+      // or to days where open hours have zero/insufficient overlap with active day window.
+      if (avoidClosedHours && place.openingHours && place.openingHours.length > 0) {
+        const dayDate = addDays(parseISO(startDateISO), d);
+        const dayHours = getPlaceDayHours(place.openingHours, dayDate);
+        if (dayHours === "closed") {
+          continue; // Place is closed all day on day d
+        }
+        if (typeof dayHours === "object" && dayHours !== null) {
+          const duration = place.estimatedDuration || 60;
+          const intervals = dayHours.intervals || [{ open: dayHours.open, close: dayHours.close }];
+          const window = dayWindows[d] || { start: baseDayStartMin, end: baseDayEndMin };
+          const hasFeasibleOverlap = intervals.some((inv) => {
+            const overlapStart = Math.max(inv.open, window.start);
+            const overlapEnd = Math.min(inv.close, window.end);
+            return overlapEnd - overlapStart >= duration;
+          });
+          if (!hasFeasibleOverlap) {
+            continue; // Place operating hours cannot fit the visit duration on day d
+          }
+        }
+      }
+
       // Estimate travel time to this place from the day's hotel
       const hotel = hotels.find((h) => h.dayIndex === d);
       let travelMin = 0;
@@ -164,15 +226,6 @@ function clusterPlaces(
           }
         }
 
-        // Penalize days where this place is completely closed
-        if (avoidClosedHours && place.openingHours && place.openingHours.length > 0) {
-          const dayDate = addDays(parseISO(startDateISO), d);
-          const dayHours = getPlaceDayHours(place.openingHours, dayDate);
-          if (dayHours === "closed") {
-            score -= 100000;
-          }
-        }
-
         if (score > maxScore) {
           maxScore = score;
           bestDay = d;
@@ -197,7 +250,24 @@ function clusterPlaces(
       categoryCounts[bestDay][place.category] = (categoryCounts[bestDay][place.category] || 0) + 1;
     } else {
       place.dayIndex = null;
-      place.unfeasibleReason = "Exceeds daily time budget or category limits.";
+      let reason = "Exceeds daily time budget or category limits.";
+      if (avoidClosedHours && place.openingHours && place.openingHours.length > 0) {
+        let allClosed = true;
+        for (let d = 0; d < days; d++) {
+          const dayDate = addDays(parseISO(startDateISO), d);
+          const dayHours = getPlaceDayHours(place.openingHours, dayDate);
+          if (dayHours !== "closed") {
+            allClosed = false;
+            break;
+          }
+        }
+        if (allClosed) {
+          reason = "Closed on all trip days.";
+        } else {
+          reason = "Cannot be scheduled during open hours or exceeds daily budget.";
+        }
+      }
+      place.unfeasibleReason = reason;
       rejectedUnassigned.push(place);
     }
   }
@@ -205,11 +275,6 @@ function clusterPlaces(
   const successfullyAssigned = toAssign.filter(p => p.dayIndex !== null);
 
   return [...pinned, ...successfullyAssigned, ...rejectedUnassigned];
-}
-
-function parseTimeToMinutes(timeStr: string): number {
-  const [h, m] = timeStr.split(":").map(Number);
-  return (h || 0) * 60 + (m || 0);
 }
 
 function evaluateRouteCost(
@@ -249,6 +314,9 @@ function evaluateRouteCost(
         if (conflict.hasConflict) {
           conflicts++;
           penaltyMinutes += 60;
+        } else if (conflict.waitMinutes && conflict.waitMinutes > 0) {
+          currentTime += conflict.waitMinutes;
+          penaltyMinutes += conflict.waitMinutes;
         }
       }
 
@@ -402,15 +470,18 @@ function optimize2OptSub(
 
 // Algorithm for a single day's route, respecting locked custom reservation times and open hours
 function optimizeDayRoute(
-  startHotel: Hotel | null,
-  endHotel: Hotel | null,
+  startHotel: Hotel | Place | null,
+  endHotel: Hotel | Place | null,
   dayPlaces: Place[],
   dayStartTime: string = "09:00",
   currentDate: Date = new Date(),
   avoidClosedHours: boolean = true,
   travelMode: TravelMode = "driving",
+  startMinutesOverride?: number,
 ): Place[] {
   if (dayPlaces.length <= 1) return dayPlaces;
+
+  const baseStartMin = startMinutesOverride ?? parseTimeToMinutes(dayStartTime);
 
   // Check if any places have a custom locked time (e.g. reservations)
   const lockedPlaces = dayPlaces
@@ -422,7 +493,7 @@ function optimizeDayRoute(
       startHotel,
       endHotel,
       dayPlaces,
-      parseTimeToMinutes(dayStartTime),
+      baseStartMin,
       currentDate,
       avoidClosedHours,
       travelMode,
@@ -448,7 +519,7 @@ function optimizeDayRoute(
 
   for (let w = 0; w < numWindows; w++) {
     const wStart = w === 0
-      ? parseTimeToMinutes(dayStartTime)
+      ? baseStartMin
       : parseTimeToMinutes(lockedPlaces[w - 1].customTime!) + (lockedPlaces[w - 1].estimatedDuration || 60);
     const wEnd = w === numWindows - 1
       ? 24 * 60
@@ -548,6 +619,8 @@ function buildDayRoute(
   startDateISO: string = new Date().toISOString(),
   avoidClosedHours: boolean = true,
   isLastDay: boolean = false,
+  arrivalFlight?: FlightInfo | null,
+  _departureFlight?: FlightInfo | null,
 ): DayRoute {
   // On the last day, travelers check out in the morning, so there is no Day End / Hotel
   const endHotelRaw = (!isLastDay && (hotels.find((h) => h.dayIndex === dayIndex) || null)) || null;
@@ -567,16 +640,26 @@ function buildDayRoute(
 
   const currentDate = addDays(parseISO(startDateISO), dayIndex);
 
+  const effectiveStartAnchor = dayIndex === 0 && arrivalLoc ? arrivalLoc : startHotel;
+  const effectiveEndAnchor = isLastDay && departureLoc ? departureLoc : (isLastDay ? null : endHotel);
+
+  let startMinutes = parseTimeToMinutes(dayStartTime);
+  if (dayIndex === 0 && arrivalFlight) {
+    const arrMin = parseTimeToMinutes(arrivalFlight.time);
+    startMinutes = Math.max(startMinutes, arrMin) + (arrivalFlight.buffer ?? 30);
+  }
+
   let optimizedPlaces = manualOrder
     ? dayPlaces
     : optimizeDayRoute(
-        startHotel,
-        endHotel,
+        effectiveStartAnchor,
+        effectiveEndAnchor,
         dayPlaces,
         dayStartTime,
         currentDate,
         avoidClosedHours,
         travelMode,
+        startMinutes,
       );
 
   let dayDist = 0;
@@ -587,11 +670,11 @@ function buildDayRoute(
     ? (isLastDay ? manualSequence.filter(id => id !== "end-hotel") : manualSequence)
     : (() => {
         const defaultIds: string[] = [];
-        if (arrivalLocation) defaultIds.push("arrival");
+        if (arrivalLoc) defaultIds.push("arrival");
         if (startHotel) defaultIds.push("start-hotel");
         optimizedPlaces.forEach((p) => defaultIds.push(p.id));
         if (endHotel && !isLastDay) defaultIds.push("end-hotel");
-        if (departureLocation) defaultIds.push("departure");
+        if (departureLoc) defaultIds.push("departure");
         return defaultIds;
       })();
 
@@ -676,6 +759,125 @@ function buildDayRoute(
     totalVisitTime: dayVisitTime,
     manualSequence: isLastDay && manualSequence ? manualSequence.filter(id => id !== "end-hotel") : manualSequence,
   };
+}
+
+// Strict Closed Hours Eviction:
+// When avoidClosedHours is active, checks arrival times through the route's stop order.
+// If any unpinned / non-customTime stop arrives during closed hours, evicts it and re-runs
+// route building until zero unpinned conflicts remain.
+function evictClosedHourConflicts(
+  dayPlaces: Place[],
+  hotels: Hotel[],
+  dayIndex: number,
+  travelMode: TravelMode,
+  arrivalLocation?: Place | null,
+  departureLocation?: Place | null,
+  dayStartTime: string = "09:00",
+  startDateISO: string = new Date().toISOString(),
+  isLastDay: boolean = false,
+  arrivalFlight?: FlightInfo | null,
+  departureFlight?: FlightInfo | null,
+): { route: DayRoute; evicted: { place: Place; reason: string }[]; remainingPlaces: Place[] } {
+  let currentPlaces = [...dayPlaces];
+  const evicted: { place: Place; reason: string }[] = [];
+  const currentDate = addDays(parseISO(startDateISO), dayIndex);
+
+  const [startH, startM] = dayStartTime.split(":").map(Number);
+  let dayStartTotal = (startH || 0) * 60 + (startM || 0);
+  if (dayIndex === 0 && arrivalFlight) {
+    const arrTotal = parseTimeToMinutes(arrivalFlight.time);
+    dayStartTotal = Math.max(dayStartTotal, arrTotal) + (arrivalFlight.buffer ?? 30);
+  }
+
+  while (true) {
+    const route = buildDayRoute(
+      currentPlaces,
+      hotels,
+      dayIndex,
+      travelMode,
+      dayIndex === 0 ? arrivalLocation : null,
+      isLastDay ? departureLocation : null,
+      false,
+      undefined,
+      dayStartTime,
+      startDateISO,
+      true,
+      isLastDay,
+      dayIndex === 0 ? arrivalFlight : null,
+      isLastDay ? departureFlight : null,
+    );
+
+    // Compute arrival time at each stop exactly as DailySchedule does
+    let currTime = dayStartTotal;
+    const conflictedStops: { place: Place; reason: string }[] = [];
+
+    // Find starting point anchor
+    let prevPoint: Place | Hotel | null =
+      dayIndex === 0 && arrivalLocation
+        ? arrivalLocation
+        : hotels.find((h) => h.dayIndex === (dayIndex > 0 ? dayIndex - 1 : 0)) || null;
+
+    for (let sIdx = 0; sIdx < route.stops.length; sIdx++) {
+      const stop = route.stops[sIdx];
+      let travelMin = 0;
+      if (prevPoint && !(prevPoint.lat === 0 && prevPoint.lng === 0)) {
+        const dist = getDistance(prevPoint.lat, prevPoint.lng, stop.lat, stop.lng);
+        travelMin = Math.round(estimateTime(dist, travelMode) / 60);
+      }
+      currTime += travelMin;
+
+      const isPinnedOrCustom = stop.pinnedToDay || !!stop.customTime;
+      const conflict = checkTimeConflict(
+        currTime,
+        stop.estimatedDuration || 60,
+        stop.openingHours,
+        currentDate,
+      );
+
+      if (!isPinnedOrCustom && conflict.hasConflict) {
+        conflictedStops.push({
+          place: stop,
+          reason: conflict.reason || "Closed during visiting hours",
+        });
+      }
+
+      if (conflict.waitMinutes && conflict.waitMinutes > 0) {
+        currTime += conflict.waitMinutes;
+      }
+
+      currTime += stop.estimatedDuration || 60;
+      prevPoint = stop;
+    }
+
+    if (conflictedStops.length === 0) {
+      return { route, evicted, remainingPlaces: currentPlaces };
+    }
+
+    // Evict the last unpinned conflicted stop
+    const toEvict = conflictedStops[conflictedStops.length - 1];
+    evicted.push(toEvict);
+    currentPlaces = currentPlaces.filter((p) => p.id !== toEvict.place.id);
+
+    if (currentPlaces.length === 0) {
+      const emptyRoute = buildDayRoute(
+        [],
+        hotels,
+        dayIndex,
+        travelMode,
+        dayIndex === 0 ? arrivalLocation : null,
+        isLastDay ? departureLocation : null,
+        false,
+        undefined,
+        dayStartTime,
+        startDateISO,
+        true,
+        isLastDay,
+        dayIndex === 0 ? arrivalFlight : null,
+        isLastDay ? departureFlight : null,
+      );
+      return { route: emptyRoute, evicted, remainingPlaces: [] };
+    }
+  }
 }
 
 // Fetch accurate times using Google Maps API for a finalized DayRoute
@@ -788,21 +990,45 @@ export async function solveSingleDay(
   dayStartTime: string = "09:00",
   avoidClosedHours: boolean = true,
   isLastDay: boolean = false,
+  arrivalFlight?: FlightInfo | null,
+  departureFlight?: FlightInfo | null,
 ): Promise<DayRoute> {
-  const route = buildDayRoute(
-    dayPlaces,
-    hotels,
-    dayIndex,
-    travelMode,
-    arrivalLocation,
-    departureLocation,
-    manualOrder,
-    manualSequence,
-    dayStartTime,
-    startDateISO,
-    avoidClosedHours,
-    isLastDay,
-  );
+  let route: DayRoute;
+
+  if (avoidClosedHours && !manualOrder) {
+    const conflictResult = evictClosedHourConflicts(
+      dayPlaces,
+      hotels,
+      dayIndex,
+      travelMode,
+      arrivalLocation,
+      departureLocation,
+      dayStartTime,
+      startDateISO,
+      isLastDay,
+      arrivalFlight,
+      departureFlight,
+    );
+    route = conflictResult.route;
+  } else {
+    route = buildDayRoute(
+      dayPlaces,
+      hotels,
+      dayIndex,
+      travelMode,
+      arrivalLocation,
+      departureLocation,
+      manualOrder,
+      manualSequence,
+      dayStartTime,
+      startDateISO,
+      avoidClosedHours,
+      isLastDay,
+      arrivalFlight,
+      departureFlight,
+    );
+  }
+
   return await fetchAccurateRouteTimes(route, startDateISO, dayStartTime);
 }
 
@@ -819,6 +1045,9 @@ export async function solveTSP(
   startDateISO: string = new Date().toISOString(),
   dayStartTime: string = "09:00",
   avoidClosedHours: boolean = true,
+  arrivalFlight?: FlightInfo | null,
+  departureFlight?: FlightInfo | null,
+  dayEndTime: string = "21:00",
 ): Promise<OptimizationResult> {
   const startTime = performance.now();
 
@@ -835,6 +1064,10 @@ export async function solveTSP(
     categoryConfigs,
     startDateISO,
     avoidClosedHours,
+    dayStartTime,
+    dayEndTime,
+    arrivalFlight,
+    departureFlight,
   );
 
   // 2. Build initial routes for each day
@@ -845,20 +1078,55 @@ export async function solveTSP(
   for (let d = 0; d < days; d++) {
     const isLastDay = d === days - 1;
     let dayPlaces = clusteredPlaces.filter((p) => p.dayIndex === d);
-    let route = buildDayRoute(
-      dayPlaces,
-      hotels,
-      d,
-      travelMode,
-      d === 0 ? arrivalLocation : null,
-      isLastDay ? departureLocation : null,
-      false,
-      undefined,
-      dayStartTime,
-      startDateISO,
-      avoidClosedHours,
-      isLastDay,
-    );
+    let route: DayRoute;
+
+    // A. Post-optimization Closed Hours Conflict Eviction:
+    // If avoidClosedHours is active, strictly evict any unpinned places with conflicts
+    if (avoidClosedHours) {
+      const conflictResult = evictClosedHourConflicts(
+        dayPlaces,
+        hotels,
+        d,
+        travelMode,
+        d === 0 ? arrivalLocation : null,
+        isLastDay ? departureLocation : null,
+        dayStartTime,
+        startDateISO,
+        isLastDay,
+        d === 0 ? arrivalFlight : null,
+        isLastDay ? departureFlight : null,
+      );
+
+      route = conflictResult.route;
+      dayPlaces = conflictResult.remainingPlaces;
+
+      // Update clusteredPlaces for any evicted places so they appear in unassignedPlaces
+      for (const ev of conflictResult.evicted) {
+        const matched = clusteredPlaces.find((p) => p.id === ev.place.id);
+        if (matched) {
+          matched.dayIndex = null;
+          matched.orderInDay = null;
+          matched.unfeasibleReason = `Closed during scheduled visiting hours (${ev.reason}).`;
+        }
+      }
+    } else {
+      route = buildDayRoute(
+        dayPlaces,
+        hotels,
+        d,
+        travelMode,
+        d === 0 ? arrivalLocation : null,
+        isLastDay ? departureLocation : null,
+        false,
+        undefined,
+        dayStartTime,
+        startDateISO,
+        avoidClosedHours,
+        isLastDay,
+        d === 0 ? arrivalFlight : null,
+        isLastDay ? departureFlight : null,
+      );
+    }
 
     const limit = dailyBudgets[d];
     
@@ -899,20 +1167,48 @@ export async function solveTSP(
         dayPlaces = dayPlaces.filter((p) => p.id !== toEvict.id);
 
         // Rebuild route
-        route = buildDayRoute(
-          dayPlaces,
-          hotels,
-          d,
-          travelMode,
-          d === 0 ? arrivalLocation : null,
-          isLastDay ? departureLocation : null,
-          false,
-          undefined,
-          dayStartTime,
-          startDateISO,
-          avoidClosedHours,
-          isLastDay,
-        );
+        if (avoidClosedHours) {
+          const conflictResult = evictClosedHourConflicts(
+            dayPlaces,
+            hotels,
+            d,
+            travelMode,
+            d === 0 ? arrivalLocation : null,
+            isLastDay ? departureLocation : null,
+            dayStartTime,
+            startDateISO,
+            isLastDay,
+            d === 0 ? arrivalFlight : null,
+            isLastDay ? departureFlight : null,
+          );
+          route = conflictResult.route;
+          dayPlaces = conflictResult.remainingPlaces;
+          for (const ev of conflictResult.evicted) {
+            const m = clusteredPlaces.find((p) => p.id === ev.place.id);
+            if (m) {
+              m.dayIndex = null;
+              m.orderInDay = null;
+              m.unfeasibleReason = `Closed during scheduled visiting hours (${ev.reason}).`;
+            }
+          }
+        } else {
+          route = buildDayRoute(
+            dayPlaces,
+            hotels,
+            d,
+            travelMode,
+            d === 0 ? arrivalLocation : null,
+            isLastDay ? departureLocation : null,
+            false,
+            undefined,
+            dayStartTime,
+            startDateISO,
+            avoidClosedHours,
+            isLastDay,
+            d === 0 ? arrivalFlight : null,
+            isLastDay ? departureFlight : null,
+          );
+        }
 
         // Recalculate totalDayMin
         totalDayMin =

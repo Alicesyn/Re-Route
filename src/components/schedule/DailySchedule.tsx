@@ -89,7 +89,7 @@ interface BufferPillProps {
   label?: string;
   showLine?: boolean;
   isReservation?: boolean;
-  type?: "arrival" | "departure" | "reservation" | "custom";
+  type?: "arrival" | "departure" | "reservation" | "custom" | "wait";
   stopName?: string;
   reservationTime?: string;
   customLabel?: string;
@@ -171,14 +171,18 @@ const BufferPill: React.FC<BufferPillProps> = ({
             : "cursor-default"
             } ${isReservation
               ? "bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300"
-              : type === "custom"
-                ? "bg-amber-50/80 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200"
-                : "bg-surface-50 dark:bg-surface-800 border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300"
+              : type === "wait"
+                ? "bg-amber-50/90 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200"
+                : type === "custom"
+                  ? "bg-amber-50/80 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200"
+                  : "bg-surface-50 dark:bg-surface-800 border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300"
             }`}
-          title={isEditable ? `Click to edit buffer (${minutes}m)` : undefined}
+          title={isEditable ? `Click to edit buffer (${minutes}m)` : label || undefined}
         >
           {isReservation ? (
             <Lock className="w-3 h-3 text-purple-500 shrink-0" />
+          ) : type === "wait" ? (
+            <Clock className="w-3 h-3 text-amber-500 shrink-0" />
           ) : type === "custom" ? (
             <Timer className="w-3 h-3 text-amber-500 shrink-0" />
           ) : (
@@ -1414,24 +1418,6 @@ export const DailySchedule: React.FC = () => {
               }
             }
 
-            const visitMin = route.stops.reduce(
-              (acc, s) => acc + (s.estimatedDuration || 0),
-              0,
-            );
-            const dayCustomBuffers = customBuffers.filter((b) => b.dayIndex === i);
-            const bufferMin = dayCustomBuffers.reduce((acc, b) => acc + (b.duration || 0), 0);
-            const travelMin = Math.round(route.totalTime / 60);
-            const dayHasHeuristicTransit = route.segments.some(
-              (s) => s.travelMode === "transit" && s.isHeuristic !== false
-            );
-            const totalDayMin = visitMin + travelMin + bufferMin;
-            const remainingTime = Math.max(0, dayAvailableMinutes - totalDayMin);
-            const isOverBudget = totalDayMin > dayAvailableMinutes;
-            const budgetPct = Math.min(
-              100,
-              Math.round((totalDayMin / dayAvailableMinutes) * 100),
-            );
-
             const getDayItemSequence = (dayRoute: typeof route, dayIdx: number) => {
               let ids = dayRoute.manualSequence ? [...dayRoute.manualSequence] : [];
               const dayCustoms = customBuffers.filter((b) => b.dayIndex === dayIdx);
@@ -1478,6 +1464,57 @@ export const DailySchedule: React.FC = () => {
             };
 
             const dayItems = getDayItemSequence(route, i);
+
+            // Pre-calculate auto wait buffers for opening times and reservation gaps
+            let autoWaitBufferMin = 0;
+            let simTime = currentTime;
+            let simSegIdx = 0;
+            dayItems.forEach((itemId) => {
+              if (itemId.startsWith("custom-buffer-")) {
+                const cb = customBuffers.find((b) => b.id === itemId);
+                if (cb) simTime += cb.duration;
+              } else if (itemId !== "arrival" && itemId !== "departure" && itemId !== "start-hotel" && itemId !== "end-hotel") {
+                const stop = route.stops.find((s) => s.id === itemId);
+                if (stop) {
+                  if (stop.customTime) {
+                    const customMin = parseTimeToMinutes(stop.customTime);
+                    if (customMin > simTime) {
+                      autoWaitBufferMin += (customMin - simTime);
+                      simTime = customMin;
+                    }
+                  } else if (dateMode === "fixed") {
+                    const tc = checkTimeConflict(simTime, stop.estimatedDuration || 60, stop.openingHours, currentDate);
+                    if (tc.waitMinutes && tc.waitMinutes > 0) {
+                      autoWaitBufferMin += tc.waitMinutes;
+                      simTime += tc.waitMinutes;
+                    }
+                  }
+                  simTime += (stop.estimatedDuration || 60);
+                  if (simSegIdx < route.segments.length) {
+                    simTime += Math.round(route.segments[simSegIdx].time / 60);
+                    simSegIdx++;
+                  }
+                }
+              }
+            });
+
+            const visitMin = route.stops.reduce(
+              (acc, s) => acc + (s.estimatedDuration || 0),
+              0,
+            );
+            const dayCustomBuffers = customBuffers.filter((b) => b.dayIndex === i);
+            const bufferMin = dayCustomBuffers.reduce((acc, b) => acc + (b.duration || 0), 0) + autoWaitBufferMin;
+            const travelMin = Math.round(route.totalTime / 60);
+            const dayHasHeuristicTransit = route.segments.some(
+              (s) => s.travelMode === "transit" && s.isHeuristic !== false
+            );
+            const totalDayMin = visitMin + travelMin + bufferMin;
+            const remainingTime = Math.max(0, dayAvailableMinutes - totalDayMin);
+            const isOverBudget = totalDayMin > dayAvailableMinutes;
+            const budgetPct = Math.min(
+              100,
+              Math.round((totalDayMin / dayAvailableMinutes) * 100),
+            );
 
             return (
               <div
@@ -1672,15 +1709,6 @@ export const DailySchedule: React.FC = () => {
                               ? `${Math.floor(travelMin / 60)}h ${travelMin % 60}m`
                               : `${travelMin}m`}
                           </span>
-                          {dayHasHeuristicTransit && (
-                            <span
-                              className="inline-flex items-center gap-0.5 text-[9px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 border border-amber-300 dark:border-amber-700/80 px-1 py-0.2 rounded"
-                              title="Day travel duration contains heuristic transit estimates"
-                            >
-                              <AlertTriangle className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
-                              <span>~Heuristic</span>
-                            </span>
-                          )}
                         </span>
                         {bufferMin > 0 && (
                           <span className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800/50">
@@ -1882,6 +1910,31 @@ export const DailySchedule: React.FC = () => {
                                         />
                                       );
                                       currentTime = customMin;
+                                      stopArrivalTime = customMin;
+                                    }
+                                  } else if (dateMode === "fixed") {
+                                    const timeCheck = checkTimeConflict(
+                                      currentTime,
+                                      stop.estimatedDuration || 60,
+                                      stop.openingHours,
+                                      currentDate
+                                    );
+                                    if (timeCheck.waitMinutes && timeCheck.waitMinutes > 0) {
+                                      const waitMin = timeCheck.waitMinutes;
+                                      const openTimeFormatted = formatTime(currentTime + waitMin);
+                                      preBufferPill = (
+                                        <BufferPill
+                                          key={`wait-buffer-${stop.id}`}
+                                          minutes={waitMin}
+                                          startTime={currentTime}
+                                          label={`${waitMin} min wait until opening (${openTimeFormatted})`}
+                                          showLine={!isFirst}
+                                          type="wait"
+                                          stopName={stop.name}
+                                        />
+                                      );
+                                      currentTime += waitMin;
+                                      stopArrivalTime = currentTime;
                                     }
                                   }
 

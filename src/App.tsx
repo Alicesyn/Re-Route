@@ -188,6 +188,9 @@ function App() {
         startDate,
         dayStartTime,
         avoidClosedHours,
+        showFlights ? arrivalFlight : null,
+        showFlights ? departureFlight : null,
+        dayEndTime,
       );
 
       if (result.success) {

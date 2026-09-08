@@ -76,56 +76,81 @@ export const getPlaceDayHours = (
   }
 };
 
+export interface TimeConflictResult {
+  hasConflict: boolean;
+  reason?: string;
+  waitMinutes?: number;
+  effectiveStartTime?: number;
+}
+
 /**
  * Checks if a given arrival time and duration fit within the opening hours for a specific day.
+ * If arriving before a venue opens (or during a break before the next opening),
+ * calculates the necessary wait buffer so the visit starts when the venue opens,
+ * rather than flagging a false conflict.
  */
 export const checkTimeConflict = (
   arrivalTimeMinutes: number,
   durationMinutes: number,
   openingHours: string[] | undefined,
   date: Date
-): { hasConflict: boolean; reason?: string } => {
+): TimeConflictResult => {
   if (!openingHours || !Array.isArray(openingHours) || openingHours.length === 0)
-    return { hasConflict: false };
-  if (!date || isNaN(new Date(date).getTime())) return { hasConflict: false };
+    return { hasConflict: false, waitMinutes: 0, effectiveStartTime: arrivalTimeMinutes };
+  if (!date || isNaN(new Date(date).getTime()))
+    return { hasConflict: false, waitMinutes: 0, effectiveStartTime: arrivalTimeMinutes };
 
   try {
     const parsed = getPlaceDayHours(openingHours, date);
 
-    if (!parsed) return { hasConflict: false };
+    if (!parsed) return { hasConflict: false, waitMinutes: 0, effectiveStartTime: arrivalTimeMinutes };
 
     if (parsed === "closed") {
       return { hasConflict: true, reason: "Closed today" };
     }
     if (parsed === "24hours") {
-      return { hasConflict: false };
+      return { hasConflict: false, waitMinutes: 0, effectiveStartTime: arrivalTimeMinutes };
     }
+
+    const intervals = (parsed.intervals || [{ open: parsed.open, close: parsed.close }])
+      .slice()
+      .sort((a, b) => a.open - b.open);
 
     const departureTimeMinutes = arrivalTimeMinutes + durationMinutes;
 
-    // Check if visit completely fits within at least one open interval
-    const intervals = parsed.intervals || [{ open: parsed.open, close: parsed.close }];
+    // 1. Check if visit completely fits within at least one open interval without waiting
     const fitsInAnyInterval = intervals.some(
       (inv) => arrivalTimeMinutes >= inv.open && departureTimeMinutes <= inv.close
     );
 
     if (fitsInAnyInterval) {
-      return { hasConflict: false };
+      return { hasConflict: false, waitMinutes: 0, effectiveStartTime: arrivalTimeMinutes };
     }
 
-    const earliestOpen = Math.min(...intervals.map((i) => i.open));
+    // 2. If arriving before an opening time (either in morning or during midday break),
+    // wait until the venue opens! Simply insert a wait buffer until opening.
+    const candidateInterval = intervals.find(
+      (inv) => arrivalTimeMinutes < inv.open && inv.open + durationMinutes <= inv.close
+    );
+
+    if (candidateInterval) {
+      const waitMinutes = candidateInterval.open - arrivalTimeMinutes;
+      return {
+        hasConflict: false,
+        waitMinutes,
+        effectiveStartTime: candidateInterval.open,
+      };
+    }
+
+    // 3. If arrival is after all intervals close, or visit exceeds latest closing time
     const latestClose = Math.max(...intervals.map((i) => i.close));
-
-    if (arrivalTimeMinutes < earliestOpen) {
-      return { hasConflict: true, reason: "Arriving before opening time" };
-    }
-
-    if (departureTimeMinutes > latestClose) {
+    if (departureTimeMinutes > latestClose || arrivalTimeMinutes >= latestClose) {
       return { hasConflict: true, reason: "Leaving after closing time" };
     }
 
-    return { hasConflict: true, reason: "Closed during midday break" };
+    return { hasConflict: true, reason: "Closed during scheduled visiting hours" };
   } catch {
-    return { hasConflict: false };
+    return { hasConflict: false, waitMinutes: 0, effectiveStartTime: arrivalTimeMinutes };
   }
 };
+
