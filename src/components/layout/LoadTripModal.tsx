@@ -9,6 +9,7 @@ import {
   Download,
   Upload,
   FileJson,
+  FileSpreadsheet,
   Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -23,11 +24,18 @@ export const LoadTripModal: React.FC<LoadTripModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { savedTrips, loadTrip, deleteTrip, exportTripAsJson, importTripFromJson } =
-    useRouteStore();
+  const {
+    savedTrips,
+    loadTrip,
+    deleteTrip,
+    exportTripAsJson,
+    exportTripAsExcel,
+    importTripFromJson,
+  } = useRouteStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [exportingTripId, setExportingTripId] = useState<string | null>(null);
+  const [exportingExcelTripId, setExportingExcelTripId] = useState<string | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -70,6 +78,21 @@ export const LoadTripModal: React.FC<LoadTripModalProps> = ({
       toast.error(err?.message || "Failed to export trip", "Export Error");
     } finally {
       setExportingTripId(null);
+    }
+  };
+
+  const handleExportTripExcel = async (e: React.MouseEvent, trip: any) => {
+    e.stopPropagation();
+    if (exportingExcelTripId) return;
+    setExportingExcelTripId(trip.id);
+    try {
+      await new Promise((r) => setTimeout(r, 150));
+      await exportTripAsExcel(trip.id);
+      toast.success(`Exported "${trip.title}" to Excel spreadsheet.`, "Export Complete");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to export Excel file", "Export Error");
+    } finally {
+      setExportingExcelTripId(null);
     }
   };
 
@@ -205,6 +228,18 @@ export const LoadTripModal: React.FC<LoadTripModalProps> = ({
 
                       {/* Action buttons on card */}
                       <div className="absolute right-3 bottom-3 flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => handleExportTripExcel(e, trip)}
+                          disabled={exportingExcelTripId === trip.id}
+                          className="p-1.5 text-surface-500 hover:text-emerald-600 hover:bg-surface-100 dark:hover:bg-surface-700 rounded-lg transition-colors disabled:opacity-75"
+                          title="Export trip as Excel spreadsheet (.xlsx)"
+                        >
+                          {exportingExcelTripId === trip.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
+                          ) : (
+                            <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                          )}
+                        </button>
                         <button
                           onClick={(e) => handleExportTrip(e, trip)}
                           disabled={exportingTripId === trip.id}

@@ -148,6 +148,7 @@ interface RouteState extends ModeData {
   deleteTrip: (id: string) => void;
   applyTripSnapshot: (snapshot: ItinerarySnapshot) => void;
   exportTripAsJson: (tripId?: string) => void;
+  exportTripAsExcel: (tripId?: string) => Promise<void>;
   importTripFromJson: (jsonString: string) => { success: boolean; error?: string; tripTitle?: string };
   resetTrip: () => void;
 }
@@ -1217,6 +1218,48 @@ export const useRouteStore = create<RouteState>()(
         a.download = `RE-ROUTE_${sanitizedTitle}_${dateStr}.json`;
         a.click();
         URL.revokeObjectURL(url);
+      },
+
+      exportTripAsExcel: async (tripId?: string) => {
+        const state = get();
+        let tripToExport: ItinerarySnapshot;
+        if (tripId) {
+          const found = state.savedTrips.find((t) => t.id === tripId);
+          if (!found) return;
+          tripToExport = found;
+        } else {
+          tripToExport = {
+            id: `trip_${Date.now()}`,
+            title: state.title,
+            days: state.days,
+            startDate: state.startDate,
+            endDate: state.endDate,
+            dateMode: state.dateMode,
+            dayStartTime: state.dayStartTime,
+            dayEndTime: state.dayEndTime,
+            showFlights: state.showFlights,
+            arrivalFlight: state.arrivalFlight,
+            departureFlight: state.departureFlight,
+            travelMode: state.travelMode,
+            dailyBudget: state.dailyBudget,
+            strictBudget: state.strictBudget,
+            avoidClosedHours: state.avoidClosedHours,
+            places: state.places,
+            hotels: state.hotels,
+            missingPlaces: state.missingPlaces,
+            categoryDurations: state.categoryDurations,
+            categoryConfigs: state.categoryConfigs,
+            customBuffers: state.customBuffers,
+            optimizedRoutes: state.optimizedRoutes,
+            savedAt: Date.now(),
+          };
+        }
+
+        const { exportTripToExcel } = await import("../services/excelExportService");
+        await exportTripToExcel(tripToExport, {
+          distanceUnit: state.distanceUnit,
+          timeFormat: state.timeFormat,
+        });
       },
 
       importTripFromJson: (jsonString: string) => {

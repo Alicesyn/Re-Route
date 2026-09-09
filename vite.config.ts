@@ -32,6 +32,9 @@ export default defineConfig({
             if (id.includes("xlsx") || id.includes("papaparse")) {
               return "vendor-parsers";
             }
+            if (id.includes("exceljs")) {
+              return "vendor-excel";
+            }
           }
         },
       },

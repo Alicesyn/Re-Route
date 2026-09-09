@@ -12,6 +12,7 @@ import {
   Settings,
   ChevronDown,
   FileJson,
+  FileSpreadsheet,
   Loader2,
   Activity,
   Key,
@@ -47,6 +48,7 @@ export const Header: React.FC = React.memo(() => {
   const setTitle = useRouteStore((s) => s.setTitle);
   const saveTrip = useRouteStore((s) => s.saveTrip);
   const exportTripAsJson = useRouteStore((s) => s.exportTripAsJson);
+  const exportTripAsExcel = useRouteStore((s) => s.exportTripAsExcel);
 
 
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -55,8 +57,23 @@ export const Header: React.FC = React.memo(() => {
   const [isApiBudgetOpen, setIsApiBudgetOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isResetOpen, setIsResetOpen] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const exportMenuRef = React.useRef<HTMLDivElement>(null);
+
+  // Close export dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setIsExportMenuOpen(false);
+      }
+    };
+    if (isExportMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isExportMenuOpen]);
 
   // Sync #about and #about-limitations URL hash
   React.useEffect(() => {
@@ -111,7 +128,23 @@ export const Header: React.FC = React.memo(() => {
   };
 
   const [isExporting, setIsExporting] = useState(false);
-  const [exportingType, setExportingType] = useState<"json" | "txt" | "names" | null>(null);
+  const [exportingType, setExportingType] = useState<"json" | "excel" | "txt" | "names" | null>(null);
+
+  const handleExportTripExcel = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    setExportingType("excel");
+    try {
+      await new Promise((r) => setTimeout(r, 150));
+      await exportTripAsExcel();
+      toast.success(`Exported "${title || "Trip"}" to Excel spreadsheet.`, "Export Complete");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to export Excel spreadsheet", "Export Error");
+    } finally {
+      setIsExporting(false);
+      setExportingType(null);
+    }
+  };
 
   const handleExportTripJson = async () => {
     if (isExporting) return;
@@ -337,11 +370,14 @@ export const Header: React.FC = React.memo(() => {
           <Upload className="w-4 h-4" /> <span className="hidden sm:inline">Import</span>
         </button>
 
-        <div className="relative group">
+        <div className="relative" ref={exportMenuRef}>
           <button
-            onClick={handleExportTripJson}
+            onClick={() => setIsExportMenuOpen((prev) => !prev)}
             disabled={isExporting}
             className="btn-secondary flex items-center gap-1.5 py-1.5 px-3 text-xs sm:text-sm disabled:opacity-75 transition-all"
+            aria-haspopup="true"
+            aria-expanded={isExportMenuOpen}
+            title="Choose export format"
           >
             {isExporting ? (
               <>
@@ -352,71 +388,111 @@ export const Header: React.FC = React.memo(() => {
               <>
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Export</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
+                <ChevronDown className={`w-3.5 h-3.5 opacity-60 ml-0.5 transition-transform duration-200 ${isExportMenuOpen ? "rotate-180" : ""}`} />
               </>
             )}
           </button>
 
-          {/* Dropdown for export formats on hover */}
-          <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden flex flex-col">
-            <button
-              onClick={handleExportTripJson}
-              disabled={isExporting}
-              className="w-full text-left px-4 py-3 text-sm text-surface-800 dark:text-surface-100 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-primary-600 dark:hover:text-primary-400 flex items-start gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 disabled:opacity-50"
-            >
-              {exportingType === "json" ? (
-                <Loader2 className="w-4 h-4 shrink-0 mt-0.5 text-primary-500 animate-spin" />
-              ) : (
-                <FileJson className="w-4 h-4 shrink-0 mt-0.5 text-primary-500" />
-              )}
-              <div>
-                <div className="font-semibold flex items-center gap-1.5">
-                  Export Entire Trip (.json)
-                  <span className="text-[9px] font-bold bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300 px-1.5 py-0.5 rounded border border-primary-200 dark:border-primary-700/60">
-                    Full
-                  </span>
+          {/* Dropdown for export formats on click */}
+          {isExportMenuOpen && (
+            <div className="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col animate-in fade-in slide-in-from-top-1 duration-150">
+              <button
+                onClick={() => {
+                  setIsExportMenuOpen(false);
+                  handleExportTripExcel();
+                }}
+                disabled={isExporting}
+                className="w-full text-left px-4 py-3 text-sm text-surface-800 dark:text-surface-100 hover:bg-emerald-50/70 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-start gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 disabled:opacity-50"
+              >
+                {exportingType === "excel" ? (
+                  <Loader2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
+                )}
+                <div>
+                  <div className="font-semibold flex items-center gap-1.5">
+                    Export to Excel (.xlsx)
+                    <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-700/60">
+                      Aesthetic
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-surface-500 dark:text-surface-400">
+                    Multi-sheet itinerary, overview & places catalog
+                  </div>
                 </div>
-                <div className="text-[11px] text-surface-500 dark:text-surface-400">
-                  PTVs, Stay, Schedule, Flights & Settings
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsExportMenuOpen(false);
+                  handleExportTripJson();
+                }}
+                disabled={isExporting}
+                className="w-full text-left px-4 py-3 text-sm text-surface-800 dark:text-surface-100 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-primary-600 dark:hover:text-primary-400 flex items-start gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 disabled:opacity-50"
+              >
+                {exportingType === "json" ? (
+                  <Loader2 className="w-4 h-4 shrink-0 mt-0.5 text-primary-500 animate-spin" />
+                ) : (
+                  <FileJson className="w-4 h-4 shrink-0 mt-0.5 text-primary-500" />
+                )}
+                <div>
+                  <div className="font-semibold flex items-center gap-1.5">
+                    Export Entire Trip (.json)
+                    <span className="text-[9px] font-bold bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300 px-1.5 py-0.5 rounded border border-primary-200 dark:border-primary-700/60">
+                      Full
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-surface-500 dark:text-surface-400">
+                    PTVs, Stay, Schedule, Flights & Settings
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
 
-            <button
-              onClick={() => window.print()}
-              disabled={isExporting}
-              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium disabled:opacity-50"
-            >
-              <Download className="w-4 h-4 shrink-0 text-surface-400" />
-              Export PDF / Print
-            </button>
+              <button
+                onClick={() => {
+                  setIsExportMenuOpen(false);
+                  window.print();
+                }}
+                disabled={isExporting}
+                className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium disabled:opacity-50"
+              >
+                <Download className="w-4 h-4 shrink-0 text-surface-400" />
+                Export PDF / Print
+              </button>
 
-            <button
-              onClick={handleExportTxt}
-              disabled={isExporting}
-              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium disabled:opacity-50"
-            >
-              {exportingType === "txt" ? (
-                <Loader2 className="w-4 h-4 shrink-0 text-primary-500 animate-spin" />
-              ) : (
-                <FileText className="w-4 h-4 shrink-0 text-surface-400" />
-              )}
-              Export Text (Full Details)
-            </button>
+              <button
+                onClick={() => {
+                  setIsExportMenuOpen(false);
+                  handleExportTxt();
+                }}
+                disabled={isExporting}
+                className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors border-b border-surface-100 dark:border-surface-700 font-medium disabled:opacity-50"
+              >
+                {exportingType === "txt" ? (
+                  <Loader2 className="w-4 h-4 shrink-0 text-primary-500 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4 shrink-0 text-surface-400" />
+                )}
+                Export Text (Full Details)
+              </button>
 
-            <button
-              onClick={handleExportNamesTxt}
-              disabled={isExporting}
-              className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors font-medium disabled:opacity-50"
-            >
-              {exportingType === "names" ? (
-                <Loader2 className="w-4 h-4 shrink-0 text-primary-500 animate-spin" />
-              ) : (
-                <List className="w-4 h-4 shrink-0 text-surface-400" />
-              )}
-              Export Place Names List
-            </button>
-          </div>
+              <button
+                onClick={() => {
+                  setIsExportMenuOpen(false);
+                  handleExportNamesTxt();
+                }}
+                disabled={isExporting}
+                className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-white flex items-center gap-3 transition-colors font-medium disabled:opacity-50"
+              >
+                {exportingType === "names" ? (
+                  <Loader2 className="w-4 h-4 shrink-0 text-primary-500 animate-spin" />
+                ) : (
+                  <List className="w-4 h-4 shrink-0 text-surface-400" />
+                )}
+                Export Place Names List
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
